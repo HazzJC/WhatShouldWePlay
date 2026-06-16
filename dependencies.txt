@@ -1,0 +1,13 @@
+# Tool dependencies for testing Let's Play Games locally.
+# Format:
+#   kind|name|command|winget_id|required|notes
+#
+# kind values:
+#   tool = checked with Get-Command and optionally installed with winget
+#   npm  = installed with npm install from package-lock.json/package.json
+#
+tool|Node.js|node|OpenJS.NodeJS.LTS|yes|Required to run Next.js, Prisma, and Vitest.
+tool|Git|git|Git.Git|yes|Required for normal repo workflows.
+tool|PostgreSQL 17|psql|PostgreSQL.PostgreSQL.17|yes|Required for database-backed session creation and Prisma migrations.
+tool|Docker Desktop|docker|Docker.DockerDesktop|no|Optional alternative for running Postgres in a container.
+npm|Project npm packages|npm||yes|Installs Next.js, React, Prisma, Tailwind, Vitest, and test libraries.

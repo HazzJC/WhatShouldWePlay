@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SessionMode {
+  ONLINE
+  IN_PERSON
+}
+
+enum AvailabilityStatus {
+  AVAILABLE
+  MAYBE
+  UNAVAILABLE
+}
+
+model Session {
+  id                  String        @id @default(cuid())
+  shareToken          String        @unique
+  title               String
+  mode                SessionMode
+  requiredDuration    Int
+  minimumPlayerCount  Int           @map("requiredPlayerCount")
+  dateRangeStart      DateTime
+  dateRangeEnd        DateTime
+  dailyStartHour      Int
+  dailyEndHour        Int
+  weekendStartHour    Int?
+  weekendEndHour      Int?
+  timezone            String
+  discordChannel      String?
+  reminderPreferences Json
+  lockedStartTime     DateTime?
+  lockedEndTime       DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  participants        Participant[]
+}
+
+model Participant {
+  id        String                 @id @default(cuid())
+  sessionId String
+  session   Session                @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  name      String
+  isHost    Boolean                @default(false)
+  createdAt DateTime               @default(now())
+  responses AvailabilityResponse[]
+
+  @@index([sessionId])
+}
+
+model AvailabilityResponse {
+  id            String             @id @default(cuid())
+  participantId String
+  participant   Participant        @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  slotStart     DateTime
+  slotEnd       DateTime
+  status        AvailabilityStatus
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@unique([participantId, slotStart])
+  @@index([slotStart])
+}

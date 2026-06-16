@@ -1,0 +1,514 @@
+LET'S PLAY GAMES - SIMPLE SETUP GUIDE
+====================================
+
+This guide explains how to install the app, test it, and share a working link
+with friends.
+
+The important thing to know:
+
+- http://localhost:3000 only works on your own computer.
+- Friends need a public internet link.
+- For a reliable public link, deploy the app online.
+- For a quick temporary test, use a tunnel from your computer.
+
+
+WHAT YOU NEED
+=============
+
+You need:
+
+1. A Windows computer.
+2. This project folder.
+3. An internet connection.
+4. A free GitHub account if you want to deploy using Vercel.
+5. A free hosted Postgres database account if you want friends to use it online.
+
+This project uses:
+
+- Node.js: runs the app.
+- npm: installs app packages.
+- PostgreSQL: stores sessions and availability responses.
+- Prisma: creates and updates the database tables.
+- Next.js: runs the website.
+
+
+PART 1 - INSTALL THE TOOLS
+==========================
+
+1. Open PowerShell.
+
+   On Windows:
+
+   - Press Start.
+   - Type "PowerShell".
+   - Open "Windows PowerShell".
+
+2. Go to the project folder.
+
+   Run:
+
+   cd "C:\Users\Harry\Documents\WhatShouldWePlay"
+
+3. Check which tools are already installed.
+
+   Run:
+
+   powershell -ExecutionPolicy Bypass -File scripts/check-dependencies.ps1
+
+4. Install missing required tools.
+
+   Run:
+
+   powershell -ExecutionPolicy Bypass -File scripts/check-dependencies.ps1 -InstallMissing
+
+   This will install required tools listed in dependencies.txt.
+
+5. Close PowerShell and reopen it.
+
+   This helps Windows notice newly installed tools like PostgreSQL.
+
+6. Go back to the project folder again.
+
+   Run:
+
+   cd "C:\Users\Harry\Documents\WhatShouldWePlay"
+
+
+PART 2 - INSTALL APP PACKAGES
+=============================
+
+1. Install the app packages.
+
+   Run:
+
+   npm install
+
+2. Set up the local database.
+
+   Run:
+
+   npm run db:setup
+
+   This creates:
+
+   - a local PostgreSQL database called lets_play_games
+   - a .env file
+   - the database tables used by the app
+
+3. Check everything works.
+
+   Run:
+
+   npm run test:all
+
+   This checks:
+
+   - code style
+   - tests
+   - database migration
+   - production build
+
+   If it finishes without an error, the app is set up correctly.
+
+
+PART 3 - RUN LOCALLY ON YOUR OWN COMPUTER
+=========================================
+
+1. Start the app.
+
+   Run:
+
+   npm run dev
+
+2. Open the app in your browser.
+
+   Go to:
+
+   http://localhost:3000
+
+3. Create a test game night.
+
+   - Click "Plan a game night".
+   - Fill in the form.
+   - Click "Create share link".
+
+4. Important:
+
+   The share link will look like:
+
+   http://localhost:3000/s/some-long-code
+
+   That link only works on your computer.
+
+   Do not send a localhost link to friends unless they are using your computer.
+
+
+PART 4 - SHARE WITH FRIENDS PROPERLY
+====================================
+
+The best way to share with friends is to deploy the app online.
+
+Recommended simple setup:
+
+- Vercel for the website.
+- A hosted PostgreSQL database such as Neon, Supabase, Railway, or Vercel Postgres.
+
+The app needs two environment variables online:
+
+DATABASE_URL
+NEXT_PUBLIC_APP_URL
+
+DATABASE_URL is the connection string for the online Postgres database.
+NEXT_PUBLIC_APP_URL is the public website address.
+
+
+OPTION A - DEPLOY ONLINE WITH VERCEL
+===================================
+
+This is the best option if you want a link that keeps working.
+
+Step A1 - Put the project on GitHub
+----------------------------------
+
+1. Create a GitHub account if you do not have one.
+
+2. Create a new GitHub repository.
+
+   Suggested name:
+
+   lets-play-games
+
+3. In PowerShell, from this project folder, run:
+
+   git add .
+   git commit -m "Initial game night planner"
+   git branch -M main
+   git remote add origin YOUR_GITHUB_REPOSITORY_URL
+   git push -u origin main
+
+   Replace YOUR_GITHUB_REPOSITORY_URL with the URL GitHub gives you.
+
+
+Step A2 - Create an online Postgres database
+-------------------------------------------
+
+Use a hosted Postgres provider such as Neon, Supabase, Railway, or Vercel Postgres.
+
+You need to create a Postgres database and copy its connection string.
+
+The connection string usually looks like:
+
+postgresql://username:password@host/database?sslmode=require
+
+Keep this private. Do not paste it into Discord or commit it to GitHub.
+
+
+Step A3 - Deploy the website on Vercel
+-------------------------------------
+
+1. Create a Vercel account.
+
+2. In Vercel, choose "Add New Project".
+
+3. Import your GitHub repository.
+
+4. When Vercel asks for environment variables, add:
+
+   DATABASE_URL
+
+   Paste your hosted Postgres connection string as the value.
+
+5. Also add:
+
+   NEXT_PUBLIC_APP_URL
+
+   For the first deploy, you can temporarily use the Vercel URL after it is created.
+
+   Example:
+
+   https://lets-play-games.vercel.app
+
+6. Deploy the project.
+
+
+Step A4 - Create the online database tables
+------------------------------------------
+
+Vercel builds the app, but the database still needs its tables.
+
+From PowerShell on your computer:
+
+1. Temporarily set DATABASE_URL to the hosted database URL.
+
+   Run this, replacing the example URL:
+
+   $env:DATABASE_URL="postgresql://username:password@host/database?sslmode=require"
+
+2. Apply migrations to the online database.
+
+   Run:
+
+   npx prisma migrate deploy
+
+3. If the command succeeds, the online database is ready.
+
+
+Step A5 - Fix NEXT_PUBLIC_APP_URL if needed
+------------------------------------------
+
+1. Go to your Vercel project settings.
+
+2. Open Environment Variables.
+
+3. Make sure NEXT_PUBLIC_APP_URL is exactly your public site URL.
+
+   Example:
+
+   https://lets-play-games.vercel.app
+
+4. Redeploy the app if you changed this value.
+
+This matters because the app uses this URL when creating share links and calendar files.
+
+
+Step A6 - Test the public link
+-----------------------------
+
+1. Open your public website.
+
+   Example:
+
+   https://lets-play-games.vercel.app
+
+2. Create a game night.
+
+3. Copy the session link.
+
+4. Send it to your phone or a friend.
+
+5. They should be able to:
+
+   - open the link
+   - enter their name
+   - mark availability
+   - save availability
+
+If that works, the app is ready to use.
+
+
+OPTION B - TEMPORARY SHARING FROM YOUR COMPUTER
+===============================================
+
+Use this if you want to test with friends quickly and do not want to deploy yet.
+
+This is less reliable because:
+
+- your computer must stay on
+- the terminal must stay running
+- the tunnel link may change
+- it is not ideal for long-term use
+
+You need a tunneling tool such as ngrok or Cloudflare Tunnel.
+
+The idea is:
+
+your computer -> tunnel service -> public link for friends
+
+
+Step B1 - Start the app locally
+------------------------------
+
+Run:
+
+npm run dev -- --hostname 0.0.0.0 --port 3000
+
+Keep this PowerShell window open.
+
+
+Step B2 - Start your tunnel
+---------------------------
+
+Follow the setup instructions for your chosen tunnel tool.
+
+Point the tunnel at:
+
+http://localhost:3000
+
+The tunnel tool will give you a public URL.
+
+It may look like:
+
+https://something-random.ngrok-free.app
+
+
+Step B3 - Update NEXT_PUBLIC_APP_URL
+-----------------------------------
+
+Open the .env file in this project folder.
+
+Set:
+
+NEXT_PUBLIC_APP_URL="https://your-tunnel-url"
+
+Example:
+
+NEXT_PUBLIC_APP_URL="https://something-random.ngrok-free.app"
+
+Then stop and restart the app:
+
+1. Press Ctrl + C in the running app terminal.
+2. Run:
+
+   npm run dev -- --hostname 0.0.0.0 --port 3000
+
+
+Step B4 - Share the tunnel link
+-------------------------------
+
+Open the tunnel URL in your browser.
+
+Create a game night.
+
+Send the session link to friends.
+
+Remember:
+
+- the app only works while your computer is on
+- the app only works while PostgreSQL is running
+- the app only works while npm run dev is running
+- the app only works while the tunnel is running
+
+
+COMMON PROBLEMS
+===============
+
+Problem:
+Friends cannot open the link.
+
+Likely cause:
+You sent a localhost link.
+
+Fix:
+Use a deployed URL or tunnel URL instead.
+
+
+Problem:
+Creating a session fails.
+
+Likely cause:
+The database is not set up or DATABASE_URL is wrong.
+
+Fix:
+For local use, run:
+
+npm run db:setup
+
+For deployed use, check DATABASE_URL in your hosting provider.
+
+
+Problem:
+Vercel deploys, but creating sessions fails.
+
+Likely cause:
+The online database tables have not been created.
+
+Fix:
+Run:
+
+$env:DATABASE_URL="your hosted database URL"
+npx prisma migrate deploy
+
+
+Problem:
+Share links or calendar links use the wrong website URL.
+
+Likely cause:
+NEXT_PUBLIC_APP_URL is wrong.
+
+Fix:
+Set NEXT_PUBLIC_APP_URL to the exact public website URL and restart or redeploy.
+
+
+Problem:
+PowerShell says a command is not recognised.
+
+Likely cause:
+The tool was installed but PowerShell has not refreshed.
+
+Fix:
+Close PowerShell, open it again, and retry the command.
+
+
+Problem:
+Prisma says a file is locked on Windows.
+
+Likely cause:
+The dev server is still running while Prisma is trying to regenerate files.
+
+Fix:
+Stop the app with Ctrl + C, then rerun the command.
+
+
+USEFUL COMMANDS
+===============
+
+Install project packages:
+
+npm install
+
+Install missing tools:
+
+powershell -ExecutionPolicy Bypass -File scripts/check-dependencies.ps1 -InstallMissing
+
+Set up local database:
+
+npm run db:setup
+
+Run local app:
+
+npm run dev
+
+Run all checks:
+
+npm run test:all
+
+Apply migrations to a production database:
+
+npx prisma migrate deploy
+
+
+WHAT TO SEND TO FRIENDS
+=======================
+
+Send the session link from the public site.
+
+Good:
+
+https://lets-play-games.vercel.app/s/some-long-code
+
+Good:
+
+https://your-tunnel-url/s/some-long-code
+
+Bad:
+
+http://localhost:3000/s/some-long-code
+
+localhost means "my own computer", so your friends cannot use it.
+
+
+QUICK CHECKLIST
+===============
+
+Before sharing with friends:
+
+[ ] The app opens in your browser.
+[ ] The app uses a public URL, not localhost.
+[ ] DATABASE_URL is set.
+[ ] NEXT_PUBLIC_APP_URL is set to the public URL.
+[ ] Database migrations have been applied.
+[ ] You can create a session.
+[ ] You can open the session link in a different browser or on your phone.
+[ ] A test guest can save availability.
+
+If all of those are true, you are ready to share it.
