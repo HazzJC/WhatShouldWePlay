@@ -9,14 +9,22 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#15161a",
-        paper: "#f8f7f2",
-        moss: "#4f6f52",
-        ember: "#c9542c",
-        tide: "#2f6f8f",
+        ink: "#171514",
+        paper: "#fff9ef",
+        linen: "#f5ead8",
+        coral: "#d95d39",
+        coralDark: "#b84427",
+        teal: "#157a7b",
+        tealDark: "#0f5f63",
+        gold: "#e5aa2f",
+        moss: "#3f7a57",
+        slate: "#334155",
+        ember: "#d95d39",
+        tide: "#157a7b",
       },
       boxShadow: {
-        soft: "0 18px 60px rgba(21, 22, 26, 0.10)",
+        soft: "0 18px 48px rgba(23, 21, 20, 0.10)",
+        card: "0 10px 30px rgba(23, 21, 20, 0.08)",
       },
     },
   },
