@@ -13,7 +13,7 @@ export type SteamRecentlyPlayedGame = {
 
 const steamOpenIdEndpoint = "https://steamcommunity.com/openid/login";
 const steamClaimedIdPrefix = "https://steamcommunity.com/openid/id/";
-const steamApiBase = "https://partner.steam-api.com";
+const steamApiBase = "https://api.steampowered.com";
 
 export function extractSteamIdFromClaimedId(claimedId: string | null) {
   if (!claimedId?.startsWith(steamClaimedIdPrefix)) {
