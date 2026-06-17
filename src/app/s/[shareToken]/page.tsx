@@ -5,6 +5,7 @@ import { CalendarCheck, Download, Gamepad2, Lock, UsersRound } from "lucide-reac
 import { lockSessionAction, submitAvailabilityAction } from "@/app/actions";
 import { AvailabilityForm } from "@/components/availability-form";
 import { CopyLinkButton } from "@/components/copy-link-button";
+import { RecommendationsDisclosure } from "@/components/recommendations-disclosure";
 import { getAppUrl } from "@/lib/app-url";
 import { prisma } from "@/lib/prisma";
 import {
@@ -100,6 +101,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     return groups;
   }, []);
   const currentParticipant = session.participants.find((participant) => participant.id === participantId);
+  const isCurrentHost = currentParticipant?.isHost === true;
   const currentResponses = responseMap(currentParticipant?.responses ?? []);
   const bestTimes = rankBestTimes(session, participantAvailability).slice(0, 5);
   const maybeTimes = rankMaybeTimes(session, participantAvailability).slice(0, 5);
@@ -195,14 +197,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
 
       <section className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="grid gap-5">
-          <section className="surface rounded-xl p-5">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <p className="text-sm font-black uppercase tracking-[0.14em] text-moss">Recommendations</p>
-                <h2 className="mt-1 text-2xl font-black text-ink">Times worth locking</h2>
-              </div>
-              <p className="text-sm font-bold text-ink/60">Available first, maybes second</p>
-            </div>
+          <RecommendationsDisclosure isCurrentHost={isCurrentHost} needsMoreSubmissions={needsMoreSubmissions}>
             <div className={`mt-5 grid gap-4 ${needsMoreSubmissions ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
               <RecommendationList
                 title="Available"
@@ -235,7 +230,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
                 />
               ) : null}
             </div>
-          </section>
+          </RecommendationsDisclosure>
 
           <AvailabilityForm
             action={submitAvailabilityAction}
