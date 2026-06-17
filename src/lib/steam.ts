@@ -61,7 +61,7 @@ export async function verifySteamOpenIdCallback(searchParams: URLSearchParams) {
 
 export async function getOwnedSteamGames(steamId: string, apiKey = process.env.STEAM_WEB_API_KEY) {
   if (!apiKey) {
-    return { games: [] as SteamOwnedGame[], status: "missing_key" };
+    return getOwnedSteamGamesFromCommunityXml(steamId, "missing_key_xml");
   }
 
   const url = new URL("/IPlayerService/GetOwnedGames/v1/", steamApiBase);
@@ -75,11 +75,11 @@ export async function getOwnedSteamGames(steamId: string, apiKey = process.env.S
   try {
     response = await fetch(url, { cache: "no-store" });
   } catch {
-    return { games: [] as SteamOwnedGame[], status: "network_error" };
+    return getOwnedSteamGamesFromCommunityXml(steamId, "network_error_xml");
   }
 
   if (!response.ok) {
-    return { games: [] as SteamOwnedGame[], status: `http_${response.status}` };
+    return getOwnedSteamGamesFromCommunityXml(steamId, `http_${response.status}_xml`);
   }
 
   let payload: { response?: { games?: SteamOwnedGame[]; game_count?: number } };
@@ -93,6 +93,30 @@ export async function getOwnedSteamGames(steamId: string, apiKey = process.env.S
   const games = payload.response?.games ?? [];
 
   return { games, status: games.length > 0 ? `imported:${games.length}` : "private_or_empty" };
+}
+
+export async function getOwnedSteamGamesFromCommunityXml(steamId: string, statusPrefix = "xml") {
+  const url = `https://steamcommunity.com/profiles/${steamId}/games?tab=all&xml=1`;
+
+  let response: Response;
+
+  try {
+    response = await fetch(url, { cache: "no-store" });
+  } catch {
+    return { games: [] as SteamOwnedGame[], status: `${statusPrefix}_network_error` };
+  }
+
+  if (!response.ok) {
+    return { games: [] as SteamOwnedGame[], status: `${statusPrefix}_http_${response.status}` };
+  }
+
+  const xml = await response.text();
+  const games = parseSteamCommunityGamesXml(xml);
+
+  return {
+    games,
+    status: games.length > 0 ? `${statusPrefix}_imported:${games.length}` : `${statusPrefix}_private_or_empty`,
+  };
 }
 
 export async function getRecentlyPlayedSteamGames(steamId: string, apiKey = process.env.STEAM_WEB_API_KEY) {
@@ -113,4 +137,41 @@ export async function getRecentlyPlayedSteamGames(steamId: string, apiKey = proc
 
   const payload = (await response.json()) as { response?: { games?: SteamRecentlyPlayedGame[] } };
   return payload.response?.games ?? [];
+}
+
+export function parseSteamCommunityGamesXml(xml: string): SteamOwnedGame[] {
+  const gameBlocks = xml.match(/<game>[\s\S]*?<\/game>/g) ?? [];
+  const games: SteamOwnedGame[] = [];
+
+  for (const block of gameBlocks) {
+    const appid = Number(readXmlTag(block, "appID"));
+    const name = decodeXml(readXmlTag(block, "name") ?? "");
+    const hoursOnRecord = Number(readXmlTag(block, "hoursOnRecord") ?? "0");
+
+    if (!appid || !name) {
+      continue;
+    }
+
+    games.push({
+      appid,
+      name,
+      playtime_forever: Number.isFinite(hoursOnRecord) ? Math.round(hoursOnRecord * 60) : 0,
+    });
+  }
+
+  return games;
+}
+
+function readXmlTag(xml: string, tag: string) {
+  const match = xml.match(new RegExp(`<${tag}>\\s*(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?\\s*<\\/${tag}>`));
+  return match?.[1]?.trim() ?? null;
+}
+
+function decodeXml(value: string) {
+  return value
+    .replaceAll("&amp;", "&")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&apos;", "'");
 }

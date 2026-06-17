@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import type { FormEvent } from "react";
 import { Check, ChevronLeft, ChevronRight, HelpCircle, X, type LucideIcon } from "lucide-react";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import type { AvailabilityStatus } from "@/lib/scheduling";
 
 type SlotView = {
@@ -191,7 +192,9 @@ export function AvailabilityForm({
               {filledCount}/{allSlotKeys.length} times filled
             </p>
           </div>
-          <button className="primary-button">Save availability</button>
+          <PendingSubmitButton className="primary-button" pendingLabel="Saving...">
+            Save availability
+          </PendingSubmitButton>
         </div>
       </div>
 
@@ -317,7 +320,9 @@ export function AvailabilityForm({
 
       <div className="sticky bottom-0 z-20 flex items-center justify-between gap-3 border-t border-ink/10 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
         <p className="text-sm font-black text-ink">{completionPercent}% done</p>
-        <button className="primary-button px-5 py-3">Save</button>
+        <PendingSubmitButton className="primary-button px-5 py-3" pendingLabel="Saving...">
+          Save
+        </PendingSubmitButton>
       </div>
     </form>
   );

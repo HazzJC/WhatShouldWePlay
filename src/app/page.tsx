@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { CalendarDays, CheckCircle2, Clock3, Gamepad2, Share2, UsersRound } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock3, Gamepad2, ListChecks, Share2, UsersRound } from "lucide-react";
 
 export default function Home() {
   return (
@@ -12,11 +12,18 @@ export default function Home() {
           </span>
           Let&apos;s Play Games
         </Link>
-        <Link href="/sessions/new" className="primary-button">
-          <CalendarDays className="h-4 w-4" />
-          <span className="hidden sm:inline">Plan a game night</span>
-          <span className="sm:hidden">Plan</span>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/sessions/pick" className="secondary-button">
+            <Gamepad2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Pick games</span>
+            <span className="sm:hidden">Pick</span>
+          </Link>
+          <Link href="/sessions/new" className="primary-button">
+            <CalendarDays className="h-4 w-4" />
+            <span className="hidden sm:inline">Plan a game night</span>
+            <span className="sm:hidden">Plan</span>
+          </Link>
+        </div>
       </nav>
 
       <section className="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[0.92fr_1.08fr] lg:py-12">
@@ -31,10 +38,14 @@ export default function Home() {
             Find the time, pick the crew, and get a game night locked without chasing everyone
             across chat.
           </p>
-          <div className="mt-7 flex flex-wrap gap-3">
+          <div className="mt-7 grid gap-3 sm:grid-cols-2">
             <Link href="/sessions/new" className="primary-button px-5 py-3 text-base">
               <CalendarDays className="h-5 w-5" />
               Plan a game night
+            </Link>
+            <Link href="/sessions/pick" className="secondary-button px-5 py-3 text-base">
+              <ListChecks className="h-5 w-5" />
+              Pick games first
             </Link>
           </div>
 

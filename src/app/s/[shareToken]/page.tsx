@@ -6,12 +6,14 @@ import { lockSessionAction, submitAvailabilityAction } from "@/app/actions";
 import { AvailabilityForm } from "@/components/availability-form";
 import { CopyLinkButton } from "@/components/copy-link-button";
 import { PickPanel } from "@/components/pick-panel";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { RecommendationsDisclosure } from "@/components/recommendations-disclosure";
 import { SessionTabs } from "@/components/session-tabs";
 import { getAppUrl } from "@/lib/app-url";
 import { getCurrentUser } from "@/lib/auth";
-import { commonMultiplayerGames, rankSessionGames } from "@/lib/games";
+import { commonMultiplayerGames, excludeExistingGames, rankSessionGames } from "@/lib/games";
 import { getPopularIgdbGames, getTrendingIgdbGames, mapIgdbGame, searchIgdbGames } from "@/lib/igdb";
+import { scoreSessionGames, type ScoreMode } from "@/lib/match-scoring";
 import { prisma } from "@/lib/prisma";
 import {
   type BestTime,
@@ -24,10 +26,18 @@ import {
   rankMaybeTimes,
   responseMap,
 } from "@/lib/scheduling";
+import { refreshSteamStorePrices } from "@/lib/steam-store";
 
 type PageProps = {
   params: Promise<{ shareToken: string }>;
-  searchParams: Promise<{ participant?: string; tab?: string; gameSearch?: string }>;
+  searchParams: Promise<{
+    participant?: string;
+    tab?: string;
+    gameSearch?: string;
+    scoreMode?: string;
+    playerCount?: string;
+    selectedParticipants?: string | string[];
+  }>;
 };
 
 type RecommendationTime = BestTime & {
@@ -36,14 +46,19 @@ type RecommendationTime = BestTime & {
 
 export default async function SessionPage({ params, searchParams }: PageProps) {
   const { shareToken } = await params;
-  const { participant: participantId, tab, gameSearch } = await searchParams;
+  const { participant: participantId, tab, gameSearch, scoreMode, playerCount, selectedParticipants } = await searchParams;
   const activeTab = tab === "pick" ? "pick" : "plan";
+  const activeScoreMode = parseScoreMode(scoreMode);
   const session = await prisma.session.findUnique({
     where: { shareToken },
     include: {
       participants: {
         orderBy: [{ isHost: "desc" }, { createdAt: "asc" }],
-        include: { responses: true },
+        include: {
+          responses: true,
+          preference: true,
+          user: { include: { preference: true } },
+        },
       },
     },
   });
@@ -139,22 +154,74 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const responseTotal = session.participants.reduce((total, participant) => total + participant.responses.length, 0);
   const possibleResponses = Math.max(session.participants.length * slots.length, 1);
   const responsePercent = Math.round((responseTotal / possibleResponses) * 100);
+  const selectedParticipantIds = normalizeSelectedParticipants(selectedParticipants, session.participants.map((participant) => participant.id));
+  const selectedPlayerCount = Math.max(1, Number(playerCount ?? session.minimumPlayerCount) || session.minimumPlayerCount);
+  const [initialSessionGames, searchResults, popularGames, trendingGames] =
+    activeTab === "pick"
+      ? await Promise.all([
+          prisma.sessionGame.findMany({
+            where: { sessionId: session.id },
+            include: {
+              game: { include: { steamStorePrice: true } },
+              signals: true,
+              interests: true,
+            },
+          }),
+          gameSearch ? searchIgdbGames(gameSearch).then((games) => games.map(mapIgdbGame)) : Promise.resolve([]),
+          getPopularIgdbGames().then((games) => games.map(mapIgdbGame)),
+          getTrendingIgdbGames().then((games) => games.map(mapIgdbGame)),
+        ])
+      : [[], [], [], []];
+  if (activeTab === "pick") {
+    await refreshSteamStorePrices(initialSessionGames.map((sessionGame) => sessionGame.gameId));
+  }
   const sessionGames =
     activeTab === "pick"
       ? rankSessionGames(
           await prisma.sessionGame.findMany({
             where: { sessionId: session.id },
             include: {
-              game: true,
+              game: { include: { steamStorePrice: true } },
               signals: true,
+              interests: true,
             },
           }),
         )
       : [];
-  const searchResults =
-    activeTab === "pick" && gameSearch ? (await searchIgdbGames(gameSearch)).map(mapIgdbGame) : [];
-  const popularGames = activeTab === "pick" ? (await getPopularIgdbGames()).map(mapIgdbGame) : [];
-  const trendingGames = activeTab === "pick" ? (await getTrendingIgdbGames()).map(mapIgdbGame) : [];
+  const participantUserIds = session.participants
+    .map((participant) => participant.userId)
+    .filter((userId): userId is string => Boolean(userId));
+  const userGames =
+    activeTab === "pick"
+      ? await prisma.userGame.findMany({
+          where: {
+            userId: { in: participantUserIds },
+            gameId: { in: sessionGames.map((sessionGame) => sessionGame.gameId) },
+          },
+        })
+      : [];
+  const scoredGames =
+    activeTab === "pick"
+      ? scoreSessionGames({
+          sessionGames,
+          participants: session.participants,
+          userGames,
+          selectedParticipantIds,
+          playerCount: selectedPlayerCount,
+          mode: activeScoreMode,
+        })
+      : [];
+  const commonGames =
+    activeTab === "pick"
+      ? excludeExistingGames(
+          commonMultiplayerGames,
+          sessionGames.map((sessionGame) => sessionGame.game),
+        )
+      : commonMultiplayerGames;
+  const currentParticipantHasPickSignals =
+    activeTab === "pick" && currentParticipant
+      ? sessionGames.some((sessionGame) => sessionGame.signals.some((signal) => signal.participantId === currentParticipant.id))
+      : false;
 
   return (
     <main className="ui-shell">
@@ -229,8 +296,14 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           searchResults={searchResults}
           popularGames={popularGames}
           trendingGames={trendingGames}
-          commonGames={commonMultiplayerGames}
+          commonGames={commonGames}
           searchQuery={gameSearch ?? ""}
+          currentParticipantHasPickSignals={currentParticipantHasPickSignals}
+          participants={session.participants}
+          selectedParticipantIds={selectedParticipantIds}
+          selectedPlayerCount={selectedPlayerCount}
+          scoreMode={activeScoreMode}
+          scoredGames={scoredGames}
         />
       ) : (
       <section className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -329,6 +402,25 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   );
 }
 
+function parseScoreMode(value?: string): ScoreMode {
+  if (value === "coop" || value === "backlog" || value === "cheap" || value === "familiar" || value === "fresh") {
+    return value;
+  }
+
+  return "balanced";
+}
+
+function normalizeSelectedParticipants(value: string | string[] | undefined, fallback: string[]) {
+  if (!value) {
+    return fallback;
+  }
+
+  const values = Array.isArray(value) ? value : value.split(",");
+  const selected = values.flatMap((candidate) => candidate.split(",")).filter(Boolean);
+
+  return selected.length > 0 ? selected : fallback;
+}
+
 function RecommendationList({
   title,
   empty,
@@ -385,9 +477,12 @@ function RecommendationList({
                 <input type="hidden" name="shareToken" value={shareToken} />
                 <input type="hidden" name="startsAt" value={time.startsAt.toISOString()} />
                 <input type="hidden" name="endsAt" value={time.endsAt.toISOString()} />
-                <button className={`focus-ring w-full rounded-md px-3 py-2 text-sm font-black transition ${buttonClass}`}>
+                <PendingSubmitButton
+                  className={`focus-ring inline-flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-black transition disabled:cursor-wait disabled:opacity-75 ${buttonClass}`}
+                  pendingLabel="Locking..."
+                >
                   {tone === "shortfall" ? "Lock anyway" : "Lock this time"}
-                </button>
+                </PendingSubmitButton>
               </form>
             </div>
           ))

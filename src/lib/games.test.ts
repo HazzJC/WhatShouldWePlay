@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeGameTitle, rankSessionGames } from "@/lib/games";
+import { countHaveSignals, defaultAddedGameSignal, excludeExistingGames, normalizeGameTitle, rankSessionGames } from "@/lib/games";
 
 describe("game helpers", () => {
   it("normalizes titles for manual game matching", () => {
@@ -21,6 +21,23 @@ describe("game helpers", () => {
     ]);
 
     expect(ranked[0].game.title).toBe("Shared Owned");
+  });
+
+  it("treats legacy available-to-play signals as have", () => {
+    expect(countHaveSignals({ signals: [{ signal: "AVAILABLE_TO_PLAY" }, { signal: "OWNED" }] })).toBe(2);
+  });
+
+  it("defaults added games to owned", () => {
+    expect(defaultAddedGameSignal).toBe("OWNED");
+  });
+
+  it("excludes games already present in the session", () => {
+    expect(
+      excludeExistingGames(
+        [{ title: "Minecraft" }, { title: "Valorant" }],
+        [{ normalizedTitle: "minecraft" }],
+      ),
+    ).toEqual([{ title: "Valorant" }]);
   });
 });
 

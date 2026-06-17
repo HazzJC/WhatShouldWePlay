@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, Bell, CalendarPlus, Clock3, Gamepad2, UsersRound } from "lucide-react";
 import { createSessionAction } from "@/app/actions";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 
 const defaultTimezone = "Europe/London";
 const hours = Array.from({ length: 24 }, (_, hour) => hour);
@@ -133,10 +134,10 @@ export default function NewSessionPage() {
           </Panel>
 
           <div className="sticky bottom-0 z-20 -mx-4 border-t border-ink/10 bg-paper/95 p-4 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0">
-            <button type="submit" className="primary-button w-full py-3 text-base sm:w-auto">
+            <PendingSubmitButton className="primary-button w-full py-3 text-base sm:w-auto" pendingLabel="Creating...">
               <CalendarPlus className="h-5 w-5" />
               Create share link
-            </button>
+            </PendingSubmitButton>
           </div>
         </div>
       </form>

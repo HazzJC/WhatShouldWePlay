@@ -84,6 +84,7 @@ export async function getCurrentUser() {
       user: {
         include: {
           steamAccount: true,
+          preference: true,
         },
       },
     },

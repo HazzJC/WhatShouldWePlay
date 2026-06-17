@@ -12,23 +12,37 @@ export type GameInput = {
   platforms?: string[];
   gameModes?: string[];
   popularityScore?: number | null;
+  minPlayers?: number | null;
+  maxPlayers?: number | null;
+  onlineCoop?: boolean | null;
+  localCoop?: boolean | null;
+  capabilitySource?: string | null;
+  capabilityConfidence?: number | null;
 };
 
+export const defaultAddedGameSignal = "OWNED";
+
 export const commonMultiplayerGames: GameInput[] = [
-  { title: "Minecraft", platforms: ["PC", "Xbox", "PlayStation", "Switch", "Mobile"], gameModes: ["Multiplayer"] },
-  { title: "League of Legends", platforms: ["PC"], gameModes: ["Multiplayer"] },
-  { title: "Valorant", platforms: ["PC", "Console"], gameModes: ["Multiplayer"] },
-  { title: "Fortnite", platforms: ["PC", "Xbox", "PlayStation", "Switch", "Mobile"], gameModes: ["Multiplayer"] },
-  { title: "Roblox", platforms: ["PC", "Xbox", "PlayStation", "Mobile"], gameModes: ["Multiplayer"] },
-  { title: "World of Warcraft", platforms: ["PC"], gameModes: ["Massively Multiplayer"] },
-  { title: "Final Fantasy XIV", platforms: ["PC", "PlayStation", "Xbox"], gameModes: ["Massively Multiplayer"] },
-  { title: "Sea of Thieves", platforms: ["Game Pass", "Steam", "Xbox", "PlayStation"], gameModes: ["Co-op"] },
-  { title: "Rocket League", platforms: ["Epic Games Store", "PC", "Xbox", "PlayStation", "Switch"], gameModes: ["Multiplayer"] },
-  { title: "Among Us", platforms: ["PC", "Mobile", "Console"], gameModes: ["Multiplayer"] },
+  { title: "Minecraft", platforms: ["PC", "Xbox", "PlayStation", "Switch", "Mobile"], gameModes: ["Multiplayer", "Co-op"], minPlayers: 1, maxPlayers: 8, onlineCoop: true, localCoop: true, capabilitySource: "curated", capabilityConfidence: 0.8 },
+  { title: "League of Legends", platforms: ["PC"], gameModes: ["Multiplayer"], minPlayers: 2, maxPlayers: 5, onlineCoop: false, localCoop: false, capabilitySource: "curated", capabilityConfidence: 0.8 },
+  { title: "Valorant", platforms: ["PC", "Console"], gameModes: ["Multiplayer"], minPlayers: 2, maxPlayers: 5, onlineCoop: false, localCoop: false, capabilitySource: "curated", capabilityConfidence: 0.8 },
+  { title: "Fortnite", platforms: ["PC", "Xbox", "PlayStation", "Switch", "Mobile"], gameModes: ["Multiplayer", "Co-op"], minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: false, capabilitySource: "curated", capabilityConfidence: 0.75 },
+  { title: "Roblox", platforms: ["PC", "Xbox", "PlayStation", "Mobile"], gameModes: ["Multiplayer"], minPlayers: 1, maxPlayers: 8, onlineCoop: true, localCoop: false, capabilitySource: "curated", capabilityConfidence: 0.7 },
+  { title: "World of Warcraft", platforms: ["PC"], gameModes: ["Massively Multiplayer", "Co-op"], minPlayers: 1, maxPlayers: 5, onlineCoop: true, localCoop: false, capabilitySource: "curated", capabilityConfidence: 0.8 },
+  { title: "Final Fantasy XIV", platforms: ["PC", "PlayStation", "Xbox"], gameModes: ["Massively Multiplayer", "Co-op"], minPlayers: 1, maxPlayers: 8, onlineCoop: true, localCoop: false, capabilitySource: "curated", capabilityConfidence: 0.8 },
+  { title: "Sea of Thieves", platforms: ["Game Pass", "Steam", "Xbox", "PlayStation"], gameModes: ["Co-op"], minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: false, capabilitySource: "curated", capabilityConfidence: 0.85 },
+  { title: "Rocket League", platforms: ["Epic Games Store", "PC", "Xbox", "PlayStation", "Switch"], gameModes: ["Multiplayer", "Co-op"], minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: true, capabilitySource: "curated", capabilityConfidence: 0.8 },
+  { title: "Among Us", platforms: ["PC", "Mobile", "Console"], gameModes: ["Multiplayer"], minPlayers: 4, maxPlayers: 15, onlineCoop: true, localCoop: true, capabilitySource: "curated", capabilityConfidence: 0.8 },
 ];
 
 export function normalizeGameTitle(title: string) {
   return title.trim().toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+export function excludeExistingGames(games: GameInput[], existingGames: Array<{ normalizedTitle: string }>) {
+  const existingTitles = new Set(existingGames.map((game) => game.normalizedTitle));
+
+  return games.filter((game) => !existingTitles.has(normalizeGameTitle(game.title)));
 }
 
 export async function upsertGame(input: GameInput) {
@@ -67,7 +81,7 @@ export async function addGameToSession({
   participantId,
   userId,
   source,
-  signal = "AVAILABLE_TO_PLAY",
+  signal = defaultAddedGameSignal,
 }: {
   sessionId: string;
   gameId: string;
@@ -146,18 +160,11 @@ export function rankSessionGames<
   },
 >(sessionGames: T[]) {
   return [...sessionGames].sort((a, b) => {
-    const aOwned = countSignals(a, "OWNED");
-    const bOwned = countSignals(b, "OWNED");
+    const aOwned = countHaveSignals(a);
+    const bOwned = countHaveSignals(b);
 
     if (bOwned !== aOwned) {
       return bOwned - aOwned;
-    }
-
-    const aAvailable = countSignals(a, "AVAILABLE_TO_PLAY");
-    const bAvailable = countSignals(b, "AVAILABLE_TO_PLAY");
-
-    if (bAvailable !== aAvailable) {
-      return bAvailable - aAvailable;
     }
 
     const aPopularity = a.game.popularityScore ?? 0;
@@ -171,8 +178,16 @@ export function rankSessionGames<
   });
 }
 
-function countSignals(sessionGame: { signals: Array<{ signal: string }> }, signal: string) {
-  return sessionGame.signals.filter((candidate) => candidate.signal === signal).length;
+export function countHaveSignals(sessionGame: { signals: Array<{ signal: string }> }) {
+  return sessionGame.signals.filter((candidate) => candidate.signal === "OWNED" || candidate.signal === "AVAILABLE_TO_PLAY").length;
+}
+
+export function countDontHaveSignals(sessionGame: { signals: Array<{ signal: string }> }) {
+  return sessionGame.signals.filter((candidate) => candidate.signal === "NOT_AVAILABLE").length;
+}
+
+export function signalMeansHave(signal?: string | null) {
+  return signal === "OWNED" || signal === "AVAILABLE_TO_PLAY";
 }
 
 function gameInputToData(input: GameInput) {
@@ -187,5 +202,63 @@ function gameInputToData(input: GameInput) {
     platforms: input.platforms ?? [],
     gameModes: input.gameModes ?? [],
     popularityScore: input.popularityScore ?? null,
+    minPlayers: input.minPlayers ?? null,
+    maxPlayers: input.maxPlayers ?? inferMaxPlayers(input),
+    onlineCoop: input.onlineCoop ?? inferOnlineCoop(input),
+    localCoop: input.localCoop ?? inferLocalCoop(input),
+    capabilitySource: input.capabilitySource ?? inferCapabilitySource(input),
+    capabilityConfidence: input.capabilityConfidence ?? inferCapabilityConfidence(input),
   };
+}
+
+function inferOnlineCoop(input: GameInput) {
+  const modes = (input.gameModes ?? []).join(" ").toLocaleLowerCase();
+  return modes.includes("co-op") || modes.includes("cooperative") || modes.includes("multiplayer") || modes.includes("massively");
+}
+
+function inferLocalCoop(input: GameInput) {
+  const modes = (input.gameModes ?? []).join(" ").toLocaleLowerCase();
+  return modes.includes("split screen") || modes.includes("local");
+}
+
+function inferMaxPlayers(input: GameInput) {
+  const modes = (input.gameModes ?? []).join(" ").toLocaleLowerCase();
+
+  if (modes.includes("massively")) {
+    return 8;
+  }
+
+  if (modes.includes("multiplayer") || modes.includes("co-op")) {
+    return 4;
+  }
+
+  return null;
+}
+
+function inferCapabilitySource(input: GameInput) {
+  if (input.capabilitySource) {
+    return input.capabilitySource;
+  }
+
+  if ((input.gameModes?.length ?? 0) > 0) {
+    return "metadata";
+  }
+
+  return null;
+}
+
+function inferCapabilityConfidence(input: GameInput) {
+  if (input.capabilityConfidence !== undefined) {
+    return input.capabilityConfidence;
+  }
+
+  if (input.capabilitySource === "curated") {
+    return 0.8;
+  }
+
+  if ((input.gameModes?.length ?? 0) > 0) {
+    return 0.45;
+  }
+
+  return null;
 }

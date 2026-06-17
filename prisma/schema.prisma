@@ -40,6 +40,12 @@ enum SessionGameSignalType {
   NOT_AVAILABLE
 }
 
+enum GameInterestSignal {
+  WANT_TO_PLAY
+  NEUTRAL
+  NOT_TONIGHT
+}
+
 model Session {
   id                  String        @id @default(cuid())
   shareToken          String        @unique
@@ -76,6 +82,8 @@ model Participant {
   responses AvailabilityResponse[]
   addedGames SessionGame[]
   gameSignals SessionGameSignal[]
+  gameInterests SessionGameInterest[]
+  preference ParticipantPreference?
 
   @@index([sessionId])
   @@index([userId])
@@ -105,6 +113,39 @@ model User {
   games         UserGame[]
   sessionGames  SessionGame[]
   participants  Participant[]
+  preference    UserPreference?
+}
+
+model UserPreference {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familiarVsNew         Int      @default(50)
+  coOpVsCompetitive     Int      @default(75)
+  priceImportance       Int      @default(50)
+  genreImportance       Int      @default(50)
+  ownershipImportance   Int      @default(75)
+  backlogImportance     Int      @default(50)
+  shortVsLong           Int      @default(50)
+  chillVsIntense        Int      @default(50)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model ParticipantPreference {
+  id                    String      @id @default(cuid())
+  participantId         String      @unique
+  participant           Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  familiarVsNew         Int         @default(50)
+  coOpVsCompetitive     Int         @default(75)
+  priceImportance       Int         @default(50)
+  genreImportance       Int         @default(50)
+  ownershipImportance   Int         @default(75)
+  backlogImportance     Int         @default(50)
+  shortVsLong           Int         @default(50)
+  chillVsIntense        Int         @default(50)
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
 }
 
 model UserSession {
@@ -144,12 +185,36 @@ model Game {
   platforms       Json          @default("[]")
   gameModes       Json          @default("[]")
   popularityScore Float?
+  minPlayers      Int?
+  maxPlayers      Int?
+  onlineCoop      Boolean?
+  localCoop       Boolean?
+  capabilitySource String?
+  capabilityConfidence Float?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   userGames       UserGame[]
   sessionGames    SessionGame[]
+  steamStorePrice SteamStorePrice?
 
   @@index([normalizedTitle])
+}
+
+model SteamStorePrice {
+  id              String   @id @default(cuid())
+  gameId          String   @unique
+  game            Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  steamAppId      Int      @unique
+  currency        String?
+  initialPrice    Int?
+  finalPrice      Int?
+  discountPercent Int?
+  status          String
+  fetchedAt       DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([fetchedAt])
 }
 
 model UserGame {
@@ -183,6 +248,7 @@ model SessionGame {
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
   signals              SessionGameSignal[]
+  interests            SessionGameInterest[]
 
   @@unique([sessionId, gameId])
   @@index([gameId])
@@ -199,6 +265,20 @@ model SessionGameSignal {
   signal          SessionGameSignalType
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
+
+  @@unique([sessionGameId, participantId])
+  @@index([participantId])
+}
+
+model SessionGameInterest {
+  id              String             @id @default(cuid())
+  sessionGameId   String
+  sessionGame     SessionGame        @relation(fields: [sessionGameId], references: [id], onDelete: Cascade)
+  participantId   String
+  participant     Participant        @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  interest        GameInterestSignal
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 
   @@unique([sessionGameId, participantId])
   @@index([participantId])
