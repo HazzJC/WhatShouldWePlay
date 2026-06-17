@@ -18,6 +18,28 @@ enum AvailabilityStatus {
   UNAVAILABLE
 }
 
+enum UserGameSource {
+  STEAM
+  MANUAL
+  IGDB
+}
+
+enum SessionGameSource {
+  STEAM_MATCH
+  MANUAL
+  IGDB_SEARCH
+  POPULAR
+  TRENDING
+  COMMON
+  FRIEND_ADDED
+}
+
+enum SessionGameSignalType {
+  OWNED
+  AVAILABLE_TO_PLAY
+  NOT_AVAILABLE
+}
+
 model Session {
   id                  String        @id @default(cuid())
   shareToken          String        @unique
@@ -39,18 +61,24 @@ model Session {
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
   participants        Participant[]
+  games               SessionGame[]
 }
 
 model Participant {
   id        String                 @id @default(cuid())
   sessionId String
   session   Session                @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
   name      String
   isHost    Boolean                @default(false)
   createdAt DateTime               @default(now())
   responses AvailabilityResponse[]
+  addedGames SessionGame[]
+  gameSignals SessionGameSignal[]
 
   @@index([sessionId])
+  @@index([userId])
 }
 
 model AvailabilityResponse {
@@ -65,4 +93,113 @@ model AvailabilityResponse {
 
   @@unique([participantId, slotStart])
   @@index([slotStart])
+}
+
+model User {
+  id            String         @id @default(cuid())
+  displayName   String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  sessions      UserSession[]
+  steamAccount  SteamAccount?
+  games         UserGame[]
+  sessionGames  SessionGame[]
+  participants  Participant[]
+}
+
+model UserSession {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model SteamAccount {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  steamId          String    @unique
+  personaName      String?
+  avatarUrl        String?
+  lastImportAt     DateTime?
+  lastImportStatus String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model Game {
+  id              String        @id @default(cuid())
+  title           String
+  normalizedTitle String
+  steamAppId      Int?          @unique
+  igdbId          Int?          @unique
+  coverUrl        String?
+  summary         String?
+  genres          Json          @default("[]")
+  platforms       Json          @default("[]")
+  gameModes       Json          @default("[]")
+  popularityScore Float?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  userGames       UserGame[]
+  sessionGames    SessionGame[]
+
+  @@index([normalizedTitle])
+}
+
+model UserGame {
+  id               String         @id @default(cuid())
+  userId           String
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameId           String
+  game             Game           @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  source           UserGameSource
+  playtimeMinutes  Int?
+  recentlyPlayedAt DateTime?
+  lastImportedAt   DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([userId, gameId])
+  @@index([gameId])
+}
+
+model SessionGame {
+  id                   String              @id @default(cuid())
+  sessionId            String
+  session              Session             @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  gameId               String
+  game                 Game                @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  addedByParticipantId String?
+  addedByParticipant   Participant?        @relation(fields: [addedByParticipantId], references: [id], onDelete: SetNull)
+  addedByUserId        String?
+  addedByUser          User?               @relation(fields: [addedByUserId], references: [id], onDelete: SetNull)
+  source               SessionGameSource
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  signals              SessionGameSignal[]
+
+  @@unique([sessionId, gameId])
+  @@index([gameId])
+  @@index([addedByParticipantId])
+  @@index([addedByUserId])
+}
+
+model SessionGameSignal {
+  id              String                @id @default(cuid())
+  sessionGameId   String
+  sessionGame     SessionGame           @relation(fields: [sessionGameId], references: [id], onDelete: Cascade)
+  participantId   String
+  participant     Participant           @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  signal          SessionGameSignalType
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@unique([sessionGameId, participantId])
+  @@index([participantId])
 }

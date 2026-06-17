@@ -5,8 +5,13 @@ import { CalendarCheck, Download, Gamepad2, Lock, UsersRound } from "lucide-reac
 import { lockSessionAction, submitAvailabilityAction } from "@/app/actions";
 import { AvailabilityForm } from "@/components/availability-form";
 import { CopyLinkButton } from "@/components/copy-link-button";
+import { PickPanel } from "@/components/pick-panel";
 import { RecommendationsDisclosure } from "@/components/recommendations-disclosure";
+import { SessionTabs } from "@/components/session-tabs";
 import { getAppUrl } from "@/lib/app-url";
+import { getCurrentUser } from "@/lib/auth";
+import { commonMultiplayerGames, rankSessionGames } from "@/lib/games";
+import { getPopularIgdbGames, getTrendingIgdbGames, mapIgdbGame, searchIgdbGames } from "@/lib/igdb";
 import { prisma } from "@/lib/prisma";
 import {
   type BestTime,
@@ -22,7 +27,7 @@ import {
 
 type PageProps = {
   params: Promise<{ shareToken: string }>;
-  searchParams: Promise<{ participant?: string }>;
+  searchParams: Promise<{ participant?: string; tab?: string; gameSearch?: string }>;
 };
 
 type RecommendationTime = BestTime & {
@@ -31,7 +36,8 @@ type RecommendationTime = BestTime & {
 
 export default async function SessionPage({ params, searchParams }: PageProps) {
   const { shareToken } = await params;
-  const { participant: participantId } = await searchParams;
+  const { participant: participantId, tab, gameSearch } = await searchParams;
+  const activeTab = tab === "pick" ? "pick" : "plan";
   const session = await prisma.session.findUnique({
     where: { shareToken },
     include: {
@@ -103,6 +109,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const currentParticipant = session.participants.find((participant) => participant.id === participantId);
   const isCurrentHost = currentParticipant?.isHost === true;
   const currentResponses = responseMap(currentParticipant?.responses ?? []);
+  const currentUser = await getCurrentUser();
   const bestTimes = rankBestTimes(session, participantAvailability).slice(0, 5);
   const maybeTimes = rankMaybeTimes(session, participantAvailability).slice(0, 5);
   const locked = session.lockedStartTime && session.lockedEndTime;
@@ -132,6 +139,22 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const responseTotal = session.participants.reduce((total, participant) => total + participant.responses.length, 0);
   const possibleResponses = Math.max(session.participants.length * slots.length, 1);
   const responsePercent = Math.round((responseTotal / possibleResponses) * 100);
+  const sessionGames =
+    activeTab === "pick"
+      ? rankSessionGames(
+          await prisma.sessionGame.findMany({
+            where: { sessionId: session.id },
+            include: {
+              game: true,
+              signals: true,
+            },
+          }),
+        )
+      : [];
+  const searchResults =
+    activeTab === "pick" && gameSearch ? (await searchIgdbGames(gameSearch)).map(mapIgdbGame) : [];
+  const popularGames = activeTab === "pick" ? (await getPopularIgdbGames()).map(mapIgdbGame) : [];
+  const trendingGames = activeTab === "pick" ? (await getTrendingIgdbGames()).map(mapIgdbGame) : [];
 
   return (
     <main className="ui-shell">
@@ -195,6 +218,21 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
         </div>
       </section>
 
+      <SessionTabs shareToken={session.shareToken} participantId={participantId} activeTab={activeTab} />
+
+      {activeTab === "pick" ? (
+        <PickPanel
+          shareToken={session.shareToken}
+          participantId={currentParticipant?.id ?? participantId}
+          currentUser={currentUser}
+          sessionGames={sessionGames}
+          searchResults={searchResults}
+          popularGames={popularGames}
+          trendingGames={trendingGames}
+          commonGames={commonMultiplayerGames}
+          searchQuery={gameSearch ?? ""}
+        />
+      ) : (
       <section className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="grid gap-5">
           <RecommendationsDisclosure isCurrentHost={isCurrentHost} needsMoreSubmissions={needsMoreSubmissions}>
@@ -286,6 +324,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           </section>
         </aside>
       </section>
+      )}
     </main>
   );
 }

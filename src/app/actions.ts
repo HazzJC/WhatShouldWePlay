@@ -4,8 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { fromZonedTime } from "date-fns-tz";
 import { z } from "zod";
+import { getCurrentUser } from "@/lib/auth";
+import { addGameToSession, importSteamGamesForUser, upsertGame } from "@/lib/games";
 import { prisma } from "@/lib/prisma";
 import { dateRangeFromPreset, type DatePreset } from "@/lib/scheduling";
+import { getOwnedSteamGames, getRecentlyPlayedSteamGames } from "@/lib/steam";
 import { createShareToken } from "@/lib/tokens";
 
 const createSessionSchema = z
@@ -216,4 +219,231 @@ export async function lockSessionAction(formData: FormData) {
   });
 
   revalidatePath(`/s/${parsed.data.shareToken}`);
+}
+
+const addSessionGameSchema = z.object({
+  shareToken: z.string().min(1),
+  participantId: z.string().optional(),
+  title: z.string().trim().min(1).max(180),
+  source: z
+    .enum(["MANUAL", "IGDB_SEARCH", "POPULAR", "TRENDING", "COMMON", "FRIEND_ADDED"])
+    .default("MANUAL"),
+  gameId: z.string().optional(),
+  igdbId: z.coerce.number().int().positive().optional(),
+  steamAppId: z.coerce.number().int().positive().optional(),
+  coverUrl: z.string().trim().max(500).optional(),
+  summary: z.string().trim().max(1200).optional(),
+  popularityScore: z.coerce.number().optional(),
+});
+
+export async function addSessionGameAction(formData: FormData) {
+  const parsed = addSessionGameSchema.safeParse({
+    shareToken: formData.get("shareToken"),
+    participantId: formData.get("participantId") || undefined,
+    title: formData.get("title"),
+    source: formData.get("source") || "MANUAL",
+    gameId: formData.get("gameId") || undefined,
+    igdbId: formData.get("igdbId") || undefined,
+    steamAppId: formData.get("steamAppId") || undefined,
+    coverUrl: formData.get("coverUrl") || undefined,
+    summary: formData.get("summary") || undefined,
+    popularityScore: formData.get("popularityScore") || undefined,
+  });
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Could not add game.");
+  }
+
+  const session = await prisma.session.findUnique({
+    where: { shareToken: parsed.data.shareToken },
+    select: { id: true, shareToken: true },
+  });
+
+  if (!session) {
+    throw new Error("Session not found.");
+  }
+
+  const participant = parsed.data.participantId
+    ? await prisma.participant.findFirst({
+        where: { id: parsed.data.participantId, sessionId: session.id },
+        select: { id: true, userId: true },
+      })
+    : null;
+  const currentUser = await getCurrentUser();
+  const game = parsed.data.gameId
+    ? await prisma.game.findUniqueOrThrow({ where: { id: parsed.data.gameId } })
+    : await upsertGame({
+        title: parsed.data.title,
+        igdbId: parsed.data.igdbId,
+        steamAppId: parsed.data.steamAppId,
+        coverUrl: parsed.data.coverUrl,
+        summary: parsed.data.summary,
+        popularityScore: parsed.data.popularityScore,
+      });
+
+  await addGameToSession({
+    sessionId: session.id,
+    gameId: game.id,
+    participantId: participant?.id,
+    userId: currentUser?.id ?? participant?.userId,
+    source: parsed.data.source,
+    signal: "AVAILABLE_TO_PLAY",
+  });
+
+  revalidatePath(`/s/${session.shareToken}`);
+}
+
+const removeSessionGameSchema = z.object({
+  shareToken: z.string().min(1),
+  sessionGameId: z.string().min(1),
+});
+
+export async function removeSessionGameAction(formData: FormData) {
+  const parsed = removeSessionGameSchema.safeParse({
+    shareToken: formData.get("shareToken"),
+    sessionGameId: formData.get("sessionGameId"),
+  });
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Could not remove game.");
+  }
+
+  await prisma.sessionGame.deleteMany({
+    where: {
+      id: parsed.data.sessionGameId,
+      session: { shareToken: parsed.data.shareToken },
+    },
+  });
+
+  revalidatePath(`/s/${parsed.data.shareToken}`);
+}
+
+const markGameAvailableSchema = z.object({
+  shareToken: z.string().min(1),
+  sessionGameId: z.string().min(1),
+  participantId: z.string().min(1),
+  signal: z.enum(["OWNED", "AVAILABLE_TO_PLAY", "NOT_AVAILABLE"]),
+});
+
+export async function markGameAvailableAction(formData: FormData) {
+  const parsed = markGameAvailableSchema.safeParse({
+    shareToken: formData.get("shareToken"),
+    sessionGameId: formData.get("sessionGameId"),
+    participantId: formData.get("participantId"),
+    signal: formData.get("signal"),
+  });
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Could not update game.");
+  }
+
+  const sessionGame = await prisma.sessionGame.findFirst({
+    where: {
+      id: parsed.data.sessionGameId,
+      session: { shareToken: parsed.data.shareToken },
+    },
+    select: { id: true, sessionId: true },
+  });
+
+  if (!sessionGame) {
+    throw new Error("Game not found.");
+  }
+
+  const participant = await prisma.participant.findFirst({
+    where: { id: parsed.data.participantId, sessionId: sessionGame.sessionId },
+    select: { id: true },
+  });
+
+  if (!participant) {
+    throw new Error("Participant not found.");
+  }
+
+  await prisma.sessionGameSignal.upsert({
+    where: {
+      sessionGameId_participantId: {
+        sessionGameId: sessionGame.id,
+        participantId: participant.id,
+      },
+    },
+    create: {
+      sessionGameId: sessionGame.id,
+      participantId: participant.id,
+      signal: parsed.data.signal,
+    },
+    update: { signal: parsed.data.signal },
+  });
+
+  revalidatePath(`/s/${parsed.data.shareToken}`);
+}
+
+const importSteamLibrarySchema = z.object({
+  shareToken: z.string().min(1),
+  participantId: z.string().optional(),
+});
+
+export async function importSteamLibraryAction(formData: FormData) {
+  const parsed = importSteamLibrarySchema.safeParse({
+    shareToken: formData.get("shareToken"),
+    participantId: formData.get("participantId") || undefined,
+  });
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Could not import Steam library.");
+  }
+
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser?.steamAccount) {
+    throw new Error("Connect Steam before importing your library.");
+  }
+
+  const session = await prisma.session.findUnique({
+    where: { shareToken: parsed.data.shareToken },
+    select: { id: true, shareToken: true },
+  });
+
+  if (!session) {
+    throw new Error("Session not found.");
+  }
+
+  const participant = parsed.data.participantId
+    ? await prisma.participant.findFirst({
+        where: { id: parsed.data.participantId, sessionId: session.id },
+        select: { id: true },
+      })
+    : null;
+  const owned = await getOwnedSteamGames(currentUser.steamAccount.steamId);
+  const recent = await getRecentlyPlayedSteamGames(currentUser.steamAccount.steamId);
+
+  await importSteamGamesForUser(currentUser.id, owned.games, recent);
+
+  if (participant) {
+    const importedGames = await prisma.userGame.findMany({
+      where: { userId: currentUser.id },
+      include: { game: true },
+      orderBy: [{ recentlyPlayedAt: "desc" }, { playtimeMinutes: "desc" }],
+      take: 40,
+    });
+
+    for (const userGame of importedGames) {
+      await addGameToSession({
+        sessionId: session.id,
+        gameId: userGame.gameId,
+        participantId: participant.id,
+        userId: currentUser.id,
+        source: "STEAM_MATCH",
+        signal: "OWNED",
+      });
+    }
+  }
+
+  await prisma.steamAccount.update({
+    where: { userId: currentUser.id },
+    data: {
+      lastImportAt: new Date(),
+      lastImportStatus: owned.status,
+    },
+  });
+
+  revalidatePath(`/s/${session.shareToken}`);
 }
