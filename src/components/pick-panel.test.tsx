@@ -5,11 +5,15 @@ import { PickPanel } from "@/components/pick-panel";
 
 vi.mock("@/app/actions", () => ({
   addSessionGameAction: vi.fn(),
+  createFriendInviteAction: vi.fn(),
+  createPriceAlertRuleAction: vi.fn(),
   importSteamLibraryAction: vi.fn(),
   markGameInterestAction: vi.fn(),
   markGameAvailableAction: vi.fn(),
   removeSessionGameAction: vi.fn(),
+  updateDealSettingsAction: vi.fn(),
   updatePreferenceAction: vi.fn(),
+  updateQuickPreferenceAction: vi.fn(),
 }));
 
 const baseProps = {
@@ -37,21 +41,53 @@ const baseProps = {
       alignment: "High" as const,
       reasons: ["2/2 selected players have it", "Supports the selected 2 player group"],
       categories: ["perfect" as const],
+      alignmentReasons: ["No selected player has a veto or strong mismatch"],
       factors: {
         ownership: 100,
         playerCount: 95,
-        coopFit: 90,
+        genreFit: 80,
+        availability: 100,
+        onlineCoop: 90,
+        localCoop: 90,
         playtime: 60,
         freshness: 80,
         interest: 60,
-        sale: 35,
+        price: 35,
+        historicalLow: 40,
         popularity: 80,
       },
+      factorBreakdown: [
+        { key: "ownership" as const, label: "Ownership", value: 100, weight: 0.2, points: 20 },
+        { key: "playerCount" as const, label: "Player count", value: 95, weight: 0.12, points: 11.4 },
+        { key: "onlineCoop" as const, label: "Online co-op", value: 90, weight: 0.08, points: 7.2 },
+      ],
       ownership: { have: 2, missing: 0, selected: 2 },
       playtimeMinutes: 40,
       discountPercent: 0,
+      currentPrice: null,
+      historicalLow: null,
+      playerCountStatus: "supported" as const,
+      qualitySource: "steam:appreviews",
+      reviewSummary: "Very Positive, 95% positive from 100,000 reviews",
+      capabilitySource: "igdb:multiplayer_modes",
     },
   ],
+  dealCountry: "GB",
+  dealCurrency: "GBP",
+  priceAlertEvents: [],
+  groupBuyFilters: {
+    budget: 1500,
+    genre: "",
+    playerCount: 2,
+    mode: "online" as const,
+    sessionLength: "any" as const,
+    platform: "PC",
+    avoidOwned: true,
+    saleOnly: false,
+  },
+  groupBuyRecommendations: [],
+  friendInviteUrl: null,
+  savedFriends: [],
 };
 
 describe("PickPanel", () => {
@@ -96,6 +132,19 @@ describe("PickPanel", () => {
     expect(screen.queryByRole("button", { name: "Can play" })).not.toBeInTheDocument();
   });
 
+  it("shows player metadata on session games", () => {
+    render(
+      <PickPanel
+        {...baseProps}
+        sessionGames={[sessionGame([{ participantId: "p2", signal: "OWNED" }])]}
+        currentParticipantHasPickSignals={true}
+      />,
+    );
+
+    expect(screen.getByText("Up to 2 players · online + local")).toBeInTheDocument();
+    expect(screen.getByText("Player data: test")).toBeInTheDocument();
+  });
+
   it("shows the group matching dashboard with scores and preset modes", () => {
     render(
       <PickPanel
@@ -109,6 +158,28 @@ describe("PickPanel", () => {
     expect(screen.getByText("Perfect matches")).toBeInTheDocument();
     expect(screen.getByText("Alignment: High")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Score mode" })).toBeInTheDocument();
+  });
+
+  it("separates games with uncertain player-count metadata from compatible recommendations", () => {
+    render(
+      <PickPanel
+        {...baseProps}
+        scoredGames={[
+          {
+            ...baseProps.scoredGames[0],
+            sessionGameId: "sg-uncertain",
+            title: "Mystery Multiplayer",
+            playerCountStatus: "uncertain" as const,
+            categories: [],
+          },
+        ]}
+        sessionGames={[sessionGame([{ participantId: "p1", signal: "OWNED" }, { participantId: "p2", signal: "OWNED" }])]}
+        currentParticipantHasPickSignals={true}
+      />,
+    );
+
+    expect(screen.getByText("Needs player-count metadata")).toBeInTheDocument();
+    expect(screen.getByText("Mystery Multiplayer")).toBeInTheDocument();
   });
 });
 
@@ -156,6 +227,7 @@ function sessionGame(signals: Array<{ participantId: string; signal: "OWNED" | "
       createdAt: new Date(),
       updatedAt: new Date(),
       steamStorePrice: null,
+      deal: null,
     },
     signals: signals.map((signal, index) => ({
       id: `sig${index}`,

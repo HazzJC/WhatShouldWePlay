@@ -43,11 +43,15 @@ export default function Home() {
               <CalendarDays className="h-5 w-5" />
               Plan a game night
             </Link>
-            <Link href="/sessions/pick" className="secondary-button px-5 py-3 text-base">
-              <ListChecks className="h-5 w-5" />
-              Pick games first
-            </Link>
-          </div>
+          <Link href="/sessions/pick" className="secondary-button px-5 py-3 text-base">
+            <ListChecks className="h-5 w-5" />
+            Pick games first
+          </Link>
+          <Link href="/discover" className="secondary-button px-5 py-3 text-base sm:col-span-2">
+            <Gamepad2 className="h-5 w-5" />
+            Browse game ideas
+          </Link>
+        </div>
 
           <div className="mt-8 grid gap-3 sm:grid-cols-3">
             {[

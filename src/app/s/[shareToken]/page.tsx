@@ -11,9 +11,15 @@ import { RecommendationsDisclosure } from "@/components/recommendations-disclosu
 import { SessionTabs } from "@/components/session-tabs";
 import { getAppUrl } from "@/lib/app-url";
 import { getCurrentUser } from "@/lib/auth";
+import { curatedGames } from "@/lib/curated-games";
+import { syncCuratedGameMetadata } from "@/lib/curated-metadata";
+import { refreshGameMetadata } from "@/lib/game-metadata";
 import { commonMultiplayerGames, excludeExistingGames, rankSessionGames } from "@/lib/games";
+import { defaultGroupBuyFilters, scoreGroupBuyCandidates } from "@/lib/group-buy";
 import { getPopularIgdbGames, getTrendingIgdbGames, mapIgdbGame, searchIgdbGames } from "@/lib/igdb";
+import { refreshGameDeals } from "@/lib/itad";
 import { scoreSessionGames, type ScoreMode } from "@/lib/match-scoring";
+import { evaluatePriceAlerts } from "@/lib/price-alerts";
 import { prisma } from "@/lib/prisma";
 import {
   type BestTime,
@@ -26,7 +32,6 @@ import {
   rankMaybeTimes,
   responseMap,
 } from "@/lib/scheduling";
-import { refreshSteamStorePrices } from "@/lib/steam-store";
 
 type PageProps = {
   params: Promise<{ shareToken: string }>;
@@ -37,6 +42,13 @@ type PageProps = {
     scoreMode?: string;
     playerCount?: string;
     selectedParticipants?: string | string[];
+    groupBudget?: string;
+    groupGenre?: string;
+    groupMode?: string;
+    groupLength?: string;
+    groupPlatform?: string;
+    avoidOwned?: string;
+    saleOnly?: string;
   }>;
 };
 
@@ -46,7 +58,21 @@ type RecommendationTime = BestTime & {
 
 export default async function SessionPage({ params, searchParams }: PageProps) {
   const { shareToken } = await params;
-  const { participant: participantId, tab, gameSearch, scoreMode, playerCount, selectedParticipants } = await searchParams;
+  const {
+    participant: participantId,
+    tab,
+    gameSearch,
+    scoreMode,
+    playerCount,
+    selectedParticipants,
+    groupBudget,
+    groupGenre,
+    groupMode,
+    groupLength,
+    groupPlatform,
+    avoidOwned,
+    saleOnly,
+  } = await searchParams;
   const activeTab = tab === "pick" ? "pick" : "plan";
   const activeScoreMode = parseScoreMode(scoreMode);
   const session = await prisma.session.findUnique({
@@ -156,13 +182,16 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const responsePercent = Math.round((responseTotal / possibleResponses) * 100);
   const selectedParticipantIds = normalizeSelectedParticipants(selectedParticipants, session.participants.map((participant) => participant.id));
   const selectedPlayerCount = Math.max(1, Number(playerCount ?? session.minimumPlayerCount) || session.minimumPlayerCount);
+  if (activeTab === "pick") {
+    await syncCuratedGameMetadata();
+  }
   const [initialSessionGames, searchResults, popularGames, trendingGames] =
     activeTab === "pick"
       ? await Promise.all([
           prisma.sessionGame.findMany({
             where: { sessionId: session.id },
             include: {
-              game: { include: { steamStorePrice: true } },
+              game: { include: { steamStorePrice: true, deal: true } },
               signals: true,
               interests: true,
             },
@@ -173,7 +202,16 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
         ])
       : [[], [], [], []];
   if (activeTab === "pick") {
-    await refreshSteamStorePrices(initialSessionGames.map((sessionGame) => sessionGame.gameId));
+    const gameIds = initialSessionGames.map((sessionGame) => sessionGame.gameId);
+
+    await Promise.all([
+      refreshGameMetadata(gameIds),
+      refreshGameDeals({
+        gameIds,
+        country: session.dealCountry,
+        currency: session.dealCurrency,
+      }),
+    ]);
   }
   const sessionGames =
     activeTab === "pick"
@@ -181,7 +219,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           await prisma.sessionGame.findMany({
             where: { sessionId: session.id },
             include: {
-              game: { include: { steamStorePrice: true } },
+              game: { include: { steamStorePrice: true, deal: true } },
               signals: true,
               interests: true,
             },
@@ -191,11 +229,15 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const participantUserIds = session.participants
     .map((participant) => participant.userId)
     .filter((userId): userId is string => Boolean(userId));
+  const sessionGameUserIds = sessionGames
+    .map((sessionGame) => sessionGame.addedByUserId)
+    .filter((userId): userId is string => Boolean(userId));
+  const playtimeUserIds = [...new Set([...participantUserIds, ...sessionGameUserIds])];
   const userGames =
     activeTab === "pick"
       ? await prisma.userGame.findMany({
           where: {
-            userId: { in: participantUserIds },
+            userId: { in: playtimeUserIds },
             gameId: { in: sessionGames.map((sessionGame) => sessionGame.gameId) },
           },
         })
@@ -209,6 +251,81 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           selectedParticipantIds,
           playerCount: selectedPlayerCount,
           mode: activeScoreMode,
+        })
+      : [];
+  if (activeTab === "pick") {
+    await evaluatePriceAlerts({
+      sessionId: session.id,
+      sessionGames,
+      selectedCount: selectedParticipantIds.length,
+      currency: session.dealCurrency,
+    });
+  }
+  const [priceAlertEvents, latestFriendInvite, savedFriends] =
+    activeTab === "pick"
+      ? await Promise.all([
+          prisma.priceAlertEvent.findMany({
+            where: { sessionId: session.id },
+            orderBy: { triggeredAt: "desc" },
+            take: 6,
+          }),
+          currentUser
+            ? prisma.friendInvite.findFirst({
+                where: {
+                  inviterId: currentUser.id,
+                  expiresAt: { gt: new Date() },
+                  acceptedAt: null,
+                },
+                orderBy: { createdAt: "desc" },
+              })
+            : Promise.resolve(null),
+          currentUser
+            ? prisma.userFriend.findMany({
+                where: { userId: currentUser.id },
+                include: { friend: true },
+                orderBy: { createdAt: "desc" },
+              })
+            : Promise.resolve([]),
+        ])
+      : [[], null, []];
+  const groupBuyFilters = parseGroupBuyFilters({
+    groupBudget,
+    groupGenre,
+    groupMode,
+    groupLength,
+    groupPlatform,
+    avoidOwned,
+    saleOnly,
+    selectedPlayerCount,
+  });
+  const curatedDbGames =
+    activeTab === "pick"
+      ? await prisma.game.findMany({
+          where: { steamAppId: { in: curatedGames.map((game) => game.steamAppId).filter((steamAppId): steamAppId is number => Boolean(steamAppId)) } },
+          include: { deal: true },
+        })
+      : [];
+  const groupBuyDeals = new Map(
+    curatedDbGames
+      .filter((game) => game.deal)
+      .map((game) => [
+        game.title,
+        {
+          currentPrice: game.deal!.currentPrice,
+          currency: game.deal!.currency,
+          discountPercent: game.deal!.discountPercent,
+        },
+      ]),
+  );
+  const ownedTitles = sessionGames
+    .filter((sessionGame) => sessionGame.signals.some((signal) => selectedParticipantIds.includes(signal.participantId) && (signal.signal === "OWNED" || signal.signal === "AVAILABLE_TO_PLAY")))
+    .map((sessionGame) => sessionGame.game.title);
+  const groupBuyRecommendations =
+    activeTab === "pick"
+      ? scoreGroupBuyCandidates({
+          filters: groupBuyFilters,
+          ownedTitles,
+          deals: groupBuyDeals,
         })
       : [];
   const commonGames =
@@ -304,6 +421,13 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           selectedPlayerCount={selectedPlayerCount}
           scoreMode={activeScoreMode}
           scoredGames={scoredGames}
+          dealCountry={session.dealCountry}
+          dealCurrency={session.dealCurrency}
+          priceAlertEvents={priceAlertEvents}
+          groupBuyFilters={groupBuyFilters}
+          groupBuyRecommendations={groupBuyRecommendations}
+          friendInviteUrl={latestFriendInvite ? `${appUrl}/friends/invite/${latestFriendInvite.token}` : null}
+          savedFriends={savedFriends.map((friend) => friend.friend)}
         />
       ) : (
       <section className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -400,6 +524,39 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       )}
     </main>
   );
+}
+
+function parseGroupBuyFilters({
+  groupBudget,
+  groupGenre,
+  groupMode,
+  groupLength,
+  groupPlatform,
+  avoidOwned,
+  saleOnly,
+  selectedPlayerCount,
+}: {
+  groupBudget?: string;
+  groupGenre?: string;
+  groupMode?: string;
+  groupLength?: string;
+  groupPlatform?: string;
+  avoidOwned?: string;
+  saleOnly?: string;
+  selectedPlayerCount: number;
+}) {
+  const defaults = defaultGroupBuyFilters(selectedPlayerCount);
+
+  return {
+    budget: groupBudget ? Math.max(0, Math.round(Number(groupBudget) * 100)) : defaults.budget,
+    genre: groupGenre ?? defaults.genre,
+    playerCount: selectedPlayerCount,
+    mode: groupMode === "local" || groupMode === "either" ? groupMode : defaults.mode,
+    sessionLength: groupLength === "one-night" || groupLength === "long-term" || groupLength === "campaign" ? groupLength : defaults.sessionLength,
+    platform: groupPlatform ?? defaults.platform,
+    avoidOwned: avoidOwned !== "off",
+    saleOnly: saleOnly === "on",
+  };
 }
 
 function parseScoreMode(value?: string): ScoreMode {

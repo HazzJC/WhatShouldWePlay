@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { fromZonedTime } from "date-fns-tz";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
+import { mergeCuratedMetadata } from "@/lib/curated-metadata";
 import { addGameToSession, importSteamGamesForUser, upsertGame } from "@/lib/games";
 import { prisma } from "@/lib/prisma";
 import { dateRangeFromPreset, type DatePreset } from "@/lib/scheduling";
@@ -146,6 +147,8 @@ export async function createPickSessionAction(formData: FormData) {
       dailyStartHour: 18,
       dailyEndHour: 23,
       timezone: values.timezone,
+      dealCountry: "GB",
+      dealCurrency: "GBP",
       reminderPreferences: [],
       participants: {
         create: {
@@ -282,6 +285,15 @@ const addSessionGameSchema = z.object({
   coverUrl: z.string().trim().max(500).optional(),
   summary: z.string().trim().max(1200).optional(),
   popularityScore: z.coerce.number().optional(),
+  genres: z.string().optional(),
+  platforms: z.string().optional(),
+  gameModes: z.string().optional(),
+  minPlayers: z.coerce.number().int().positive().optional(),
+  maxPlayers: z.coerce.number().int().positive().optional(),
+  onlineCoop: z.enum(["true", "false"]).optional(),
+  localCoop: z.enum(["true", "false"]).optional(),
+  capabilitySource: z.string().trim().max(120).optional(),
+  capabilityConfidence: z.coerce.number().min(0).max(1).optional(),
 });
 
 export async function addSessionGameAction(formData: FormData) {
@@ -296,6 +308,15 @@ export async function addSessionGameAction(formData: FormData) {
     coverUrl: formData.get("coverUrl") || undefined,
     summary: formData.get("summary") || undefined,
     popularityScore: formData.get("popularityScore") || undefined,
+    genres: formData.get("genres") || undefined,
+    platforms: formData.get("platforms") || undefined,
+    gameModes: formData.get("gameModes") || undefined,
+    minPlayers: formData.get("minPlayers") || undefined,
+    maxPlayers: formData.get("maxPlayers") || undefined,
+    onlineCoop: formData.get("onlineCoop") || undefined,
+    localCoop: formData.get("localCoop") || undefined,
+    capabilitySource: formData.get("capabilitySource") || undefined,
+    capabilityConfidence: formData.get("capabilityConfidence") || undefined,
   });
 
   if (!parsed.success) {
@@ -320,14 +341,25 @@ export async function addSessionGameAction(formData: FormData) {
   const currentUser = await getCurrentUser();
   const game = parsed.data.gameId
     ? await prisma.game.findUniqueOrThrow({ where: { id: parsed.data.gameId } })
-    : await upsertGame({
-        title: parsed.data.title,
-        igdbId: parsed.data.igdbId,
-        steamAppId: parsed.data.steamAppId,
-        coverUrl: parsed.data.coverUrl,
-        summary: parsed.data.summary,
-        popularityScore: parsed.data.popularityScore,
-      });
+    : await upsertGame(
+        mergeCuratedMetadata({
+          title: parsed.data.title,
+          igdbId: parsed.data.igdbId,
+          steamAppId: parsed.data.steamAppId,
+          coverUrl: parsed.data.coverUrl,
+          summary: parsed.data.summary,
+          popularityScore: parsed.data.popularityScore,
+          genres: parseStringList(parsed.data.genres),
+          platforms: parseStringList(parsed.data.platforms),
+          gameModes: parseStringList(parsed.data.gameModes),
+          minPlayers: parsed.data.minPlayers,
+          maxPlayers: parsed.data.maxPlayers,
+          onlineCoop: parseOptionalBoolean(parsed.data.onlineCoop),
+          localCoop: parseOptionalBoolean(parsed.data.localCoop),
+          capabilitySource: parsed.data.capabilitySource,
+          capabilityConfidence: parsed.data.capabilityConfidence,
+        }),
+      );
 
   await addGameToSession({
     sessionId: session.id,
@@ -339,6 +371,35 @@ export async function addSessionGameAction(formData: FormData) {
   });
 
   revalidatePath(`/s/${session.shareToken}`);
+}
+
+function parseStringList(value?: string) {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+    }
+  } catch {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return undefined;
+}
+
+function parseOptionalBoolean(value?: "true" | "false") {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return value === "true";
 }
 
 const removeSessionGameSchema = z.object({
@@ -542,6 +603,176 @@ export async function updatePreferenceAction(formData: FormData) {
   revalidatePath(`/s/${shareToken}`);
 }
 
+const quickPreferenceSchema = z.object({
+  shareToken: z.string().min(1),
+  participantId: z.string().min(1),
+  coOpVsCompetitive: z.coerce.number().int().min(0).max(100).optional(),
+  familiarVsNew: z.coerce.number().int().min(0).max(100).optional(),
+  dismiss: z.boolean().default(false),
+});
+
+export async function updateQuickPreferenceAction(formData: FormData) {
+  const parsed = quickPreferenceSchema.safeParse({
+    shareToken: formData.get("shareToken"),
+    participantId: formData.get("participantId"),
+    coOpVsCompetitive: formData.get("coOpVsCompetitive") || undefined,
+    familiarVsNew: formData.get("familiarVsNew") || undefined,
+    dismiss: formData.get("dismiss") === "true",
+  });
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Could not save quick preferences.");
+  }
+
+  const participant = await prisma.participant.findFirst({
+    where: { id: parsed.data.participantId, session: { shareToken: parsed.data.shareToken } },
+    select: { id: true },
+  });
+
+  if (!participant) {
+    throw new Error("Participant not found.");
+  }
+
+  if (parsed.data.dismiss) {
+    await prisma.participant.update({
+      where: { id: participant.id },
+      data: { preferenceNudgeDismissedAt: new Date() },
+    });
+  } else {
+    const currentUser = await getCurrentUser();
+    const values = {
+      coOpVsCompetitive: parsed.data.coOpVsCompetitive,
+      familiarVsNew: parsed.data.familiarVsNew,
+    };
+
+    if (currentUser) {
+      await prisma.userPreference.upsert({
+        where: { userId: currentUser.id },
+        create: {
+          userId: currentUser.id,
+          coOpVsCompetitive: values.coOpVsCompetitive ?? 75,
+          familiarVsNew: values.familiarVsNew ?? 50,
+        },
+        update: values,
+      });
+    } else {
+      await prisma.participantPreference.upsert({
+        where: { participantId: participant.id },
+        create: {
+          participantId: participant.id,
+          coOpVsCompetitive: values.coOpVsCompetitive ?? 75,
+          familiarVsNew: values.familiarVsNew ?? 50,
+        },
+        update: values,
+      });
+    }
+  }
+
+  revalidatePath(`/s/${parsed.data.shareToken}`);
+}
+
+const dealSettingsSchema = z.object({
+  shareToken: z.string().min(1),
+  dealCountry: z.string().trim().length(2),
+  dealCurrency: z.string().trim().min(3).max(3),
+});
+
+export async function updateDealSettingsAction(formData: FormData) {
+  const parsed = dealSettingsSchema.safeParse({
+    shareToken: formData.get("shareToken"),
+    dealCountry: String(formData.get("dealCountry") ?? "").toUpperCase(),
+    dealCurrency: String(formData.get("dealCurrency") ?? "").toUpperCase(),
+  });
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Could not save deal settings.");
+  }
+
+  await prisma.session.update({
+    where: { shareToken: parsed.data.shareToken },
+    data: {
+      dealCountry: parsed.data.dealCountry,
+      dealCurrency: parsed.data.dealCurrency,
+    },
+  });
+
+  revalidatePath(`/s/${parsed.data.shareToken}`);
+}
+
+const priceAlertSchema = z.object({
+  shareToken: z.string().min(1),
+  participantId: z.string().optional(),
+  type: z.enum(["UNDER_PRICE", "GROUP_ON_SALE", "MISSING_PLAYERS_ONLY", "HISTORICAL_LOW", "OWNED_COUNT_DISCOUNTED"]),
+  thresholdPrice: z.coerce.number().int().min(0).optional(),
+  ownedCount: z.coerce.number().int().min(1).optional(),
+  totalCount: z.coerce.number().int().min(1).optional(),
+  missingOnly: z.boolean().default(false),
+});
+
+export async function createPriceAlertRuleAction(formData: FormData) {
+  const parsed = priceAlertSchema.safeParse({
+    shareToken: formData.get("shareToken"),
+    participantId: formData.get("participantId") || undefined,
+    type: formData.get("type"),
+    thresholdPrice: formData.get("thresholdPrice") ? Math.round(Number(formData.get("thresholdPrice")) * 100) : undefined,
+    ownedCount: formData.get("ownedCount") || undefined,
+    totalCount: formData.get("totalCount") || undefined,
+    missingOnly: formData.get("missingOnly") === "on",
+  });
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Could not create price alert.");
+  }
+
+  const session = await prisma.session.findUnique({
+    where: { shareToken: parsed.data.shareToken },
+    select: { id: true },
+  });
+
+  if (!session) {
+    throw new Error("Session not found.");
+  }
+
+  await prisma.priceAlertRule.create({
+    data: {
+      sessionId: session.id,
+      createdByParticipantId: parsed.data.participantId ?? null,
+      type: parsed.data.type,
+      thresholdPrice: parsed.data.thresholdPrice ?? null,
+      ownedCount: parsed.data.ownedCount ?? null,
+      totalCount: parsed.data.totalCount ?? null,
+      missingOnly: parsed.data.missingOnly,
+    },
+  });
+
+  revalidatePath(`/s/${parsed.data.shareToken}`);
+}
+
+const friendInviteSchema = z.object({
+  redirectTo: z.string().min(1).default("/"),
+});
+
+export async function createFriendInviteAction(formData: FormData) {
+  const parsed = friendInviteSchema.safeParse({
+    redirectTo: formData.get("redirectTo") || "/",
+  });
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    throw new Error("Sign in with Steam before creating friend invites.");
+  }
+
+  await prisma.friendInvite.create({
+    data: {
+      token: createShareToken(),
+      inviterId: currentUser.id,
+      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14),
+    },
+  });
+
+  revalidatePath(parsed.success ? parsed.data.redirectTo : "/");
+}
+
 const importSteamLibrarySchema = z.object({
   shareToken: z.string().min(1),
   participantId: z.string().optional(),
@@ -575,9 +806,16 @@ export async function importSteamLibraryAction(formData: FormData) {
   const participant = parsed.data.participantId
     ? await prisma.participant.findFirst({
         where: { id: parsed.data.participantId, sessionId: session.id },
-        select: { id: true },
+        select: { id: true, userId: true },
       })
     : null;
+
+  if (participant && participant.userId !== currentUser.id) {
+    await prisma.participant.update({
+      where: { id: participant.id },
+      data: { userId: currentUser.id },
+    });
+  }
   const [owned, recent] = await Promise.all([
     getOwnedSteamGames(currentUser.steamAccount.steamId),
     getRecentlyPlayedSteamGames(currentUser.steamAccount.steamId),

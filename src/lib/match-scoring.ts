@@ -1,8 +1,11 @@
-import { signalMeansHave } from "@/lib/games";
+import { curatedGames } from "@/lib/curated-games";
+import { normalizeGameTitle, signalMeansHave } from "@/lib/games";
 
 export type ScoreMode = "balanced" | "coop" | "backlog" | "cheap" | "familiar" | "fresh";
 export type AlignmentLevel = "High" | "Medium" | "Low";
 export type MatchCategory = "perfect" | "hiddenBacklog" | "oldFavourites" | "almostReady" | "saleOpportunity";
+export type PlayerCountStatus = "supported" | "unsupported" | "uncertain";
+type FactorKey = keyof ScoredGame["factors"];
 
 export type PreferenceProfile = {
   familiarVsNew: number;
@@ -26,6 +29,8 @@ type GameScoreInput = {
   id: string;
   source: string;
   gameId: string;
+  addedByParticipantId?: string | null;
+  addedByUserId?: string | null;
   game: {
     id: string;
     title: string;
@@ -34,15 +39,36 @@ type GameScoreInput = {
     maxPlayers?: number | null;
     onlineCoop?: boolean | null;
     localCoop?: boolean | null;
-    steamStorePrice?: {
+    genres?: unknown;
+    steamReviewPercent?: number | null;
+    steamReviewTotal?: number | null;
+    steamReviewSummary?: string | null;
+    qualitySource?: string | null;
+    capabilitySource?: string | null;
+    deal?: {
       discountPercent?: number | null;
       finalPrice?: number | null;
+      currentPrice?: number | null;
+      historicalLow?: number | null;
       status?: string | null;
     } | null;
   };
   signals: Array<{ participantId: string; signal: string }>;
   interests?: Array<{ participantId: string; interest: string }>;
 };
+
+export const groupPlaytimeThresholds = {
+  barelyPlayedMinutes: 120,
+  heavilyPlayedMinutes: 600,
+};
+
+export function isBarelyPlayedGroupPick(playtimeMinutes: number) {
+  return playtimeMinutes < groupPlaytimeThresholds.barelyPlayedMinutes;
+}
+
+export function isHeavilyPlayedGroupPick(playtimeMinutes: number) {
+  return playtimeMinutes >= groupPlaytimeThresholds.heavilyPlayedMinutes;
+}
 
 type UserGameInput = {
   userId: string;
@@ -58,17 +84,29 @@ export type ScoredGame = {
   score: number;
   alignment: AlignmentLevel;
   reasons: string[];
+  alignmentReasons: string[];
   categories: MatchCategory[];
   factors: {
     ownership: number;
     playerCount: number;
-    coopFit: number;
+    genreFit: number;
+    availability: number;
+    onlineCoop: number;
+    localCoop: number;
     playtime: number;
     freshness: number;
     interest: number;
-    sale: number;
+    price: number;
+    historicalLow: number;
     popularity: number;
   };
+  factorBreakdown: Array<{
+    key: FactorKey;
+    label: string;
+    value: number;
+    weight: number;
+    points: number;
+  }>;
   ownership: {
     have: number;
     missing: number;
@@ -76,6 +114,12 @@ export type ScoredGame = {
   };
   playtimeMinutes: number;
   discountPercent: number;
+  currentPrice?: number | null;
+  historicalLow?: number | null;
+  playerCountStatus: PlayerCountStatus;
+  qualitySource?: string | null;
+  reviewSummary?: string | null;
+  capabilitySource?: string | null;
 };
 
 const defaultPreference: PreferenceProfile = {
@@ -90,12 +134,12 @@ const defaultPreference: PreferenceProfile = {
 };
 
 const modeWeights: Record<ScoreMode, Record<keyof ScoredGame["factors"], number>> = {
-  balanced: { ownership: 0.28, playerCount: 0.16, coopFit: 0.12, playtime: 0.12, freshness: 0.1, interest: 0.12, sale: 0.04, popularity: 0.06 },
-  coop: { ownership: 0.24, playerCount: 0.22, coopFit: 0.22, playtime: 0.08, freshness: 0.08, interest: 0.1, sale: 0.02, popularity: 0.04 },
-  backlog: { ownership: 0.25, playerCount: 0.12, coopFit: 0.1, playtime: 0.24, freshness: 0.16, interest: 0.08, sale: 0.02, popularity: 0.03 },
-  cheap: { ownership: 0.22, playerCount: 0.12, coopFit: 0.1, playtime: 0.08, freshness: 0.08, interest: 0.1, sale: 0.24, popularity: 0.06 },
-  familiar: { ownership: 0.3, playerCount: 0.14, coopFit: 0.1, playtime: 0.22, freshness: 0.02, interest: 0.12, sale: 0.02, popularity: 0.08 },
-  fresh: { ownership: 0.22, playerCount: 0.14, coopFit: 0.12, playtime: 0.04, freshness: 0.24, interest: 0.1, sale: 0.06, popularity: 0.08 },
+  balanced: { ownership: 0.2, playerCount: 0.12, genreFit: 0.08, availability: 0.08, onlineCoop: 0.08, localCoop: 0.04, playtime: 0.1, freshness: 0.08, interest: 0.1, price: 0.04, historicalLow: 0.03, popularity: 0.05 },
+  coop: { ownership: 0.18, playerCount: 0.16, genreFit: 0.06, availability: 0.06, onlineCoop: 0.18, localCoop: 0.1, playtime: 0.06, freshness: 0.05, interest: 0.08, price: 0.02, historicalLow: 0.01, popularity: 0.04 },
+  backlog: { ownership: 0.18, playerCount: 0.1, genreFit: 0.07, availability: 0.05, onlineCoop: 0.06, localCoop: 0.03, playtime: 0.24, freshness: 0.14, interest: 0.07, price: 0.02, historicalLow: 0.01, popularity: 0.03 },
+  cheap: { ownership: 0.14, playerCount: 0.1, genreFit: 0.05, availability: 0.05, onlineCoop: 0.06, localCoop: 0.03, playtime: 0.06, freshness: 0.05, interest: 0.07, price: 0.24, historicalLow: 0.1, popularity: 0.05 },
+  familiar: { ownership: 0.24, playerCount: 0.11, genreFit: 0.08, availability: 0.06, onlineCoop: 0.06, localCoop: 0.03, playtime: 0.22, freshness: 0.02, interest: 0.09, price: 0.02, historicalLow: 0.01, popularity: 0.06 },
+  fresh: { ownership: 0.14, playerCount: 0.1, genreFit: 0.08, availability: 0.05, onlineCoop: 0.07, localCoop: 0.03, playtime: 0.04, freshness: 0.24, interest: 0.08, price: 0.06, historicalLow: 0.04, popularity: 0.07 },
 };
 
 export const scoreModeLabels: Record<ScoreMode, string> = {
@@ -124,12 +168,13 @@ export function scoreSessionGames({
 }) {
   const selectedIds = selectedParticipantIds?.length ? selectedParticipantIds : participants.map((participant) => participant.id);
   const selectedParticipants = participants.filter((participant) => selectedIds.includes(participant.id));
-  const selectedUserIds = new Set(selectedParticipants.map((participant) => participant.userId).filter(Boolean));
+  const selectedUserIds = new Set(selectedParticipants.map((participant) => participant.userId).filter((userId): userId is string => Boolean(userId)));
   const selectedCount = Math.max(selectedParticipants.length, 1);
-  const weights = modeWeights[mode];
+  const baseWeights = modeWeights[mode];
 
   return sessionGames
     .map((sessionGame) => {
+      const game = withCuratedCapabilityFallback(sessionGame.game);
       const haveParticipantIds = new Set(
         sessionGame.signals
           .filter((signal) => selectedIds.includes(signal.participantId) && signalMeansHave(signal.signal))
@@ -146,62 +191,105 @@ export function scoreSessionGames({
       const have = haveParticipantIds.size;
       const missing = Math.max(selectedCount - have, 0);
       const ownership = have / selectedCount;
-      const playerCountFit = playerCountFits(sessionGame.game, playerCount);
+      const playerCountStatus = playerCountStatusFor(game, playerCount);
+      const playerCountFit = playerCountFits(game, playerCount);
       const preference = averagePreference(selectedParticipants);
-      const coopFit = coOpFit(sessionGame.game, preference.coOpVsCompetitive);
-      const relevantUserGames = userGames.filter((userGame) => userGame.gameId === sessionGame.gameId && selectedUserIds.has(userGame.userId));
-      const totalPlaytime = relevantUserGames.reduce((total, userGame) => total + (userGame.playtimeMinutes ?? 0), 0);
+      const weights = preferenceAdjustedWeights(baseWeights, preference);
+      const onlineCoop = coOpFit(game.onlineCoop, preference.coOpVsCompetitive);
+      const localCoop = coOpFit(game.localCoop, preference.coOpVsCompetitive);
+      const relevantUserIds = selectedUserIdsForSessionGame(sessionGame, selectedIds, selectedUserIds);
+      const relevantUserGames = userGames.filter((userGame) => userGame.gameId === sessionGame.gameId && relevantUserIds.has(userGame.userId));
+      const totalPlaytime = totalPlaytimeMinutes(relevantUserGames);
       const averagePlaytime = selectedCount > 0 ? totalPlaytime / selectedCount : 0;
       const playtime = mode === "backlog" || preference.backlogImportance >= 60 ? lowPlaytimeScore(averagePlaytime) : familiarPlaytimeScore(averagePlaytime);
       const freshness = freshnessScore(relevantUserGames);
       const interest = clampScore(60 + wantCount * 15 - notTonightCount * 45);
-      const discountPercent = sessionGame.game.steamStorePrice?.discountPercent ?? 0;
-      const sale = missing > 0 && discountPercent > 0 ? clampScore(45 + discountPercent) : 35;
-      const popularity = clampScore(sessionGame.game.popularityScore ?? 45);
+      const discountPercent = game.deal?.discountPercent ?? 0;
+      const currentPrice = game.deal?.currentPrice ?? null;
+      const historicalLow = game.deal?.historicalLow ?? null;
+      const price = missing > 0 && discountPercent > 0 ? clampScore(45 + discountPercent) : 35;
+      const historicalLowFactor = currentPrice && historicalLow ? clampScore(100 - Math.round(((currentPrice - historicalLow) / Math.max(historicalLow, 1)) * 100)) : 40;
+      const popularity = qualitySignalScore(game.title, game.popularityScore, game.steamReviewPercent);
+      const genreFit = genreFitScore(game.genres, preference.genreImportance);
+      const availability = availabilityFit(selectedCount, missing, notAvailableIds.size);
+      const sparseQualityBoost = game.popularityScore === null || game.popularityScore === undefined
+        ? (popularity - 50) * 0.08
+        : 0;
       const factors = {
         ownership: Math.round(ownership * 100),
         playerCount: playerCountFit,
-        coopFit,
+        genreFit,
+        availability,
+        onlineCoop,
+        localCoop,
         playtime,
         freshness,
         interest,
-        sale,
+        price,
+        historicalLow: historicalLowFactor,
         popularity,
       };
+      const preferenceMismatches = preferenceMismatchReasons(selectedParticipants, game, missing, discountPercent);
       const preferenceBoost = preference.priceImportance > 65 && discountPercent > 0 ? 4 : 0;
-      const rawScore = Object.entries(factors).reduce(
-        (total, [factor, value]) => total + value * weights[factor as keyof typeof factors],
-        preferenceBoost,
-      );
-      const alignment = alignmentLevel({ ownership, notAvailableCount: notAvailableIds.size, notTonightCount, playerCountFit });
-      const categories = categoriesFor({ ownership, missing, selectedCount, playerCountFit, averagePlaytime, discountPercent });
+      const factorBreakdown = factorBreakdownFor(factors, weights);
+      const rawScore = factorBreakdown.reduce((total, factor) => total + factor.points, preferenceBoost + sparseQualityBoost);
+      const alignment = alignmentLevel({
+        ownership,
+        notAvailableCount: notAvailableIds.size,
+        notTonightCount,
+        playerCountFit,
+        playerCountStatus,
+        strongMismatchCount: preferenceMismatches.length,
+      });
+      const alignmentReasons = alignmentReasonsFor({
+        alignment,
+        ownership,
+        missing,
+        selectedCount,
+        notAvailableCount: notAvailableIds.size,
+        notTonightCount,
+        playerCountStatus,
+        preferenceMismatches,
+      });
+      const categories = categoriesFor({ ownership, missing, selectedCount, playerCountFit, totalPlaytime, discountPercent });
       const reasons = reasonsFor({
         have,
         selectedCount,
         missing,
         playerCount,
-        playerCountFit,
         averagePlaytime,
         discountPercent,
+        currentPrice,
+        historicalLow,
         notTonightCount,
         wantCount,
-        onlineCoop: sessionGame.game.onlineCoop,
+        onlineCoop: game.onlineCoop,
+        playerCountStatus,
       });
 
       return {
         sessionGameId: sessionGame.id,
         gameId: sessionGame.gameId,
-        title: sessionGame.game.title,
+        title: game.title,
         score: clampScore(Math.round(rawScore)),
         alignment,
         reasons,
+        alignmentReasons,
         categories,
         factors,
+        factorBreakdown,
         ownership: { have, missing, selected: selectedCount },
         playtimeMinutes: totalPlaytime,
         discountPercent,
+        currentPrice,
+        historicalLow,
+        playerCountStatus,
+        qualitySource: game.qualitySource ?? null,
+        reviewSummary: game.steamReviewSummary ?? null,
+        capabilitySource: game.capabilitySource ?? null,
       };
     })
+    .filter((game) => game.playerCountStatus !== "unsupported")
     .sort((a, b) => {
       if (b.score !== a.score) {
         return b.score - a.score;
@@ -213,6 +301,67 @@ export function scoreSessionGames({
 
       return a.title.localeCompare(b.title);
     });
+}
+
+function preferenceAdjustedWeights(baseWeights: Record<FactorKey, number>, preference: PreferenceProfile) {
+  const weights = { ...baseWeights };
+
+  weights.ownership *= scaleAroundDefault(preference.ownershipImportance, 0.55, 1.55);
+  weights.price *= scaleAroundDefault(preference.priceImportance, 0.45, 1.9);
+  weights.historicalLow *= scaleAroundDefault(preference.priceImportance, 0.5, 1.7);
+  weights.genreFit *= scaleAroundDefault(preference.genreImportance, 0.55, 1.6);
+  weights.playtime *= scaleAroundDefault(preference.backlogImportance, 0.7, 1.45);
+
+  if (preference.coOpVsCompetitive >= 65) {
+    weights.onlineCoop *= 1.25;
+    weights.localCoop *= 1.2;
+  } else if (preference.coOpVsCompetitive <= 35) {
+    weights.onlineCoop *= 0.75;
+    weights.localCoop *= 0.75;
+  }
+
+  if (preference.familiarVsNew >= 65) {
+    weights.freshness *= 1.55;
+    weights.playtime *= 0.85;
+  } else if (preference.familiarVsNew <= 35) {
+    weights.playtime *= 1.35;
+    weights.freshness *= 0.75;
+  }
+
+  if (preference.shortVsLong <= 35) {
+    weights.freshness *= 1.15;
+    weights.playerCount *= 1.1;
+  } else if (preference.shortVsLong >= 65) {
+    weights.playtime *= 1.15;
+  }
+
+  const total = Object.values(weights).reduce((sum, weight) => sum + weight, 0);
+
+  return Object.fromEntries(
+    Object.entries(weights).map(([key, weight]) => [key, weight / total]),
+  ) as Record<FactorKey, number>;
+}
+
+function selectedUserIdsForSessionGame(
+  sessionGame: Pick<GameScoreInput, "addedByParticipantId" | "addedByUserId">,
+  selectedIds: string[],
+  selectedUserIds: Set<string>,
+) {
+  const relevantUserIds = new Set(selectedUserIds);
+
+  if (sessionGame.addedByUserId && sessionGame.addedByParticipantId && selectedIds.includes(sessionGame.addedByParticipantId)) {
+    relevantUserIds.add(sessionGame.addedByUserId);
+  }
+
+  return relevantUserIds;
+}
+
+function totalPlaytimeMinutes(userGames: UserGameInput[]) {
+  return userGames.reduce((total, userGame) => total + Math.max(0, userGame.playtimeMinutes ?? 0), 0);
+}
+
+function scaleAroundDefault(value: number, min: number, max: number) {
+  return min + (Math.max(0, Math.min(100, value)) / 100) * (max - min);
 }
 
 function averagePreference(participants: ParticipantInput[]) {
@@ -234,36 +383,145 @@ function averagePreference(participants: ParticipantInput[]) {
   ) as PreferenceProfile;
 }
 
-function playerCountFits(game: GameScoreInput["game"], playerCount: number) {
+function playerCountStatusFor(game: GameScoreInput["game"], playerCount: number): PlayerCountStatus {
   if (game.maxPlayers && game.maxPlayers < playerCount) {
-    return 25;
+    return "unsupported";
   }
 
   if (game.minPlayers && game.minPlayers > playerCount) {
-    return 45;
+    return "unsupported";
   }
 
   if (game.maxPlayers || game.minPlayers) {
+    return "supported";
+  }
+
+  return "uncertain";
+}
+
+function playerCountFits(game: GameScoreInput["game"], playerCount: number) {
+  const status = playerCountStatusFor(game, playerCount);
+
+  if (status === "unsupported") {
+    return 0;
+  }
+
+  if (status === "supported") {
     return 95;
   }
 
-  return 65;
+  return 48;
 }
 
-function coOpFit(game: GameScoreInput["game"], coOpPreference: number) {
+function coOpFit(supportsCoop: boolean | null | undefined, coOpPreference: number) {
   if (coOpPreference < 45) {
     return 60;
   }
 
-  if (game.onlineCoop || game.localCoop) {
+  if (supportsCoop) {
     return 90;
   }
 
-  if (game.onlineCoop === false && game.localCoop === false) {
+  if (supportsCoop === false) {
     return 35;
   }
 
   return 60;
+}
+
+function genreFitScore(genres: unknown, genreImportance: number) {
+  const genreList = Array.isArray(genres) ? genres.map(String) : [];
+
+  if (genreImportance < 45) {
+    return 65;
+  }
+
+  if (genreList.some((genre) => /co-op|survival|party|rpg|shooter|campaign|chill/i.test(genre))) {
+    return 82;
+  }
+
+  return 60;
+}
+
+function availabilityFit(selectedCount: number, missing: number, notAvailableCount: number) {
+  if (notAvailableCount > 0) {
+    return 20;
+  }
+
+  return Math.round(((selectedCount - missing) / Math.max(selectedCount, 1)) * 100);
+}
+
+function preferenceMismatchReasons(
+  participants: ParticipantInput[],
+  game: GameScoreInput["game"],
+  missing: number,
+  discountPercent: number,
+) {
+  const genres = Array.isArray(game.genres) ? game.genres.map((genre) => String(genre).toLocaleLowerCase()) : [];
+  const text = `${game.title} ${genres.join(" ")}`.toLocaleLowerCase();
+  const mismatches: string[] = [];
+
+  participants.forEach((participant) => {
+    const preference = {
+      ...defaultPreference,
+      ...(participant.user?.preference ?? {}),
+      ...(participant.preference ?? {}),
+    };
+
+    if (preference.coOpVsCompetitive >= 85 && game.onlineCoop === false && game.localCoop === false) {
+      mismatches.push("A selected player strongly prefers co-op, but this does not look co-op friendly");
+    }
+
+    if (preference.chillVsIntense <= 20 && /horror|hardcore|intense|shooter|fighting/.test(text)) {
+      mismatches.push("A selected player strongly prefers chill games, but this looks intense");
+    }
+
+    if (preference.priceImportance >= 85 && missing > 0 && discountPercent <= 0) {
+      mismatches.push("A selected player cares strongly about price, and missing players do not have a deal");
+    }
+  });
+
+  return [...new Set(mismatches)].slice(0, 3);
+}
+
+function factorBreakdownFor(factors: ScoredGame["factors"], weights: Record<FactorKey, number>) {
+  const labels: Record<FactorKey, string> = {
+    ownership: "Ownership",
+    playerCount: "Player count",
+    genreFit: "Genre",
+    availability: "Availability",
+    onlineCoop: "Online co-op",
+    localCoop: "Local co-op",
+    playtime: "Playtime",
+    freshness: "Freshness",
+    interest: "Interest",
+    price: "Sale price",
+    historicalLow: "Historical low",
+    popularity: "Reviews",
+  };
+
+  return (Object.keys(factors) as FactorKey[])
+    .map((key) => ({
+      key,
+      label: labels[key],
+      value: factors[key],
+      weight: weights[key],
+      points: factors[key] * weights[key],
+    }))
+    .sort((a, b) => b.points - a.points);
+}
+
+function qualitySignalScore(title: string, popularityScore?: number | null, steamReviewPercent?: number | null) {
+  if (steamReviewPercent !== null && steamReviewPercent !== undefined) {
+    return clampScore(steamReviewPercent);
+  }
+
+  if (popularityScore !== null && popularityScore !== undefined) {
+    return clampScore(popularityScore);
+  }
+
+  const hash = Array.from(normalizeGameTitle(title)).reduce((total, char) => ((total << 5) - total + char.charCodeAt(0)) | 0, 0);
+  return 25 + (Math.abs(hash) % 66);
 }
 
 function familiarPlaytimeScore(averagePlaytime: number) {
@@ -309,21 +567,71 @@ function alignmentLevel({
   notAvailableCount,
   notTonightCount,
   playerCountFit,
+  playerCountStatus,
+  strongMismatchCount,
 }: {
   ownership: number;
   notAvailableCount: number;
   notTonightCount: number;
   playerCountFit: number;
+  playerCountStatus: PlayerCountStatus;
+  strongMismatchCount: number;
 }): AlignmentLevel {
-  if (notTonightCount > 0 || notAvailableCount > 0 || playerCountFit < 40) {
+  if (notTonightCount > 0 || notAvailableCount > 0 || playerCountStatus === "unsupported" || strongMismatchCount > 0) {
     return "Low";
   }
 
-  if (ownership < 0.75 || playerCountFit < 70) {
+  if (ownership < 0.75 || playerCountStatus === "uncertain" || playerCountFit < 70) {
     return "Medium";
   }
 
   return "High";
+}
+
+function alignmentReasonsFor({
+  alignment,
+  ownership,
+  missing,
+  selectedCount,
+  notAvailableCount,
+  notTonightCount,
+  playerCountStatus,
+  preferenceMismatches,
+}: {
+  alignment: AlignmentLevel;
+  ownership: number;
+  missing: number;
+  selectedCount: number;
+  notAvailableCount: number;
+  notTonightCount: number;
+  playerCountStatus: PlayerCountStatus;
+  preferenceMismatches: string[];
+}) {
+  const reasons: string[] = [];
+
+  if (notTonightCount > 0) {
+    reasons.push(`${notTonightCount} selected player${notTonightCount === 1 ? "" : "s"} marked Not tonight`);
+  }
+
+  if (notAvailableCount > 0) {
+    reasons.push(`${notAvailableCount} selected player${notAvailableCount === 1 ? "" : "s"} marked Don't have`);
+  }
+
+  reasons.push(...preferenceMismatches);
+
+  if (playerCountStatus === "uncertain") {
+    reasons.push("Player-count support is not confirmed yet");
+  }
+
+  if (missing > 0) {
+    reasons.push(`${missing}/${selectedCount} selected player${missing === 1 ? "" : "s"} missing ownership`);
+  }
+
+  if (alignment === "High" && ownership === 1 && reasons.length === 0) {
+    reasons.push("No selected player has a veto or strong mismatch");
+  }
+
+  return reasons.slice(0, 3);
 }
 
 function categoriesFor({
@@ -331,14 +639,14 @@ function categoriesFor({
   missing,
   selectedCount,
   playerCountFit,
-  averagePlaytime,
+  totalPlaytime,
   discountPercent,
 }: {
   ownership: number;
   missing: number;
   selectedCount: number;
   playerCountFit: number;
-  averagePlaytime: number;
+  totalPlaytime: number;
   discountPercent: number;
 }) {
   const categories: MatchCategory[] = [];
@@ -346,10 +654,10 @@ function categoriesFor({
   if (ownership === 1 && playerCountFit >= 70) {
     categories.push("perfect");
   }
-  if (ownership === 1 && averagePlaytime < 120) {
+  if (ownership === 1 && isBarelyPlayedGroupPick(totalPlaytime)) {
     categories.push("hiddenBacklog");
   }
-  if (ownership === 1 && averagePlaytime >= 600) {
+  if (ownership === 1 && isHeavilyPlayedGroupPick(totalPlaytime)) {
     categories.push("oldFavourites");
   }
   if (selectedCount > 1 && missing === 1) {
@@ -367,30 +675,36 @@ function reasonsFor({
   selectedCount,
   missing,
   playerCount,
-  playerCountFit,
   averagePlaytime,
   discountPercent,
+  currentPrice,
+  historicalLow,
   notTonightCount,
   wantCount,
   onlineCoop,
+  playerCountStatus,
 }: {
   have: number;
   selectedCount: number;
   missing: number;
   playerCount: number;
-  playerCountFit: number;
   averagePlaytime: number;
   discountPercent: number;
+  currentPrice?: number | null;
+  historicalLow?: number | null;
   notTonightCount: number;
   wantCount: number;
   onlineCoop?: boolean | null;
+  playerCountStatus: PlayerCountStatus;
 }) {
   const reasons = [`${have}/${selectedCount} selected players have it`];
 
-  if (playerCountFit >= 70) {
+  if (playerCountStatus === "supported") {
     reasons.push(`Supports the selected ${playerCount} player group`);
+  } else if (playerCountStatus === "unsupported") {
+    reasons.push(`Does not support ${playerCount} players`);
   } else {
-    reasons.push(`Player-count fit is uncertain for ${playerCount} players`);
+    reasons.push(`Needs player-count metadata for ${playerCount} players`);
   }
 
   if (notTonightCount > 0) {
@@ -405,6 +719,8 @@ function reasonsFor({
 
   if (missing > 0 && discountPercent > 0) {
     reasons.push(`${discountPercent}% off for missing players`);
+  } else if (currentPrice && historicalLow && currentPrice <= Math.round(historicalLow * 1.1)) {
+    reasons.push("Close to its historical low");
   } else if (onlineCoop) {
     reasons.push("Online co-op friendly");
   }
@@ -418,4 +734,31 @@ function alignmentRank(alignment: AlignmentLevel) {
 
 function clampScore(value: number) {
   return Math.max(0, Math.min(100, value));
+}
+
+function withCuratedCapabilityFallback(game: GameScoreInput["game"]): GameScoreInput["game"] {
+  const hasKnownCapability =
+    Boolean(game.maxPlayers) ||
+    Boolean(game.minPlayers) ||
+    (game.onlineCoop !== null && game.onlineCoop !== undefined) ||
+    (game.localCoop !== null && game.localCoop !== undefined);
+
+  if (hasKnownCapability) {
+    return game;
+  }
+
+  const curated = curatedGames.find((candidate) => normalizeGameTitle(candidate.title) === normalizeGameTitle(game.title));
+
+  if (!curated) {
+    return game;
+  }
+
+  return {
+    ...game,
+    minPlayers: curated.minPlayers ?? game.minPlayers,
+    maxPlayers: curated.maxPlayers ?? game.maxPlayers,
+    onlineCoop: curated.onlineCoop ?? game.onlineCoop,
+    localCoop: curated.localCoop ?? game.localCoop,
+    genres: Array.isArray(game.genres) && game.genres.length > 0 ? game.genres : curated.genres,
+  };
 }

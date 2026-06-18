@@ -6,7 +6,21 @@ export type IgdbGameResult = {
   genres?: Array<{ name: string }>;
   platforms?: Array<{ name: string }>;
   game_modes?: Array<{ name: string }>;
+  multiplayer_modes?: Array<{
+    onlinecoop?: boolean;
+    offlinecoop?: boolean;
+    onlinecoopmax?: number;
+    offlinecoopmax?: number;
+    onlinemax?: number;
+    offlinemax?: number;
+    splitscreen?: boolean;
+  }>;
   total_rating?: number;
+  total_rating_count?: number;
+  aggregated_rating?: number;
+  aggregated_rating_count?: number;
+  rating?: number;
+  rating_count?: number;
   hypes?: number;
 };
 
@@ -18,7 +32,7 @@ type TokenCache = {
 let tokenCache: TokenCache | null = null;
 
 const fields =
-  "fields id,name,summary,cover.url,genres.name,platforms.name,game_modes.name,total_rating,hypes;";
+  "fields id,name,summary,cover.url,genres.name,platforms.name,game_modes.name,multiplayer_modes.onlinecoop,multiplayer_modes.offlinecoop,multiplayer_modes.onlinecoopmax,multiplayer_modes.offlinecoopmax,multiplayer_modes.onlinemax,multiplayer_modes.offlinemax,multiplayer_modes.splitscreen,total_rating,total_rating_count,aggregated_rating,aggregated_rating_count,rating,rating_count,hypes;";
 
 export async function getIgdbAccessToken() {
   if (tokenCache && tokenCache.expiresAt > Date.now() + 60_000) {
@@ -96,7 +110,15 @@ export async function getTrendingIgdbGames() {
   return queryIgdbGames(`${fields} where hypes != null; sort hypes desc; limit 12;`);
 }
 
+export async function getIgdbGameById(id: number) {
+  const [game] = await queryIgdbGames(`${fields} where id = ${id}; limit 1;`);
+  return game ?? null;
+}
+
 export function mapIgdbGame(result: IgdbGameResult) {
+  const capability = mapIgdbCapability(result);
+  const quality = mapIgdbQuality(result);
+
   return {
     igdbId: result.id,
     title: result.name,
@@ -105,7 +127,59 @@ export function mapIgdbGame(result: IgdbGameResult) {
     genres: result.genres?.map((genre) => genre.name) ?? [],
     platforms: result.platforms?.map((platform) => platform.name) ?? [],
     gameModes: result.game_modes?.map((mode) => mode.name) ?? [],
-    popularityScore: result.hypes ?? result.total_rating ?? null,
+    popularityScore: quality.popularityScore,
+    minPlayers: capability.minPlayers,
+    maxPlayers: capability.maxPlayers,
+    onlineCoop: capability.onlineCoop,
+    localCoop: capability.localCoop,
+    capabilitySource: capability.capabilitySource,
+    capabilityConfidence: capability.capabilityConfidence,
+    steamReviewScore: null,
+    steamReviewPercent: null,
+    steamReviewTotal: quality.reviewTotal,
+    steamReviewSummary: quality.summary,
+    qualitySource: quality.qualitySource,
+  };
+}
+
+export function mapIgdbCapability(result: IgdbGameResult) {
+  const modes = result.multiplayer_modes ?? [];
+  const onlineMax = maxNumber(modes.map((mode) => mode.onlinecoopmax ?? mode.onlinemax));
+  const offlineMax = maxNumber(modes.map((mode) => mode.offlinecoopmax ?? mode.offlinemax));
+  const maxPlayers = maxNumber([onlineMax, offlineMax]);
+  const onlineCoop = modes.some((mode) => mode.onlinecoop) || undefined;
+  const localCoop = modes.some((mode) => mode.offlinecoop || mode.splitscreen) || undefined;
+
+  if (maxPlayers || onlineCoop !== undefined || localCoop !== undefined) {
+    return {
+      minPlayers: 1,
+      maxPlayers: maxPlayers ?? null,
+      onlineCoop: onlineCoop ?? null,
+      localCoop: localCoop ?? null,
+      capabilitySource: "igdb:multiplayer_modes",
+      capabilityConfidence: maxPlayers ? 0.9 : 0.65,
+    };
+  }
+
+  return {
+    minPlayers: null,
+    maxPlayers: null,
+    onlineCoop: null,
+    localCoop: null,
+    capabilitySource: null,
+    capabilityConfidence: null,
+  };
+}
+
+export function mapIgdbQuality(result: IgdbGameResult) {
+  const rating = result.total_rating ?? result.aggregated_rating ?? result.rating ?? null;
+  const count = result.total_rating_count ?? result.aggregated_rating_count ?? result.rating_count ?? null;
+
+  return {
+    popularityScore: result.hypes ?? rating ?? null,
+    reviewTotal: count,
+    summary: rating ? `IGDB rating ${Math.round(rating)}/100${count ? ` from ${count} rating${count === 1 ? "" : "s"}` : ""}` : null,
+    qualitySource: rating ? "igdb:rating" : result.hypes ? "igdb:hypes" : null,
   };
 }
 
@@ -115,4 +189,9 @@ function normalizeCoverUrl(url: string) {
 
 function escapeIgdbString(value: string) {
   return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+}
+
+function maxNumber(values: Array<number | null | undefined>) {
+  const present = values.filter((value): value is number => typeof value === "number" && value > 0);
+  return present.length ? Math.max(...present) : null;
 }

@@ -1,19 +1,25 @@
-import type { Game, GameInterestSignal, Participant, ParticipantPreference, SessionGame, SessionGameInterest, SessionGameSignal, SteamAccount, SteamStorePrice, User, UserPreference } from "@prisma/client";
-import { Check, Gamepad2, Heart, LogOut, Plus, Search, Sparkles, TrendingUp, X } from "lucide-react";
+import type { Game, GameDeal, GameInterestSignal, Participant, ParticipantPreference, PriceAlertEvent, SessionGame, SessionGameInterest, SessionGameSignal, SteamAccount, SteamStorePrice, User, UserPreference } from "@prisma/client";
+import { Bell, Check, Gamepad2, Heart, Link as LinkIcon, LogOut, Plus, Search, Sparkles, TrendingUp, UsersRound, X } from "lucide-react";
 import {
   addSessionGameAction,
+  createFriendInviteAction,
+  createPriceAlertRuleAction,
   importSteamLibraryAction,
   markGameInterestAction,
   markGameAvailableAction,
   removeSessionGameAction,
+  updateDealSettingsAction,
   updatePreferenceAction,
+  updateQuickPreferenceAction,
 } from "@/app/actions";
 import { countDontHaveSignals, countHaveSignals, signalMeansHave, type GameInput } from "@/lib/games";
-import { scoreModeLabels, type MatchCategory, type ScoredGame, type ScoreMode } from "@/lib/match-scoring";
+import type { GroupBuyFilters, GroupBuyRecommendation } from "@/lib/group-buy";
+import { formatMinorPrice } from "@/lib/itad";
+import { isBarelyPlayedGroupPick, isHeavilyPlayedGroupPick, scoreModeLabels, type MatchCategory, type ScoredGame, type ScoreMode } from "@/lib/match-scoring";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 
 type SessionGameView = SessionGame & {
-  game: Game & { steamStorePrice?: SteamStorePrice | null };
+  game: Game & { steamStorePrice?: SteamStorePrice | null; deal?: GameDeal | null };
   signals: SessionGameSignal[];
   interests: SessionGameInterest[];
 };
@@ -46,6 +52,13 @@ export function PickPanel({
   selectedPlayerCount,
   scoreMode,
   scoredGames,
+  dealCountry,
+  dealCurrency,
+  priceAlertEvents,
+  groupBuyFilters,
+  groupBuyRecommendations,
+  friendInviteUrl,
+  savedFriends,
 }: {
   shareToken: string;
   participantId?: string;
@@ -62,6 +75,13 @@ export function PickPanel({
   selectedPlayerCount: number;
   scoreMode: ScoreMode;
   scoredGames: ScoredGame[];
+  dealCountry: string;
+  dealCurrency: string;
+  priceAlertEvents: PriceAlertEvent[];
+  groupBuyFilters: GroupBuyFilters;
+  groupBuyRecommendations: GroupBuyRecommendation[];
+  friendInviteUrl: string | null;
+  savedFriends: User[];
 }) {
   const steamAccount = currentUser?.steamAccount;
   const importStatus = steamAccount?.lastImportStatus ?? null;
@@ -141,6 +161,25 @@ export function PickPanel({
           selectedPlayerCount={selectedPlayerCount}
           scoreMode={scoreMode}
           scoredGames={scoredGames}
+        />
+
+        <DealAndFriendsPanel
+          shareToken={shareToken}
+          participantId={participantId}
+          currentUser={currentUser}
+          dealCountry={dealCountry}
+          dealCurrency={dealCurrency}
+          priceAlertEvents={priceAlertEvents}
+          friendInviteUrl={friendInviteUrl}
+          savedFriends={savedFriends}
+        />
+
+        <GroupBuyPanel
+          shareToken={shareToken}
+          participantId={participantId}
+          filters={groupBuyFilters}
+          recommendations={groupBuyRecommendations}
+          currency={dealCurrency}
         />
 
         <PreferencePanel
@@ -286,6 +325,8 @@ function MatchDashboard({
   scoreMode: ScoreMode;
   scoredGames: ScoredGame[];
 }) {
+  const compatibleGames = scoredGames.filter((game) => game.playerCountStatus === "supported");
+  const uncertainGames = scoredGames.filter((game) => game.playerCountStatus === "uncertain");
   const categorySections: Array<{ id: MatchCategory; title: string; empty: string }> = [
     { id: "perfect", title: "Perfect matches", empty: "No game is owned by everyone and confirmed for this group size yet." },
     { id: "hiddenBacklog", title: "Hidden backlog", empty: "No shared low-playtime backlog picks yet." },
@@ -294,13 +335,13 @@ function MatchDashboard({
     { id: "saleOpportunity", title: "Sale opportunity", empty: "No discounted missing-player games found yet." },
   ];
   const filters = [
-    ["Everyone owns", scoredGames.filter((game) => game.ownership.have === game.ownership.selected).length],
-    ["Most people own", scoredGames.filter((game) => game.ownership.have >= Math.max(1, game.ownership.selected - 1)).length],
-    ["Only one missing", scoredGames.filter((game) => game.ownership.missing === 1).length],
-    ["Online co-op", scoredGames.filter((game) => game.factors.coopFit >= 80).length],
-    ["Local co-op", scoredGames.filter((game) => game.factors.coopFit >= 80).length],
-    ["Played heavily", scoredGames.filter((game) => game.playtimeMinutes >= 600).length],
-    ["Barely played", scoredGames.filter((game) => game.playtimeMinutes < 120).length],
+    ["Everyone owns", compatibleGames.filter((game) => game.ownership.have === game.ownership.selected).length],
+    ["Most people own", compatibleGames.filter((game) => game.ownership.have >= Math.max(1, game.ownership.selected - 1)).length],
+    ["Only one missing", compatibleGames.filter((game) => game.ownership.missing === 1).length],
+    ["Online co-op", compatibleGames.filter((game) => game.factors.onlineCoop >= 80).length],
+    ["Local co-op", compatibleGames.filter((game) => game.factors.localCoop >= 80).length],
+    ["Played heavily", compatibleGames.filter((game) => isHeavilyPlayedGroupPick(game.playtimeMinutes)).length],
+    ["Barely played", compatibleGames.filter((game) => isBarelyPlayedGroupPick(game.playtimeMinutes)).length],
   ] as const;
 
   return (
@@ -362,7 +403,7 @@ function MatchDashboard({
 
       <div className="mt-5 grid gap-4">
         {categorySections.map((section) => {
-          const games = scoredGames.filter((game) => game.categories.includes(section.id)).slice(0, 4);
+          const games = compatibleGames.filter((game) => game.categories.includes(section.id)).slice(0, 4);
 
           return (
             <section key={section.id} className="rounded-lg border border-ink/10 bg-paper p-4">
@@ -377,6 +418,17 @@ function MatchDashboard({
             </section>
           );
         })}
+        {uncertainGames.length > 0 ? (
+          <section className="rounded-lg border border-gold/35 bg-gold/10 p-4">
+            <h3 className="text-lg font-black text-ink">Needs player-count metadata</h3>
+            <p className="mt-1 text-sm leading-6 text-ink/62">
+              These games are not hidden because their player limit is unknown. Add curated metadata or pick a known-capacity game for stronger recommendations.
+            </p>
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              {uncertainGames.slice(0, 4).map((game) => <ScoredGameCard key={`uncertain-${game.sessionGameId}`} game={game} />)}
+            </div>
+          </section>
+        ) : null}
       </div>
     </section>
   );
@@ -412,7 +464,238 @@ function ScoredGameCard({ game }: { game: ScoredGame }) {
           <li key={reason}>{reason}</li>
         ))}
       </ul>
+      {game.alignmentReasons.length > 0 ? (
+        <div className="mt-3 rounded-md border border-ink/10 bg-paper p-3">
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-ink/45">Alignment check</p>
+          <ul className="mt-2 grid gap-1 text-xs font-bold leading-5 text-ink/60">
+            {game.alignmentReasons.map((reason) => <li key={reason}>{reason}</li>)}
+          </ul>
+        </div>
+      ) : null}
+      <div className="mt-3 grid gap-2">
+        {game.factorBreakdown.slice(0, 6).map((factor) => (
+          <div key={factor.key} className="grid grid-cols-[6rem_1fr_3.5rem] items-center gap-2 text-xs font-bold text-ink/55">
+            <span>{factor.label}</span>
+            <span className="h-2 overflow-hidden rounded-full bg-linen">
+              <span className="block h-full rounded-full bg-teal" style={{ width: `${Math.max(4, factor.value)}%` }} />
+            </span>
+            <span className="text-right">{Math.round(factor.points)} pts</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-xs font-bold leading-5 text-ink/45">
+        {game.reviewSummary ?? `Quality source: ${game.qualitySource ?? "fallback"}`} · Players:{" "}
+        {game.capabilitySource ?? (game.playerCountStatus === "uncertain" ? "unknown" : "metadata")}
+      </p>
     </div>
+  );
+}
+
+function DealAndFriendsPanel({
+  shareToken,
+  participantId,
+  currentUser,
+  dealCountry,
+  dealCurrency,
+  priceAlertEvents,
+  friendInviteUrl,
+  savedFriends,
+}: {
+  shareToken: string;
+  participantId?: string;
+  currentUser: UserWithSteam;
+  dealCountry: string;
+  dealCurrency: string;
+  priceAlertEvents: PriceAlertEvent[];
+  friendInviteUrl: string | null;
+  savedFriends: User[];
+}) {
+  return (
+    <section className="surface rounded-xl p-5">
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div>
+          <p className="text-sm font-black uppercase tracking-[0.14em] text-teal">Deals</p>
+          <h2 className="mt-1 text-2xl font-black text-ink">Price alerts</h2>
+          <form action={updateDealSettingsAction} className="mt-4 grid gap-3 rounded-lg border border-ink/10 bg-paper p-3 sm:grid-cols-[1fr_1fr_auto]">
+            <input type="hidden" name="shareToken" value={shareToken} />
+            <label>
+              <span className="text-xs font-black uppercase tracking-[0.12em] text-ink/45">Country</span>
+              <input name="dealCountry" defaultValue={dealCountry} maxLength={2} className="field" />
+            </label>
+            <label>
+              <span className="text-xs font-black uppercase tracking-[0.12em] text-ink/45">Currency</span>
+              <input name="dealCurrency" defaultValue={dealCurrency} maxLength={3} className="field" />
+            </label>
+            <PendingSubmitButton className="secondary-button self-end" pendingLabel="Saving...">Save</PendingSubmitButton>
+          </form>
+          <form action={createPriceAlertRuleAction} className="mt-3 grid gap-3 rounded-lg border border-ink/10 bg-paper p-3 sm:grid-cols-[1fr_8rem_auto]">
+            <input type="hidden" name="shareToken" value={shareToken} />
+            {participantId ? <input type="hidden" name="participantId" value={participantId} /> : null}
+            <select name="type" className="field mt-0" defaultValue="UNDER_PRICE">
+              <option value="UNDER_PRICE">Alert under price</option>
+              <option value="GROUP_ON_SALE">Group on sale</option>
+              <option value="MISSING_PLAYERS_ONLY">Missing players only</option>
+              <option value="HISTORICAL_LOW">Historical low</option>
+              <option value="OWNED_COUNT_DISCOUNTED">N/M owned discounted</option>
+            </select>
+            <input name="thresholdPrice" type="number" step="0.01" defaultValue="10" className="field mt-0" />
+            <PendingSubmitButton className="primary-button" pendingLabel="Adding...">
+              <Bell className="h-4 w-4" />
+              Add alert
+            </PendingSubmitButton>
+          </form>
+          <div className="mt-3 grid gap-2">
+            {priceAlertEvents.length > 0 ? (
+              priceAlertEvents.map((event) => (
+                <a key={event.id} href={event.url ?? "#"} className="rounded-lg border border-coral/20 bg-coral/10 p-3 text-sm font-bold text-ink">
+                  {event.message}
+                </a>
+              ))
+            ) : (
+              <p className="rounded-lg border border-dashed border-ink/20 bg-paper p-3 text-sm leading-6 text-ink/55">
+                Deal alerts appear here when ITAD finds a matching price.
+              </p>
+            )}
+          </div>
+        </div>
+        <div>
+          <p className="text-sm font-black uppercase tracking-[0.14em] text-moss">Friends</p>
+          <h2 className="mt-1 text-2xl font-black text-ink">Reusable group</h2>
+          {currentUser ? (
+            <>
+              <form action={createFriendInviteAction} className="mt-4">
+                <input type="hidden" name="redirectTo" value={`/s/${shareToken}?tab=pick${participantId ? `&participant=${participantId}` : ""}`} />
+                <PendingSubmitButton className="primary-button" pendingLabel="Creating...">
+                  <LinkIcon className="h-4 w-4" />
+                  Create friend invite
+                </PendingSubmitButton>
+              </form>
+              {friendInviteUrl ? (
+                <div className="mt-3 rounded-lg border border-ink/10 bg-paper p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-ink/45">Latest invite</p>
+                  <p className="mt-1 break-all text-sm font-bold text-ink">{friendInviteUrl}</p>
+                </div>
+              ) : null}
+              <div className="mt-3 grid gap-2">
+                {savedFriends.length > 0 ? (
+                  savedFriends.map((friend) => (
+                    <div key={friend.id} className="flex items-center gap-2 rounded-lg border border-ink/10 bg-paper p-3">
+                      <UsersRound className="h-4 w-4 text-teal" />
+                      <span className="text-sm font-black text-ink">{friend.displayName}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="rounded-lg border border-dashed border-ink/20 bg-paper p-3 text-sm leading-6 text-ink/55">
+                    Invite signed-in friends once, then reuse them for future Pick sessions.
+                  </p>
+                )}
+              </div>
+            </>
+          ) : (
+            <p className="mt-4 rounded-lg border border-dashed border-ink/20 bg-paper p-3 text-sm leading-6 text-ink/55">
+              Sign in with Steam to create reusable friend invites.
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function GroupBuyPanel({
+  shareToken,
+  participantId,
+  filters,
+  recommendations,
+  currency,
+}: {
+  shareToken: string;
+  participantId?: string;
+  filters: GroupBuyFilters;
+  recommendations: GroupBuyRecommendation[];
+  currency: string;
+}) {
+  const labels: Record<GroupBuyRecommendation["section"], string> = {
+    bestOverall: "Best overall group buy",
+    cheapest: "Cheapest good option",
+    longTerm: "Best long-term game",
+    oneNight: "Best one-night game",
+    trending: "Best new or trending option",
+  };
+
+  return (
+    <section className="surface rounded-xl p-5">
+      <p className="text-sm font-black uppercase tracking-[0.14em] text-gold">All buy a new game</p>
+      <h2 className="mt-1 text-2xl font-black text-ink">Find a group buy</h2>
+      <form className="mt-4 grid gap-3 rounded-lg border border-ink/10 bg-paper p-4 md:grid-cols-4" action={`/s/${shareToken}`}>
+        <input type="hidden" name="tab" value="pick" />
+        {participantId ? <input type="hidden" name="participant" value={participantId} /> : null}
+        <label>
+          <span className="text-xs font-black uppercase tracking-[0.12em] text-ink/45">Budget</span>
+          <input name="groupBudget" type="number" step="0.01" defaultValue={filters.budget / 100} className="field" />
+        </label>
+        <label>
+          <span className="text-xs font-black uppercase tracking-[0.12em] text-ink/45">Genre</span>
+          <input name="groupGenre" defaultValue={filters.genre} placeholder="co-op survival" className="field" />
+        </label>
+        <label>
+          <span className="text-xs font-black uppercase tracking-[0.12em] text-ink/45">Mode</span>
+          <select name="groupMode" defaultValue={filters.mode} className="field">
+            <option value="online">Online</option>
+            <option value="local">Local</option>
+            <option value="either">Either</option>
+          </select>
+        </label>
+        <label>
+          <span className="text-xs font-black uppercase tracking-[0.12em] text-ink/45">Length</span>
+          <select name="groupLength" defaultValue={filters.sessionLength} className="field">
+            <option value="any">Any</option>
+            <option value="one-night">One night</option>
+            <option value="long-term">Long-term</option>
+            <option value="campaign">Campaign</option>
+          </select>
+        </label>
+        <label>
+          <span className="text-xs font-black uppercase tracking-[0.12em] text-ink/45">Platform</span>
+          <input name="groupPlatform" defaultValue={filters.platform} placeholder="PC, Switch..." className="field" />
+        </label>
+        <div className="rounded-md border border-ink/10 bg-white px-3 py-2">
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-ink/45">Players</p>
+          <p className="mt-1 font-black text-ink">{filters.playerCount}</p>
+        </div>
+        <label className="inline-flex items-center gap-2 text-sm font-bold text-ink">
+          <input name="avoidOwned" type="checkbox" defaultChecked={filters.avoidOwned} className="h-4 w-4 accent-teal" />
+          Avoid already-owned
+        </label>
+        <label className="inline-flex items-center gap-2 text-sm font-bold text-ink">
+          <input name="saleOnly" type="checkbox" defaultChecked={filters.saleOnly} className="h-4 w-4 accent-teal" />
+          Sale only
+        </label>
+        <button className="secondary-button md:col-span-2" type="submit">Update group buy</button>
+      </form>
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        {recommendations.length > 0 ? (
+          recommendations.map((recommendation) => (
+            <div key={`${recommendation.section}-${recommendation.game.slug}`} className="rounded-lg border border-ink/10 bg-paper p-4">
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-teal">{labels[recommendation.section]}</p>
+              <h3 className="mt-1 text-lg font-black text-ink">{recommendation.game.title}</h3>
+              <p className="mt-1 text-sm font-black text-teal">Group buy score: {recommendation.score}</p>
+              <p className="mt-1 text-sm leading-6 text-ink/60">{recommendation.game.description}</p>
+              <p className="mt-2 text-sm font-black text-coral">
+                {recommendation.price ? formatMinorPrice(recommendation.price, recommendation.currency ?? currency) : "Price unavailable"}
+              </p>
+              <ul className="mt-2 grid gap-1 text-sm text-ink/60">
+                {recommendation.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+              </ul>
+            </div>
+          ))
+        ) : (
+          <p className="rounded-lg border border-dashed border-ink/20 bg-paper p-4 text-sm leading-6 text-ink/55">
+            No group-buy candidates match those filters yet.
+          </p>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -434,9 +717,43 @@ function PreferencePanel({
   }
 
   const preference = currentUser?.preference ?? currentParticipant?.preference;
+  const showNudge = hasPickSignals && !currentParticipant?.preferenceNudgeDismissedAt && !preference;
 
   return (
-    <details className="surface rounded-xl p-5" open={hasPickSignals}>
+    <section className="surface rounded-xl p-5">
+      {showNudge ? (
+        <div className="mb-4 rounded-lg border border-teal/20 bg-teal/10 p-4">
+          <p className="font-black text-ink">Quick match tune-up</p>
+          <form action={updateQuickPreferenceAction} className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end">
+            <input type="hidden" name="shareToken" value={shareToken} />
+            <input type="hidden" name="participantId" value={participantId} />
+            <label>
+              <span className="text-xs font-black uppercase tracking-[0.12em] text-ink/45">Co-op preference</span>
+              <select name="coOpVsCompetitive" className="field">
+                <option value="80">Prefer co-op</option>
+                <option value="50">Either</option>
+                <option value="25">Competitive is fine</option>
+              </select>
+            </label>
+            <label>
+              <span className="text-xs font-black uppercase tracking-[0.12em] text-ink/45">Tonight</span>
+              <select name="familiarVsNew" className="field">
+                <option value="35">Something familiar</option>
+                <option value="50">Either</option>
+                <option value="75">Something new</option>
+              </select>
+            </label>
+            <PendingSubmitButton className="primary-button" pendingLabel="Saving...">Save</PendingSubmitButton>
+          </form>
+          <form action={updateQuickPreferenceAction} className="mt-2">
+            <input type="hidden" name="shareToken" value={shareToken} />
+            <input type="hidden" name="participantId" value={participantId} />
+            <input type="hidden" name="dismiss" value="true" />
+            <PendingSubmitButton className="secondary-button px-3 py-2" pendingLabel="Skipping...">Skip</PendingSubmitButton>
+          </form>
+        </div>
+      ) : null}
+    <details open={hasPickSignals}>
       <summary className="cursor-pointer list-none">
         <p className="text-sm font-black uppercase tracking-[0.14em] text-coral">Preferences</p>
         <h2 className="mt-1 text-2xl font-black text-ink">Tune your match</h2>
@@ -460,6 +777,7 @@ function PreferencePanel({
         </PendingSubmitButton>
       </form>
     </details>
+    </section>
   );
 }
 
@@ -490,6 +808,7 @@ function SessionGameCard({
   const currentSignal = participantId ? sessionGame.signals.find((signal) => signal.participantId === participantId)?.signal : null;
   const currentHas = signalMeansHave(currentSignal);
   const currentDoesNotHave = currentSignal === "NOT_AVAILABLE";
+  const playerMetadata = formatGamePlayerMetadata(sessionGame.game);
 
   return (
     <div className="rounded-lg border border-ink/10 bg-paper p-4">
@@ -499,6 +818,10 @@ function SessionGameCard({
           <p className="mt-1 text-sm text-ink/60">
             {haveCount} have, {dontHaveCount} don&apos;t
           </p>
+          <p className="mt-2 text-xs font-black uppercase tracking-[0.12em] text-teal">{playerMetadata}</p>
+          {sessionGame.game.capabilitySource ? (
+            <p className="mt-1 text-xs font-bold text-ink/45">Player data: {formatCapabilitySource(sessionGame.game.capabilitySource)}</p>
+          ) : null}
         </div>
         <form action={removeSessionGameAction}>
           <input type="hidden" name="shareToken" value={shareToken} />
@@ -657,8 +980,18 @@ function GameGrid({
           {game.coverUrl ? <input type="hidden" name="coverUrl" value={game.coverUrl} /> : null}
           {game.summary ? <input type="hidden" name="summary" value={game.summary} /> : null}
           {game.popularityScore ? <input type="hidden" name="popularityScore" value={game.popularityScore} /> : null}
+          {game.genres?.length ? <input type="hidden" name="genres" value={JSON.stringify(game.genres)} /> : null}
+          {game.platforms?.length ? <input type="hidden" name="platforms" value={JSON.stringify(game.platforms)} /> : null}
+          {game.gameModes?.length ? <input type="hidden" name="gameModes" value={JSON.stringify(game.gameModes)} /> : null}
+          {game.minPlayers ? <input type="hidden" name="minPlayers" value={game.minPlayers} /> : null}
+          {game.maxPlayers ? <input type="hidden" name="maxPlayers" value={game.maxPlayers} /> : null}
+          {game.onlineCoop !== null && game.onlineCoop !== undefined ? <input type="hidden" name="onlineCoop" value={String(game.onlineCoop)} /> : null}
+          {game.localCoop !== null && game.localCoop !== undefined ? <input type="hidden" name="localCoop" value={String(game.localCoop)} /> : null}
+          {game.capabilitySource ? <input type="hidden" name="capabilitySource" value={game.capabilitySource} /> : null}
+          {game.capabilityConfidence !== null && game.capabilityConfidence !== undefined ? <input type="hidden" name="capabilityConfidence" value={game.capabilityConfidence} /> : null}
           <p className="font-black text-ink">{game.title}</p>
           {game.platforms?.length ? <p className="mt-1 text-xs font-bold text-ink/50">{game.platforms.slice(0, 3).join(", ")}</p> : null}
+          <p className="mt-2 text-xs font-black uppercase tracking-[0.12em] text-teal">{formatGamePlayerMetadata(game)}</p>
           <PendingSubmitButton className="secondary-button mt-3 w-full px-3 py-2" pendingLabel="Adding...">
             <Plus className="h-4 w-4" />
             Add
@@ -667,4 +1000,35 @@ function GameGrid({
       ))}
     </div>
   );
+}
+
+function formatGamePlayerMetadata(game: Pick<GameInput, "minPlayers" | "maxPlayers" | "onlineCoop" | "localCoop">) {
+  const minPlayers = game.minPlayers ?? null;
+  const maxPlayers = game.maxPlayers ?? null;
+  const playerText =
+    minPlayers && maxPlayers
+      ? minPlayers === maxPlayers
+        ? `${maxPlayers} player${maxPlayers === 1 ? "" : "s"}`
+        : `${minPlayers}-${maxPlayers} players`
+      : maxPlayers
+        ? `Up to ${maxPlayers} players`
+        : "Player count unknown";
+  const modes = [
+    game.onlineCoop ? "online" : null,
+    game.localCoop ? "local" : null,
+  ].filter(Boolean);
+
+  return modes.length > 0 ? `${playerText} · ${modes.join(" + ")}` : playerText;
+}
+
+function formatCapabilitySource(source: string) {
+  if (source === "curated") {
+    return "curated list";
+  }
+
+  if (source.startsWith("igdb")) {
+    return "IGDB";
+  }
+
+  return source;
 }

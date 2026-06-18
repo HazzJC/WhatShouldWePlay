@@ -18,6 +18,11 @@ export type GameInput = {
   localCoop?: boolean | null;
   capabilitySource?: string | null;
   capabilityConfidence?: number | null;
+  steamReviewScore?: number | null;
+  steamReviewPercent?: number | null;
+  steamReviewTotal?: number | null;
+  steamReviewSummary?: string | null;
+  qualitySource?: string | null;
 };
 
 export const defaultAddedGameSignal = "OWNED";
@@ -46,21 +51,22 @@ export function excludeExistingGames(games: GameInput[], existingGames: Array<{ 
 }
 
 export async function upsertGame(input: GameInput) {
-  const data = gameInputToData(input);
+  const createData = gameInputToData(input, "create");
+  const updateData = gameInputToData(input, "update");
 
   if (input.steamAppId) {
     return prisma.game.upsert({
       where: { steamAppId: input.steamAppId },
-      create: data,
-      update: data,
+      create: createData,
+      update: updateData,
     });
   }
 
   if (input.igdbId) {
     return prisma.game.upsert({
       where: { igdbId: input.igdbId },
-      create: data,
-      update: data,
+      create: createData,
+      update: updateData,
     });
   }
 
@@ -69,10 +75,10 @@ export async function upsertGame(input: GameInput) {
   });
 
   if (existing) {
-    return prisma.game.update({ where: { id: existing.id }, data });
+    return prisma.game.update({ where: { id: existing.id }, data: updateData });
   }
 
-  return prisma.game.create({ data });
+  return prisma.game.create({ data: createData });
 }
 
 export async function addGameToSession({
@@ -101,6 +107,16 @@ export async function addGameToSession({
     },
     update: {},
   });
+
+  if (participantId && userId && (!sessionGame.addedByParticipantId || sessionGame.addedByParticipantId === participantId) && !sessionGame.addedByUserId) {
+    await prisma.sessionGame.update({
+      where: { id: sessionGame.id },
+      data: {
+        addedByParticipantId: sessionGame.addedByParticipantId ?? participantId,
+        addedByUserId: userId,
+      },
+    });
+  }
 
   if (participantId) {
     await prisma.sessionGameSignal.upsert({
@@ -190,24 +206,33 @@ export function signalMeansHave(signal?: string | null) {
   return signal === "OWNED" || signal === "AVAILABLE_TO_PLAY";
 }
 
-function gameInputToData(input: GameInput) {
+function gameInputToData(input: GameInput, mode: "create" | "update") {
+  const absent = mode === "update" ? undefined : null;
+  const absentArray = mode === "update" ? undefined : [];
+
   return {
     title: input.title.trim(),
     normalizedTitle: normalizeGameTitle(input.title),
-    steamAppId: input.steamAppId ?? null,
-    igdbId: input.igdbId ?? null,
-    coverUrl: input.coverUrl ?? null,
-    summary: input.summary ?? null,
-    genres: input.genres ?? [],
-    platforms: input.platforms ?? [],
-    gameModes: input.gameModes ?? [],
-    popularityScore: input.popularityScore ?? null,
-    minPlayers: input.minPlayers ?? null,
-    maxPlayers: input.maxPlayers ?? inferMaxPlayers(input),
-    onlineCoop: input.onlineCoop ?? inferOnlineCoop(input),
-    localCoop: input.localCoop ?? inferLocalCoop(input),
-    capabilitySource: input.capabilitySource ?? inferCapabilitySource(input),
-    capabilityConfidence: input.capabilityConfidence ?? inferCapabilityConfidence(input),
+    steamAppId: input.steamAppId ?? absent,
+    igdbId: input.igdbId ?? absent,
+    coverUrl: input.coverUrl ?? absent,
+    summary: input.summary ?? absent,
+    genres: input.genres ?? absentArray,
+    platforms: input.platforms ?? absentArray,
+    gameModes: input.gameModes ?? absentArray,
+    popularityScore: input.popularityScore ?? absent,
+    steamReviewScore: input.steamReviewScore ?? absent,
+    steamReviewPercent: input.steamReviewPercent ?? absent,
+    steamReviewTotal: input.steamReviewTotal ?? absent,
+    steamReviewSummary: input.steamReviewSummary ?? absent,
+    qualitySource: input.qualitySource ?? absent,
+    qualityFetchedAt: input.qualitySource ? new Date() : absent,
+    minPlayers: input.minPlayers ?? absent,
+    maxPlayers: input.maxPlayers ?? inferMaxPlayers(input) ?? absent,
+    onlineCoop: input.onlineCoop ?? inferOnlineCoop(input) ?? absent,
+    localCoop: input.localCoop ?? inferLocalCoop(input) ?? absent,
+    capabilitySource: input.capabilitySource ?? inferCapabilitySource(input) ?? absent,
+    capabilityConfidence: input.capabilityConfidence ?? inferCapabilityConfidence(input) ?? absent,
   };
 }
 

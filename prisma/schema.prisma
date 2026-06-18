@@ -46,6 +46,14 @@ enum GameInterestSignal {
   NOT_TONIGHT
 }
 
+enum PriceAlertType {
+  UNDER_PRICE
+  GROUP_ON_SALE
+  MISSING_PLAYERS_ONLY
+  HISTORICAL_LOW
+  OWNED_COUNT_DISCOUNTED
+}
+
 model Session {
   id                  String        @id @default(cuid())
   shareToken          String        @unique
@@ -61,6 +69,8 @@ model Session {
   weekendEndHour      Int?
   timezone            String
   discordChannel      String?
+  dealCountry         String        @default("GB")
+  dealCurrency        String        @default("GBP")
   reminderPreferences Json
   lockedStartTime     DateTime?
   lockedEndTime       DateTime?
@@ -68,6 +78,8 @@ model Session {
   updatedAt           DateTime      @updatedAt
   participants        Participant[]
   games               SessionGame[]
+  priceAlertRules     PriceAlertRule[]
+  priceAlertEvents    PriceAlertEvent[]
 }
 
 model Participant {
@@ -84,6 +96,7 @@ model Participant {
   gameSignals SessionGameSignal[]
   gameInterests SessionGameInterest[]
   preference ParticipantPreference?
+  preferenceNudgeDismissedAt DateTime?
 
   @@index([sessionId])
   @@index([userId])
@@ -114,6 +127,9 @@ model User {
   sessionGames  SessionGame[]
   participants  Participant[]
   preference    UserPreference?
+  sentFriendInvites FriendInvite[]
+  friendsSent       UserFriend[] @relation("FriendUser")
+  friendsReceived   UserFriend[] @relation("FriendFriend")
 }
 
 model UserPreference {
@@ -177,14 +193,22 @@ model Game {
   id              String        @id @default(cuid())
   title           String
   normalizedTitle String
+  slug            String?        @unique
   steamAppId      Int?          @unique
   igdbId          Int?          @unique
+  itadId          String?        @unique
   coverUrl        String?
   summary         String?
   genres          Json          @default("[]")
   platforms       Json          @default("[]")
   gameModes       Json          @default("[]")
   popularityScore Float?
+  steamReviewScore Int?
+  steamReviewPercent Int?
+  steamReviewTotal Int?
+  steamReviewSummary String?
+  qualitySource   String?
+  qualityFetchedAt DateTime?
   minPlayers      Int?
   maxPlayers      Int?
   onlineCoop      Boolean?
@@ -196,8 +220,60 @@ model Game {
   userGames       UserGame[]
   sessionGames    SessionGame[]
   steamStorePrice SteamStorePrice?
+  deal            GameDeal?
 
   @@index([normalizedTitle])
+}
+
+model GameDeal {
+  id              String   @id @default(cuid())
+  gameId          String   @unique
+  game            Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  itadId          String?
+  currentPrice    Int?
+  regularPrice    Int?
+  discountPercent Int?
+  currency        String?
+  country         String?
+  shopName        String?
+  dealUrl         String?
+  historicalLow   Int?
+  historicalLow3m Int?
+  historicalLow1y Int?
+  status          String
+  fetchedAt       DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([itadId])
+  @@index([fetchedAt])
+}
+
+model FriendInvite {
+  id          String    @id @default(cuid())
+  token       String    @unique
+  inviterId   String
+  inviter     User      @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+  acceptedById String?
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([inviterId])
+  @@index([acceptedById])
+  @@index([expiresAt])
+}
+
+model UserFriend {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation("FriendUser", fields: [userId], references: [id], onDelete: Cascade)
+  friendId  String
+  friend    User     @relation("FriendFriend", fields: [friendId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, friendId])
+  @@index([friendId])
 }
 
 model SteamStorePrice {
@@ -254,6 +330,44 @@ model SessionGame {
   @@index([gameId])
   @@index([addedByParticipantId])
   @@index([addedByUserId])
+}
+
+model PriceAlertRule {
+  id              String         @id @default(cuid())
+  sessionId       String
+  session         Session        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdByParticipantId String?
+  type            PriceAlertType
+  thresholdPrice  Int?
+  ownedCount      Int?
+  totalCount      Int?
+  missingOnly     Boolean        @default(false)
+  enabled         Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  events          PriceAlertEvent[]
+
+  @@index([sessionId])
+}
+
+model PriceAlertEvent {
+  id              String         @id @default(cuid())
+  sessionId       String
+  session         Session        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  ruleId          String?
+  rule            PriceAlertRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  gameId          String
+  title           String
+  message         String
+  currentPrice    Int?
+  historicalLow   Int?
+  currency        String?
+  url             String?
+  triggeredAt     DateTime       @default(now())
+
+  @@unique([sessionId, gameId, message])
+  @@index([sessionId])
+  @@index([ruleId])
 }
 
 model SessionGameSignal {

@@ -60,6 +60,40 @@ describe("match scoring", () => {
     expect(scored.find((game) => game.title === "Sale")?.categories).toEqual(expect.arrayContaining(["almostReady", "saleOpportunity"]));
   });
 
+  it("does not treat a game with high selected-user Steam playtime as low group playtime", () => {
+    const [game] = scoreSessionGames({
+      participants: [{ id: "p1", userId: "u1", preference: null, user: { preference: null } }],
+      selectedParticipantIds: ["p1"],
+      playerCount: 1,
+      userGames: [{ userId: "u1", gameId: "g-cs", playtimeMinutes: 60_000 }],
+      sessionGames: [sessionGame("sg-cs", "Counter-Strike 2", [{ participantId: "p1", signal: "OWNED" }], 20, "g-cs")],
+    });
+
+    expect(game.playtimeMinutes).toBe(60_000);
+    expect(game.categories).toContain("oldFavourites");
+    expect(game.categories).not.toContain("hiddenBacklog");
+  });
+
+  it("uses session-game user attribution as a playtime fallback for imported games", () => {
+    const [game] = scoreSessionGames({
+      participants: [{ id: "p1", userId: null, preference: null, user: { preference: null } }],
+      selectedParticipantIds: ["p1"],
+      playerCount: 1,
+      userGames: [{ userId: "u-steam", gameId: "g-cs", playtimeMinutes: 60_000 }],
+      sessionGames: [
+        {
+          ...sessionGame("sg-cs", "Counter-Strike 2", [{ participantId: "p1", signal: "OWNED" }], 20, "g-cs"),
+          addedByParticipantId: "p1",
+          addedByUserId: "u-steam",
+        },
+      ],
+    });
+
+    expect(game.playtimeMinutes).toBe(60_000);
+    expect(game.categories).toContain("oldFavourites");
+    expect(game.categories).not.toContain("hiddenBacklog");
+  });
+
   it("lets account and participant preferences influence scores", () => {
     const [cheap] = scoreSessionGames({
       participants: [
@@ -77,6 +111,90 @@ describe("match scoring", () => {
     });
 
     expect(cheap.title).toBe("Discounted");
+  });
+
+  it("hides games with known player caps below the selected player count", () => {
+    const scored = scoreSessionGames({
+      participants,
+      selectedParticipantIds: ["p1", "p2"],
+      playerCount: 3,
+      userGames: [],
+      sessionGames: [
+        sessionGame("sg-one", "One Player", [{ participantId: "p1", signal: "OWNED" }], 1),
+        sessionGame("sg-four", "Four Player", [{ participantId: "p1", signal: "OWNED" }], 4),
+      ],
+    });
+
+    expect(scored.map((game) => game.title)).toEqual(["Four Player"]);
+  });
+
+  it("does not collapse sparse games to identical scores", () => {
+    const scored = scoreSessionGames({
+      participants: [{ id: "p1", userId: "u1", preference: null, user: { preference: null } }],
+      selectedParticipantIds: ["p1"],
+      playerCount: 1,
+      userGames: [],
+      sessionGames: [
+        unknownSessionGame("sg-a", "Alpha Quest"),
+        unknownSessionGame("sg-b", "Beta Quest"),
+        unknownSessionGame("sg-c", "Gamma Quest"),
+      ],
+    });
+
+    expect(new Set(scored.map((game) => game.score)).size).toBeGreaterThan(1);
+    expect(scored.every((game) => game.playerCountStatus === "uncertain")).toBe(true);
+  });
+
+  it("uses sourced Steam review percentage before generic popularity", () => {
+    const [reviewed] = scoreSessionGames({
+      participants: [{ id: "p1", userId: "u1", preference: null, user: { preference: null } }],
+      selectedParticipantIds: ["p1"],
+      playerCount: 1,
+      userGames: [],
+      sessionGames: [
+        {
+          ...sessionGame("sg-reviewed", "Reviewed", [{ participantId: "p1", signal: "OWNED" }], 1),
+          game: {
+            ...sessionGame("sg-reviewed", "Reviewed", [{ participantId: "p1", signal: "OWNED" }], 1).game,
+            popularityScore: 10,
+            steamReviewPercent: 95,
+            steamReviewSummary: "Overwhelmingly Positive, 95% positive from 10,000 reviews",
+            qualitySource: "steam:appreviews",
+          },
+        },
+      ],
+    });
+
+    expect(reviewed.factors.popularity).toBe(95);
+    expect(reviewed.reviewSummary).toContain("95% positive");
+    expect(reviewed.qualitySource).toBe("steam:appreviews");
+  });
+
+  it("drops alignment when one player has a strong preference mismatch despite a good score", () => {
+    const [game] = scoreSessionGames({
+      participants: [
+        { id: "p1", userId: "u1", preference: { chillVsIntense: 10 }, user: { preference: null } },
+        { id: "p2", userId: "u2", preference: null, user: { preference: null } },
+      ],
+      selectedParticipantIds: ["p1", "p2"],
+      playerCount: 2,
+      userGames: [],
+      sessionGames: [
+        {
+          ...sessionGame("sg-horror", "Horror Co-op", [{ participantId: "p1", signal: "OWNED" }, { participantId: "p2", signal: "OWNED" }], 4),
+          game: {
+            ...sessionGame("sg-horror", "Horror Co-op", [{ participantId: "p1", signal: "OWNED" }, { participantId: "p2", signal: "OWNED" }], 4).game,
+            genres: ["horror", "co-op"],
+            steamReviewPercent: 95,
+          },
+        },
+      ],
+    });
+
+    expect(game.score).toBeGreaterThan(70);
+    expect(game.alignment).toBe("Low");
+    expect(game.alignmentReasons).toEqual(expect.arrayContaining(["A selected player strongly prefers chill games, but this looks intense"]));
+    expect(game.factorBreakdown[0]).toHaveProperty("points");
   });
 });
 
@@ -100,9 +218,29 @@ function sessionGame(
       maxPlayers,
       onlineCoop: true,
       localCoop: false,
-      steamStorePrice: discountPercent > 0 ? { discountPercent, finalPrice: 999, status: "ok" } : null,
+      deal: discountPercent > 0 ? { discountPercent, currentPrice: 999, historicalLow: 899, status: "ok" } : null,
     },
     signals,
+    interests: [],
+  };
+}
+
+function unknownSessionGame(id: string, title: string) {
+  return {
+    id,
+    source: "MANUAL",
+    gameId: `g-${id}`,
+    game: {
+      id: `g-${id}`,
+      title,
+      popularityScore: null,
+      minPlayers: null,
+      maxPlayers: null,
+      onlineCoop: null,
+      localCoop: null,
+      deal: null,
+    },
+    signals: [{ participantId: "p1", signal: "OWNED" }],
     interests: [],
   };
 }

@@ -7,10 +7,11 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const shareToken = url.searchParams.get("shareToken") ?? "";
   const participantId = url.searchParams.get("participant") ?? "";
+  const friendInvite = url.searchParams.get("friendInvite") ?? "";
   const steamId = await verifySteamOpenIdCallback(url.searchParams);
 
   if (!steamId) {
-    redirect(shareToken ? `/s/${shareToken}?tab=pick&steam=failed` : "/?steam=failed");
+    redirect(friendInvite ? `/friends/invite/${friendInvite}?steam=failed` : shareToken ? `/s/${shareToken}?tab=pick&steam=failed` : "/?steam=failed");
   }
 
   const existingSteam = await prisma.steamAccount.findUnique({
@@ -49,5 +50,8 @@ export async function GET(request: Request) {
   }
 
   await createUserSession(user.id);
+  if (friendInvite) {
+    redirect(`/friends/invite/${friendInvite}`);
+  }
   redirect(shareToken ? `/s/${shareToken}?participant=${participantId}&tab=pick` : "/");
 }
