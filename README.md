@@ -141,13 +141,27 @@ npm run dev
 
 ## Production setup notes
 
-On deploy, run migrations with `prisma migrate deploy`, not `migrate dev`.
+Migrations are applied automatically on deploy: the `build` script runs
+`prisma migrate deploy` (via `scripts/migrate-deploy.mjs`) before `next build`,
+so adding a feature + migration no longer leaves production drifting with
+`P2022 column does not exist` errors. The step is idempotent and skips when no
+database is configured (e.g. a local build with no DB).
 
-For Neon free tier, use the pooled connection string in production. The host
-usually contains `-pooler`, and the URL should include:
+For Neon free tier, use the pooled connection string for `DATABASE_URL` in
+production. The host usually contains `-pooler`, and the URL should include:
 
 ```txt
 ?pgbouncer=true&connection_limit=1
+```
+
+Migrations can't run over pgbouncer, so when `DATABASE_URL` is pooled, also set
+`DIRECT_URL` to the Neon *direct* endpoint (host without `-pooler`). The migrate
+step uses `DIRECT_URL` when present and falls back to `DATABASE_URL` otherwise.
+
+To apply pending migrations manually (e.g. to fix the current database now):
+
+```bash
+npm run prisma:deploy        # uses DATABASE_URL from your environment
 ```
 
 After setting Discord env vars, register slash commands:
