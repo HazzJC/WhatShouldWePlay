@@ -274,7 +274,7 @@ export function PickPanel({
               Search
             </PendingSubmitButton>
           </form>
-          <GameGrid shareToken={shareToken} participantId={participantId} games={searchResults} source="IGDB_SEARCH" empty={searchQuery ? "No IGDB results found. You can add it manually below." : "Search IGDB for Steam and non-Steam games."} />
+          <GameGrid shareToken={shareToken} participantId={participantId} games={searchResults} source="IGDB_SEARCH" empty={searchQuery ? "No matches found. You can add it manually below." : "Search Steam and non-Steam games by title."} />
           <ManualAddForm shareToken={shareToken} participantId={participantId} />
         </section>
       </div>
@@ -1064,10 +1064,11 @@ function GameGrid({
   return (
     <div className={`mt-4 grid gap-3 ${compact ? "" : "sm:grid-cols-2"}`}>
       {games.map((game) => (
-        <form key={`${source}-${game.igdbId ?? game.steamAppId ?? game.title}`} action={addSessionGameAction} className="rounded-lg border border-ink/10 bg-paper p-3">
+        <form key={`${source}-${game.gameId ?? game.igdbId ?? game.steamAppId ?? game.title}`} action={addSessionGameAction} className="rounded-lg border border-ink/10 bg-paper p-3">
           <input type="hidden" name="shareToken" value={shareToken} />
           <input type="hidden" name="source" value={source} />
           <input type="hidden" name="title" value={game.title} />
+          {game.gameId ? <input type="hidden" name="gameId" value={game.gameId} /> : null}
           {participantId ? <input type="hidden" name="participantId" value={participantId} /> : null}
           {game.igdbId ? <input type="hidden" name="igdbId" value={game.igdbId} /> : null}
           {game.steamAppId ? <input type="hidden" name="steamAppId" value={game.steamAppId} /> : null}

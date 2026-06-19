@@ -9,7 +9,7 @@ const importSteps = [
   "Reading your library",
   "Saving owned games",
   "Matching this shortlist",
-  "Finishing import",
+  "Calculating your best picks",
 ];
 
 export function SteamImportSubmitButton() {

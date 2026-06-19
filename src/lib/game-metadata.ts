@@ -17,24 +17,26 @@ type SteamReviewSummary = {
   };
 };
 
-export async function refreshGameMetadata(gameIds: string[]) {
-  const uniqueIds = [...new Set(gameIds)].filter(Boolean).slice(0, 24);
+export async function refreshGameMetadata(
+  gameIds: string[],
+  { limit = 24, concurrency = 1 }: { limit?: number; concurrency?: number } = {},
+) {
+  const uniqueIds = [...new Set(gameIds)].filter(Boolean).slice(0, limit);
 
   if (uniqueIds.length === 0) {
-    return;
+    return { refreshed: 0 };
   }
 
   const games = await prisma.game.findMany({
     where: { id: { in: uniqueIds } },
   });
+  const staleGames = games.filter(metadataIsStale);
 
-  for (const game of games) {
-    if (!metadataIsStale(game)) {
-      continue;
-    }
-
-    await refreshSingleGameMetadata(game);
+  for (let index = 0; index < staleGames.length; index += concurrency) {
+    await Promise.all(staleGames.slice(index, index + concurrency).map(refreshSingleGameMetadata));
   }
+
+  return { refreshed: staleGames.length };
 }
 
 async function refreshSingleGameMetadata(game: Game) {

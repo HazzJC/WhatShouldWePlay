@@ -1,8 +1,10 @@
 import type { Game, Prisma } from "@prisma/client";
+import { mapIgdbGame, searchIgdbGames } from "@/lib/igdb";
 import { prisma } from "@/lib/prisma";
 import type { SteamOwnedGame, SteamRecentlyPlayedGame } from "@/lib/steam";
 
 export type GameInput = {
+  gameId?: string;
   title: string;
   steamAppId?: number | null;
   igdbId?: number | null;
@@ -48,6 +50,108 @@ export function excludeExistingGames(games: GameInput[], existingGames: Array<{ 
   const existingTitles = new Set(existingGames.map((game) => game.normalizedTitle));
 
   return games.filter((game) => !existingTitles.has(normalizeGameTitle(game.title)));
+}
+
+function toStringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+// Maps a persisted Game row to the GameInput shape used by the add-game UI,
+// carrying the existing `gameId` so adding it references the saved row directly
+// (no re-upsert, no metadata re-fetch).
+export function gameRecordToInput(game: Game): GameInput {
+  return {
+    gameId: game.id,
+    title: game.title,
+    steamAppId: game.steamAppId,
+    igdbId: game.igdbId,
+    coverUrl: game.coverUrl,
+    summary: game.summary,
+    genres: toStringList(game.genres),
+    platforms: toStringList(game.platforms),
+    gameModes: toStringList(game.gameModes),
+    popularityScore: game.popularityScore,
+    minPlayers: game.minPlayers,
+    maxPlayers: game.maxPlayers,
+    onlineCoop: game.onlineCoop,
+    localCoop: game.localCoop,
+    capabilitySource: game.capabilitySource,
+    capabilityConfidence: game.capabilityConfidence,
+    steamReviewScore: game.steamReviewScore,
+    steamReviewPercent: game.steamReviewPercent,
+    steamReviewTotal: game.steamReviewTotal,
+    steamReviewSummary: game.steamReviewSummary,
+    qualitySource: game.qualitySource,
+  };
+}
+
+function gameInputKey(game: GameInput) {
+  if (game.steamAppId) {
+    return `steam:${game.steamAppId}`;
+  }
+  if (game.igdbId) {
+    return `igdb:${game.igdbId}`;
+  }
+  return `title:${normalizeGameTitle(game.title)}`;
+}
+
+function dedupeGameInputs(games: GameInput[]) {
+  const seen = new Set<string>();
+  const unique: GameInput[] = [];
+
+  for (const game of games) {
+    const key = gameInputKey(game);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    unique.push(game);
+  }
+
+  return unique;
+}
+
+// Searches the games we have already saved across every group. Because games
+// are deduplicated server-side, anything any group has added or imported before
+// is found here instantly and for free (no external API call).
+export async function searchLocalGames(query: string, limit = 8): Promise<GameInput[]> {
+  const normalized = normalizeGameTitle(query);
+
+  if (normalized.length < 2) {
+    return [];
+  }
+
+  // `contains` (LIKE '%term%') is served by the GIN trigram index on
+  // normalizedTitle (see migration 20260619180000), so this stays fast as the
+  // catalog grows. Nulls last keeps games with known reviews/popularity above
+  // freshly-imported rows that have no metadata yet.
+  const games = await prisma.game.findMany({
+    where: { normalizedTitle: { contains: normalized } },
+    orderBy: [
+      { steamReviewTotal: { sort: "desc", nulls: "last" } },
+      { popularityScore: { sort: "desc", nulls: "last" } },
+      { title: "asc" },
+    ],
+    take: limit,
+  });
+
+  return games.map(gameRecordToInput);
+}
+
+// Catalog-first search: surface previously-seen games immediately, and only
+// reach out to IGDB when the local catalog can't satisfy the query. This makes
+// the catalog richer and faster the more the app is used, and cuts external
+// API calls for games we already know.
+export async function searchGamesCatalog(query: string, localLimit = 8): Promise<GameInput[]> {
+  const localResults = await searchLocalGames(query, localLimit);
+
+  if (localResults.length >= 5) {
+    return localResults;
+  }
+
+  const igdbResults = (await searchIgdbGames(query)).map(mapIgdbGame);
+
+  return dedupeGameInputs([...localResults, ...igdbResults]);
 }
 
 export async function upsertGame(input: GameInput) {

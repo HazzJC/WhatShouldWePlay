@@ -1149,7 +1149,9 @@ export async function importSteamLibraryAction(formData: FormData) {
     ownedCount: owned.games.length,
     elapsedMs: Date.now() - importStartedAt,
   });
-  redirect(`/s/${session.shareToken}?tab=pick&participant=${participant.id}`);
+  redirect(
+    `/s/${session.shareToken}?tab=pick&participant=${participant.id}&imported=${owned.games.length}`,
+  );
 }
 
 function uniqueUserGames<T extends { gameId: string }>(userGames: T[]) {

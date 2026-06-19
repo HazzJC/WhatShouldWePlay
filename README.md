@@ -176,11 +176,24 @@ In the Discord developer portal, set the Interactions Endpoint URL to:
 https://your-domain.example/api/discord/interactions
 ```
 
-Vercel reminders use `vercel.json` to call:
+Vercel cron jobs are declared in `vercel.json`:
 
 ```txt
-/api/cron/discord-reminders
+/api/cron/discord-reminders   # sends due Discord reminders
+/api/cron/refresh-game-data   # keeps shared game metadata + prices fresh
 ```
+
+Both are protected by `CRON_SECRET`.
+
+**Shared game data cache.** Game metadata (player count, capability confidence,
+reviews) and deals live on the shared `Game`/`GameDeal` rows keyed by Steam app
+id — there is no per-user copy, so once a game is populated, every user who has
+imported that same game gets it instantly. `refresh-game-data` runs daily over
+the games actually in use (in a session shortlist or an imported library) to
+fill in metadata for newly imported games and keep prices/sales current. It is
+bounded per run (defaults: ~36 metadata + ~48 deal lookups) to fit one
+serverless invocation and respect external API rate limits; large libraries
+are spread across several daily runs.
 
 Set `CRON_SECRET` in Vercel and send it as a bearer token for non-Vercel/manual
 cron calls.

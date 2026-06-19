@@ -6,6 +6,7 @@ import { lockSessionAction, submitAvailabilityAction } from "@/app/actions";
 import { AvailabilityForm } from "@/components/availability-form";
 import { PickPanel } from "@/components/pick-panel";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { PostImportStatus } from "@/components/post-import-status";
 import { RecommendationsDisclosure } from "@/components/recommendations-disclosure";
 import { SessionTabs } from "@/components/session-tabs";
 import { SharePanel } from "@/components/share-panel";
@@ -14,9 +15,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { curatedGames } from "@/lib/curated-games";
 import { announceDiscordPriceAlerts } from "@/lib/discord";
 import { refreshGameMetadata } from "@/lib/game-metadata";
-import { commonMultiplayerGames, excludeExistingGames, rankSessionGames } from "@/lib/games";
+import { commonMultiplayerGames, excludeExistingGames, rankSessionGames, searchGamesCatalog } from "@/lib/games";
 import { defaultGroupBuyFilters, scoreGroupBuyCandidates } from "@/lib/group-buy";
-import { getPopularIgdbGames, getTrendingIgdbGames, mapIgdbGame, searchIgdbGames } from "@/lib/igdb";
+import { getPopularIgdbGames, getTrendingIgdbGames, mapIgdbGame } from "@/lib/igdb";
 import { refreshGameDealsWithin } from "@/lib/itad";
 import { scoreSessionGames, type ScoreMode } from "@/lib/match-scoring";
 import { evaluatePriceAlerts } from "@/lib/price-alerts";
@@ -49,6 +50,7 @@ type PageProps = {
     groupPlatform?: string;
     avoidOwned?: string;
     saleOnly?: string;
+    imported?: string;
   }>;
 };
 
@@ -72,7 +74,9 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     groupPlatform,
     avoidOwned,
     saleOnly,
+    imported,
   } = await searchParams;
+  const justImportedCount = imported ? Math.max(0, Number(imported) || 0) : null;
   const activeTab = tab === "pick" ? "pick" : "plan";
   const activeScoreMode = parseScoreMode(scoreMode);
   const session = await prisma.session.findUnique({
@@ -194,7 +198,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
               interests: true,
             },
           }),
-          gameSearch ? searchIgdbGames(gameSearch).then((games) => games.map(mapIgdbGame)) : Promise.resolve([]),
+          gameSearch ? searchGamesCatalog(gameSearch) : Promise.resolve([]),
           getPopularIgdbGames().then((games) => games.map(mapIgdbGame)),
           getTrendingIgdbGames().then((games) => games.map(mapIgdbGame)),
         ])
@@ -402,6 +406,10 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       </section>
 
       <SessionTabs shareToken={session.shareToken} participantId={participantId} activeTab={activeTab} />
+
+      {activeTab === "pick" && justImportedCount !== null ? (
+        <PostImportStatus importedCount={justImportedCount} />
+      ) : null}
 
       {activeTab === "pick" ? (
         <PickPanel
