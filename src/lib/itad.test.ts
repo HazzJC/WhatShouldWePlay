@@ -1,7 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchItadOverview, fetchItadPrices, lookupItadId } from "@/lib/itad";
 
 describe("ITAD client", () => {
+  beforeEach(() => {
+    delete process.env.ITAD_API_KEY;
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     delete process.env.ITAD_API_KEY;
@@ -15,7 +19,7 @@ describe("ITAD client", () => {
     process.env.ITAD_API_KEY = "key";
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
-      json: async () => ({ id: "itad-valheim" }),
+      json: async () => ({ found: true, game: { id: "itad-valheim" } }),
     } as Response);
 
     await expect(lookupItadId({ title: "Valheim", steamAppId: 892970 })).resolves.toBe("itad-valheim");

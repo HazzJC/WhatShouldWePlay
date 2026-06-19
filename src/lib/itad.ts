@@ -4,7 +4,11 @@ const itadBaseUrl = "https://api.isthereanydeal.com";
 const cacheMs = 1000 * 60 * 60 * 12;
 
 type ItadLookupResponse = {
+  found?: boolean;
   id?: string;
+  game?: {
+    id?: string;
+  };
 };
 
 type ItadOverviewResponse = {
@@ -49,6 +53,7 @@ export async function refreshGameDeals({
   currency: string;
 }) {
   if (!process.env.ITAD_API_KEY) {
+    console.warn("[itad] ITAD_API_KEY is not configured; skipping deal refresh.");
     return;
   }
 
@@ -61,6 +66,10 @@ export async function refreshGameDeals({
       return true;
     }
 
+    if (game.deal.status === "not_found") {
+      return true;
+    }
+
     return game.deal.country !== country || Date.now() - game.deal.fetchedAt.getTime() > cacheMs;
   });
 
@@ -68,11 +77,14 @@ export async function refreshGameDeals({
     return;
   }
 
+  console.info(`[itad] Refreshing deals for ${staleGames.length} game${staleGames.length === 1 ? "" : "s"} in ${country}/${currency}.`);
+
   const resolved = await Promise.all(
     staleGames.map(async (game) => {
       const itadId = game.itadId ?? (await lookupItadId({ title: game.title, steamAppId: game.steamAppId }));
 
       if (!itadId) {
+        console.warn(`[itad] Could not resolve ITAD id for "${game.title}"${game.steamAppId ? ` (Steam ${game.steamAppId})` : ""}.`);
         await upsertDealFailure(game.id, country, currency, "not_found");
         return null;
       }
@@ -85,6 +97,7 @@ export async function refreshGameDeals({
     }),
   );
   const resolvedGames = resolved.filter((game): game is { gameId: string; itadId: string } => Boolean(game));
+  console.info(`[itad] Resolved ${resolvedGames.length}/${staleGames.length} game${staleGames.length === 1 ? "" : "s"} to ITAD ids.`);
   const prices = await fetchItadPrices(resolvedGames.map((game) => game.itadId), country);
   const overview = await fetchItadOverview(resolvedGames.map((game) => game.itadId), country);
   const priceMap = new Map(prices.map((price) => [price.id, price]));
@@ -147,16 +160,17 @@ export async function lookupItadId({ title, steamAppId }: { title: string; steam
       const url = itadUrl("/games/lookup/v1");
       url.searchParams.set("appid", String(steamAppId));
       const result = (await fetchJson(url)) as ItadLookupResponse | null;
+      const id = result?.id ?? result?.game?.id;
 
-      if (result?.id) {
-        return result.id;
+      if (id) {
+        return id;
       }
     }
 
     const url = itadUrl("/games/lookup/v1");
     url.searchParams.set("title", title);
     const result = (await fetchJson(url)) as ItadLookupResponse | null;
-    return result?.id ?? null;
+    return result?.id ?? result?.game?.id ?? null;
   } catch {
     return null;
   }
