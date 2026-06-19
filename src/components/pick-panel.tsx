@@ -96,9 +96,9 @@ export function PickPanel({
   const reviewEyebrow = showFullGroupList ? "Group match" : "Start here";
 
   return (
-    <section className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <div className="grid gap-5">
-        <section className="surface rounded-xl p-5">
+    <section className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="grid gap-4">
+        <section className="surface rounded-xl p-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-sm font-black uppercase tracking-[0.14em] text-teal">Pick</p>
@@ -118,7 +118,7 @@ export function PickPanel({
             ) : null}
           </div>
 
-          <div className="mt-5 rounded-xl border border-ink/10 bg-paper p-4">
+          <div className="mt-4 rounded-lg border border-ink/10 bg-paper p-3">
             {steamAccount ? (
               <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
                 <div>
@@ -185,11 +185,11 @@ export function PickPanel({
           scoredGames={scoredGames}
         />
 
-        <section id="pick-tools" className="surface rounded-xl p-5">
+        <section id="pick-tools" className="surface rounded-xl p-4">
           <p className="text-sm font-black uppercase tracking-[0.14em] text-coral">Tools</p>
           <h2 className="mt-1 text-2xl font-black text-ink">Deals, friends, and preferences</h2>
           <div className="mt-4 grid gap-3">
-            <details className="rounded-lg border border-ink/10 bg-paper p-4">
+            <details className="rounded-lg border border-ink/10 bg-paper p-3">
               <summary className="cursor-pointer list-none font-black text-ink">Price alerts and reusable friends</summary>
               <div className="mt-4">
                 <DealAndFriendsPanel
@@ -205,7 +205,7 @@ export function PickPanel({
                 />
               </div>
             </details>
-            <details className="rounded-lg border border-ink/10 bg-paper p-4">
+            <details className="rounded-lg border border-ink/10 bg-paper p-3">
               <summary className="cursor-pointer list-none font-black text-ink">All buy a new game</summary>
               <div className="mt-4">
                 <GroupBuyPanel
@@ -228,7 +228,7 @@ export function PickPanel({
           </div>
         </section>
 
-        <section id="review-games" className="surface rounded-xl p-5 scroll-mt-5">
+        <section id="review-games" className="surface rounded-xl p-4 scroll-mt-4">
           {!showFullGroupList && participantId ? (
             <div className="mb-4 rounded-lg border border-teal/20 bg-teal/10 p-4">
               <p className="font-black text-ink">Import or mark what you have</p>
@@ -262,7 +262,7 @@ export function PickPanel({
           </details>
         </section>
 
-        <section id="add-games" className="surface rounded-xl p-5 scroll-mt-5">
+        <section id="add-games" className="surface rounded-xl p-4 scroll-mt-4">
           <p className="text-sm font-black uppercase tracking-[0.14em] text-coral">Add games</p>
           <h2 className="mt-1 text-2xl font-black text-ink">Search by title</h2>
           <form className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]" action={`/s/${shareToken}`}>
@@ -279,7 +279,7 @@ export function PickPanel({
         </section>
       </div>
 
-      <aside className="grid content-start gap-5">
+      <aside className="grid content-start gap-4">
         <DiscoveryPanel title="Trending" icon={<TrendingUp className="h-5 w-5" />} shareToken={shareToken} participantId={participantId} games={trendingGames} source="TRENDING" />
         <DiscoveryPanel title="Popular" icon={<Sparkles className="h-5 w-5" />} shareToken={shareToken} participantId={participantId} games={popularGames} source="POPULAR" />
         <DiscoveryPanel title="Common multiplayer" icon={<Gamepad2 className="h-5 w-5" />} shareToken={shareToken} participantId={participantId} games={commonGames} source="COMMON" />
@@ -417,7 +417,7 @@ function MatchDashboard({
   ] as const;
 
   return (
-    <section id={id} className="surface rounded-xl p-5 scroll-mt-5">
+    <section id={id} className="surface rounded-xl p-4 scroll-mt-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-black uppercase tracking-[0.14em] text-teal">Group matching</p>
@@ -473,12 +473,12 @@ function MatchDashboard({
         ))}
       </div>
 
-      <div className="mt-5 grid gap-4">
+      <div className="mt-4 grid gap-3">
         {categorySections.map((section) => {
           const games = compatibleGames.filter((game) => game.categories.includes(section.id)).slice(0, 4);
 
           return (
-            <section key={section.id} id={`category-${section.id}`} className="rounded-lg border border-ink/10 bg-paper p-4 scroll-mt-5">
+            <section key={section.id} id={`category-${section.id}`} className="rounded-lg border border-ink/10 bg-paper p-3 scroll-mt-4">
               <h3 className="text-lg font-black text-ink">{section.title}</h3>
               {section.id === "perfect" && games.length === 0 && closeGames.length > 0 ? (
                 <p className="mt-2 text-sm font-bold leading-6 text-ink/60">{section.empty}</p>
@@ -763,7 +763,7 @@ function GroupBuyPanel({
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         {recommendations.length > 0 ? (
           recommendations.map((recommendation) => (
-            <div key={`${recommendation.section}-${recommendation.game.slug}`} className="rounded-lg border border-ink/10 bg-paper p-4">
+            <div key={`${recommendation.section}-${recommendation.game.slug}`} className="rounded-lg border border-ink/10 bg-paper p-3">
               <p className="text-xs font-black uppercase tracking-[0.12em] text-teal">{labels[recommendation.section]}</p>
               <h3 className="mt-1 text-lg font-black text-ink">{recommendation.game.title}</h3>
               <p className="mt-1 text-sm font-black text-teal">Group buy score: {recommendation.score}</p>
@@ -902,7 +902,7 @@ function SessionGameCard({
   const playerMetadata = formatGamePlayerMetadata(sessionGame.game);
 
   return (
-    <div className="rounded-lg border border-ink/10 bg-paper p-4">
+    <div className="rounded-lg border border-ink/10 bg-paper p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-lg font-black text-ink">{sessionGame.game.title}</p>
@@ -1032,7 +1032,7 @@ function DiscoveryPanel({
   source: "POPULAR" | "TRENDING" | "COMMON";
 }) {
   return (
-    <section className="surface rounded-xl p-5">
+    <section className="surface rounded-xl p-4">
       <div className="flex items-center gap-2 text-teal">
         {icon}
         <h2 className="text-xl font-black text-ink">{title}</h2>
@@ -1127,3 +1127,4 @@ function formatCapabilitySource(source: string) {
 
   return source;
 }
+

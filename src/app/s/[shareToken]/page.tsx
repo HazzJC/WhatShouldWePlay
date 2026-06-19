@@ -341,9 +341,9 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
 
   return (
     <main className="ui-shell">
-      <nav className="flex flex-wrap items-center justify-between gap-3 py-2">
+      <nav className="flex flex-wrap items-center justify-between gap-3 py-1.5">
         <Link href="/" className="flex items-center gap-2 font-black text-ink">
-          <span className="grid h-9 w-9 place-items-center rounded-md bg-teal text-white">
+          <span className="grid h-9 w-9 place-items-center rounded-md bg-teal text-white shadow-card">
             <Gamepad2 className="h-5 w-5" />
           </span>
           Let&apos;s Play Games
@@ -359,18 +359,18 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
         </div>
       </nav>
 
-      <section className="relative mt-6 overflow-hidden rounded-xl border border-ink/10 bg-ink text-white shadow-soft">
+      <section className="relative mt-4 overflow-hidden rounded-xl border border-ink/10 bg-ink text-white shadow-soft">
         <Image src="/assets/game-night-hero.webp" alt="" fill priority sizes="100vw" className="object-cover opacity-35" />
         <div className="absolute inset-0 bg-gradient-to-r from-ink via-ink/85 to-ink/35" />
-        <div className="relative grid gap-6 p-5 sm:p-6 lg:grid-cols-[1fr_360px] lg:p-8">
+        <div className="relative grid gap-4 p-4 sm:p-5 lg:grid-cols-[1fr_340px] lg:p-6">
           <div>
             <p className="text-sm font-black uppercase tracking-[0.16em] text-gold">Game night</p>
-            <h1 className="mt-3 max-w-3xl text-4xl font-black leading-tight sm:text-5xl">{session.title}</h1>
-            <p className="mt-3 text-sm font-bold text-white/70">
+            <h1 className="mt-2 max-w-3xl text-3xl font-black leading-tight sm:text-5xl">{session.title}</h1>
+            <p className="mt-2 text-sm font-bold text-white/70">
               {session.mode === "ONLINE" ? "Online" : "In person"} - {session.requiredDuration} {session.requiredDuration === 1 ? "hour" : "hours"} - Min {session.minimumPlayerCount} players
             </p>
             {locked ? (
-              <div className="mt-6 inline-flex flex-wrap items-center gap-3 rounded-lg bg-moss px-4 py-3 text-white">
+              <div className="mt-4 inline-flex flex-wrap items-center gap-3 rounded-lg bg-moss px-4 py-2.5 text-white">
                 <Lock className="h-5 w-5" />
                 <span className="font-black">
                   Locked: {formatSlotRange(session.lockedStartTime!, session.lockedEndTime!, session.timezone)}
@@ -379,16 +379,16 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
             ) : null}
           </div>
 
-          <div className="rounded-xl bg-white/95 p-4 text-ink shadow-card backdrop-blur">
+          <div className="rounded-xl bg-white/95 p-3 text-ink shadow-card backdrop-blur sm:p-4">
             <p className="text-sm font-black uppercase tracking-[0.14em] text-teal">{bestMatchLabel}</p>
-            <h2 className="mt-2 text-2xl font-black leading-tight">
+            <h2 className="mt-1 text-2xl font-black leading-tight">
               {bestTimes[0]
                 ? formatSlotRange(bestTimes[0].startsAt, bestTimes[0].endsAt, session.timezone)
                 : maybeTimes[0]
                   ? formatSlotRange(maybeTimes[0].startsAt, maybeTimes[0].endsAt, session.timezone)
                   : "No good time yet"}
             </h2>
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-linen">
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-linen">
               <div className="h-full rounded-full bg-gradient-to-r from-coral via-gold to-teal transition-all" style={{ width: `${responsePercent}%` }} />
             </div>
             <p className="mt-2 text-sm font-bold text-ink/60">{responsePercent}% of availability filled</p>
@@ -439,8 +439,8 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           libraryConnectionSummary={libraryConnectionSummary}
         />
       ) : (
-      <section className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="grid gap-5">
+      <section className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="grid gap-4">
           <RecommendationsDisclosure isCurrentHost={isCurrentHost} needsMoreSubmissions={needsMoreSubmissions}>
             <div className={`mt-5 grid gap-4 ${needsMoreSubmissions ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
               <RecommendationList
@@ -487,15 +487,15 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           />
         </div>
 
-        <aside className="grid content-start gap-5">
-          <section className="surface rounded-xl p-5">
+        <aside className="grid content-start gap-4">
+          <section className="surface rounded-xl p-4">
             <h2 className="text-xl font-black text-ink">People</h2>
-            <div className="mt-4 grid gap-3">
+            <div className="mt-3 grid gap-2">
               {session.participants.length > 0 ? (
                 session.participants.map((participant) => {
                   const responseCount = participant.responses.length;
                   return (
-                    <div key={participant.id} className="rounded-lg border border-ink/10 bg-paper p-3">
+                    <div key={participant.id} className="rounded-lg border border-ink/10 bg-paper p-2.5">
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-black text-ink">
                           {participant.name}
@@ -514,7 +514,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
             </div>
           </section>
 
-          <section className="surface rounded-xl p-5">
+          <section className="surface rounded-xl p-4">
             <div className="grid grid-cols-2 gap-3">
               <InfoCard icon={<UsersRound className="h-5 w-5" />} label="Players" value={`${totalPeople}`} />
               <InfoCard icon={<CalendarCheck className="h-5 w-5" />} label="Duration" value={`${session.requiredDuration}h`} />
@@ -522,7 +522,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
               <InfoCard icon={<Lock className="h-5 w-5" />} label="Status" value={locked ? "Locked" : "Collecting"} />
             </div>
             {session.discordChannel ? (
-              <div className="mt-4 rounded-lg border border-ink/10 bg-paper p-3">
+              <div className="mt-3 rounded-lg border border-ink/10 bg-paper p-3">
                 <p className="text-sm font-black text-ink">Discord</p>
                 <p className="mt-1 text-sm text-ink/60">{session.discordChannel}</p>
               </div>

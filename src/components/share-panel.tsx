@@ -46,10 +46,10 @@ export function SharePanel({ url, title }: { url: string; title: string }) {
         Share
       </button>
       {open ? (
-        <div className="absolute right-0 top-full z-40 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-ink/10 bg-white p-4 shadow-card">
+        <div className="absolute right-0 top-full z-40 mt-2 w-[min(22rem,calc(100vw-1rem))] rounded-xl border border-ink/10 bg-white p-3 shadow-card sm:p-4">
           <p className="text-sm font-black text-ink">Share this session</p>
           <p className="mt-1 break-all text-xs font-bold leading-5 text-ink/50">{url}</p>
-          <div className="mt-3 grid gap-2">
+          <div className="mt-3 grid gap-1.5">
             <button type="button" className="secondary-button justify-start px-3 py-2" onClick={() => copy()}>
               {status === "copied" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               {status === "copied" ? "Copied" : status === "failed" ? "Copy failed" : "Copy link"}
@@ -71,7 +71,7 @@ export function SharePanel({ url, title }: { url: string; title: string }) {
               Share by email
             </a>
           </div>
-          <div className="mt-4 rounded-lg border border-ink/10 bg-paper p-3">
+          <div className="mt-3 rounded-lg border border-ink/10 bg-paper p-3">
             <div className="flex items-center gap-2 text-sm font-black text-ink">
               <QrCode className="h-4 w-4 text-teal" />
               QR code

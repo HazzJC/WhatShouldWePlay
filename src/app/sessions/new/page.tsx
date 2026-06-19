@@ -28,14 +28,14 @@ export default function NewSessionPage() {
         Let&apos;s Play Games
       </Link>
 
-      <form action={createSessionAction} className="mt-6 grid gap-5 lg:grid-cols-[280px_1fr]">
-        <aside className="surface rounded-xl p-5 lg:sticky lg:top-5 lg:self-start">
+      <form action={createSessionAction} className="mt-4 grid gap-4 lg:grid-cols-[260px_1fr]">
+        <aside className="surface rounded-xl p-4 lg:sticky lg:top-4 lg:self-start">
           <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">Planner</p>
-          <h1 className="mt-3 text-4xl font-black leading-tight text-ink">Plan a game night</h1>
-          <p className="mt-3 text-sm leading-6 text-ink/70">
+          <h1 className="mt-2 text-3xl font-black leading-tight text-ink sm:text-4xl">Plan a game night</h1>
+          <p className="mt-2 text-sm leading-6 text-ink/70">
             Set the basics, choose the time window, and share one link with everyone.
           </p>
-          <div className="mt-6 grid gap-3 text-sm font-bold text-ink/70">
+          <div className="mt-4 grid gap-2 text-sm font-bold text-ink/70">
             <Step icon={<Gamepad2 className="h-4 w-4" />} label="Basics" />
             <Step icon={<Clock3 className="h-4 w-4" />} label="Timing" />
             <Step icon={<UsersRound className="h-4 w-4" />} label="Players" />
@@ -43,7 +43,7 @@ export default function NewSessionPage() {
           </div>
         </aside>
 
-        <div className="grid gap-5">
+        <div className="grid gap-4">
           <Panel title="Basics" eyebrow="Step 1">
             <label>
               <span className="text-sm font-bold text-ink">Session name</span>
@@ -75,7 +75,7 @@ export default function NewSessionPage() {
                 ].map(([value, label, description]) => (
                   <label
                     key={value}
-                    className="focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-tide rounded-lg border border-ink/10 bg-paper p-4 text-ink transition has-[:checked]:border-teal has-[:checked]:bg-teal has-[:checked]:text-white"
+                    className="focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-tide rounded-lg border border-ink/10 bg-paper p-3 text-ink transition has-[:checked]:border-teal has-[:checked]:bg-teal has-[:checked]:text-white"
                   >
                     <input name="datePreset" type="radio" value={value} defaultChecked={value === "this_week"} className="sr-only" />
                     <span className="block font-black">{label}</span>
@@ -100,7 +100,7 @@ export default function NewSessionPage() {
               </label>
             </div>
 
-            <fieldset className="rounded-lg border border-ink/10 bg-paper p-4">
+            <fieldset className="rounded-lg border border-ink/10 bg-paper p-3">
               <label className="inline-flex items-center gap-2 text-sm font-bold text-ink">
                 <input name="separateWeekendTimes" type="checkbox" className="h-4 w-4 accent-teal" />
                 Use different times on weekends
@@ -159,7 +159,7 @@ export default function NewSessionPage() {
             </fieldset>
           </Panel>
 
-          <div className="sticky bottom-0 z-20 -mx-4 border-t border-ink/10 bg-paper/95 p-4 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0">
+          <div className="sticky bottom-0 z-20 -mx-3 border-t border-ink/10 bg-paper/95 p-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0">
             <PendingSubmitButton className="primary-button w-full py-3 text-base sm:w-auto" pendingLabel="Creating...">
               <CalendarPlus className="h-5 w-5" />
               Create share link
@@ -173,10 +173,10 @@ export default function NewSessionPage() {
 
 function Panel({ eyebrow, title, children }: { eyebrow: string; title: string; children: React.ReactNode }) {
   return (
-    <section className="surface rounded-xl p-5 sm:p-6">
+    <section className="surface rounded-xl p-4 sm:p-5">
       <p className="text-xs font-black uppercase tracking-[0.16em] text-coral">{eyebrow}</p>
       <h2 className="mt-1 text-2xl font-black text-ink">{title}</h2>
-      <div className="mt-5 grid gap-4">{children}</div>
+      <div className="mt-4 grid gap-3">{children}</div>
     </section>
   );
 }

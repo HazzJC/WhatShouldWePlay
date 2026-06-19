@@ -7,8 +7,8 @@ export function PlayerCountFilter({ minimumPlayers, action }: { minimumPlayers: 
   const label = `${value}+`;
 
   return (
-    <form action={action} className="mt-6 rounded-xl border border-ink/10 bg-paper p-4">
-      <label className="grid gap-3 sm:grid-cols-[9rem_1fr_5rem_auto] sm:items-center">
+    <form action={action} className="mt-4 rounded-lg border border-ink/10 bg-paper p-3">
+      <label className="grid gap-3 sm:grid-cols-[8rem_1fr_4.5rem_auto] sm:items-center">
         <span className="text-sm font-black text-ink">I need at least:</span>
         <input
           name="minPlayers"

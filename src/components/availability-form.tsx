@@ -203,10 +203,10 @@ export function AvailabilityForm({
         </div>
       </div>
 
-      <div className="grid gap-5 p-4 sm:p-5">
+      <div className="grid gap-4 p-3 sm:p-4">
         <section className="lg:hidden" aria-label="Availability day wizard">
           {activeDay ? (
-            <div className="rounded-xl border border-ink/10 bg-paper p-4">
+            <div className="rounded-xl border border-ink/10 bg-paper p-3">
               <div className="flex items-center justify-between gap-3">
                 <button
                   type="button"
@@ -274,7 +274,7 @@ export function AvailabilityForm({
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="text-sm font-black uppercase tracking-[0.14em] text-teal">Start broad</p>
-              <h2 className="mt-1 text-2xl font-black text-ink">Set whole days</h2>
+              <h2 className="mt-1 text-xl font-black text-ink sm:text-2xl">Set whole days</h2>
             </div>
             {remainingCount > 0 ? (
               <button type="button" onClick={() => setSlots(allSlotKeys.filter((slotKey) => !responses[slotKey]), "MAYBE")} className="secondary-button">
@@ -296,7 +296,7 @@ export function AvailabilityForm({
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="text-sm font-black uppercase tracking-[0.14em] text-coral">Fine tune</p>
-              <h2 className="mt-1 text-2xl font-black text-ink">Availability heatmap</h2>
+              <h2 className="mt-1 text-xl font-black text-ink sm:text-2xl">Availability heatmap</h2>
               <p className="mt-1 text-sm leading-6 text-ink/60">
                 Click a cell to cycle your answer. Drag across cells to paint the same answer quickly.
               </p>
