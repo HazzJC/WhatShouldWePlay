@@ -1,41 +1,91 @@
 # Let's Play Games
 
-A game-night planner for friend groups. The no-login session planner is the core
-entry point; Steam/IGDB libraries, deals, recommendations and Discord layer on top.
+A game-night planner and game picker for friend groups. The app has two main
+workstreams: **Plan** for finding a time, and **Pick** for choosing what to play.
+Guests can use the core flow without accounts; Steam, IGDB, ITAD and Discord add
+library import, discovery, deals, alerts, and channel reminders when configured.
 
 ## What is built
 
-**Plan (no login required)**
-- Create a shareable game-night session.
-- Collect guest availability without accounts.
-- Generate 1-hour availability slots from the host's date and time window
-  (with optional separate weekend hours), timezone-aware.
-- Rank the best times by available people, then maybe people, honouring the
-  required session duration and minimum player count.
-- Lock a session time (host only).
-- Download a locked session as an `.ics` calendar invite.
-- Share via copy link, QR code, WhatsApp, email, or copy-and-open Discord.
+**Plan a game night**
+- Create shareable sessions with no account required for guests.
+- Collect availability through a mobile-friendly day-by-day flow and a desktop
+  heatmap with click-and-drag painting.
+- Use quick actions for whole days: available, maybe, or out.
+- Rank best times by available people, then maybes, honouring duration,
+  timezone, date range, weekend hours, and minimum player count.
+- Show "not enough players" recommendations while the group is still filling
+  availability.
+- Keep `Times worth locking` expanded for hosts and collapsed for invitees.
+- Lock a time as host and download an `.ics` calendar invite.
 
-**Pick**
-- Optional Steam login (OpenID) and library import, with graceful fallback to
-  the public profile feed and manual game add when Steam data is unavailable.
-- Game search, popular and trending lists via IGDB.
-- Group ownership matching, player-count filter, match/alignment scoring, and a
-  short progressive preference questionnaire.
+**Pick games**
+- Start with Pick from the home page or switch to Pick from any shared session.
+- Import Steam libraries through Steam OpenID and the Steam Web API, with
+  graceful fallback messaging when profiles or game details are private.
+- Search and add non-Steam games through IGDB-backed search and discovery.
+- Treat Steam, IGDB, curated, and manually added games as one internal `Game`
+  model.
+- Let invitees review existing games first instead of showing the whole group
+  shortlist by default.
+- Use simple ownership states: `Have` and `Don't have`.
+- Mark imported Steam games and manually added games as owned for the current
+  participant.
 
-**Buy / Deals**
-- Live prices, deals and sale alerts via IsThereAnyDeal (when configured).
+**Group matching and scoring**
+- Select participants and a target player count for the recommendation run.
+- Filter and categorize results by perfect matches, hidden backlog, old
+  favourites, almost ready, sale opportunities, online co-op, local co-op,
+  high/low playtime, and ownership fit.
+- Score each game out of 100 with transparent factor breakdowns for ownership,
+  player count, genre, availability, playtime, freshness, interest, price,
+  popularity, and local/online co-op fit.
+- Show alignment separately from average score so one strong mismatch can lower
+  confidence even when the average looks high.
+- Support scoring modes: Balanced, Co-op Night, Backlog, Cheap, Familiar, and
+  Fresh.
+- Offer short, optional preference prompts plus a deeper preference panel.
 
-**Remind**
-- Discord integration: announce locked times and send reminders via a Vercel
-  cron job.
+**Deals, alerts, and group buy**
+- Use IsThereAnyDeal for live prices, discounts, shop URLs, and historical lows
+  when `ITAD_API_KEY` is configured.
+- Cache deal data so pages can render even when external APIs are slow or
+  unavailable.
+- Create in-app price alerts for under-price, group-on-sale, missing-player,
+  historical-low, and N-of-M-owned discounted cases.
+- Suggest "all buy a new game" options by budget, genre, player count, mode,
+  platform, session length, owned-game exclusion, and sale-only preference.
+
+**Curated discovery**
+- Browse public discovery lists without signing in.
+- Includes online co-op, local co-op, more-than-4-player games, party games,
+  campaign co-op, survival groups, cheap co-op, trending multiplayer, recent
+  releases, upcoming friend-slop, and games with multiplayer mods.
+- Use the "I need at least" player-count slider to refine larger-group lists
+  from 1 to 50+ players.
+- Show player metadata, caveats such as server hosting or mods, and cached sale
+  prices where available.
+
+**Sharing and Discord**
+- Share sessions with a compact panel: copy link, Discord, WhatsApp, Messenger,
+  email, and QR code.
+- Preserve the active tab in shared URLs, so Pick sessions share directly into
+  Pick.
+- Add a Discord HTTP interactions MVP with `/letsplay create`, `/letsplay
+  status`, `/letsplay remind`, and `/letsplay games`.
+- Discord messages include buttons for filling availability, opening Pick,
+  showing the current best time, and confirming attendance.
+- Discord-linked sessions can announce locked times, send reminder pings through
+  Vercel Cron, and post sale alerts.
 
 ### Authorization model
+
 The share token lets anyone open and join a session. Acting *as* a participant
 or as the host requires a signed, httpOnly per-session cookie set when that
-participant is created. Host-only actions (lock, remove game, deal settings,
-price alerts) require the host cookie — so a leaked link cannot lock or vandalise
-a session. Open the session on the device that created it to act as host.
+participant is created. Host-only actions, such as locking a time, removing
+games, changing deal settings, and managing price alerts, require the host
+cookie, so a leaked link cannot lock or vandalise a session. Open the session on
+the device that created it to act as host.
 
 ## Local setup
 
@@ -46,9 +96,7 @@ npm install
 ```
 
 Create an `.env` file. See [`.env.example`](.env.example) for the full list with
-notes — `DATABASE_URL`, `NEXT_PUBLIC_APP_URL` and `AUTH_COOKIE_SECRET` are the
-minimum; Steam, IGDB, ITAD and Discord keys are optional and the app degrades
-gracefully without them.
+notes. The required minimum is:
 
 ```bash
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public"
@@ -56,17 +104,30 @@ NEXT_PUBLIC_APP_URL="http://localhost:3000"
 AUTH_COOKIE_SECRET="<openssl rand -base64 32>"
 ```
 
-Apply the database schema (dev):
+Optional integrations:
+
+```bash
+STEAM_WEB_API_KEY=""
+IGDB_CLIENT_ID=""
+IGDB_CLIENT_SECRET=""
+ITAD_API_KEY=""
+DISCORD_APPLICATION_ID=""
+DISCORD_PUBLIC_KEY=""
+DISCORD_BOT_TOKEN=""
+DISCORD_CLIENT_ID=""
+DISCORD_CLIENT_SECRET=""
+DISCORD_INSTALL_URL=""
+CRON_SECRET=""
+```
+
+Apply the database schema in development:
 
 ```bash
 npm run prisma:migrate
 ```
 
-On deploy, run migrations with `prisma migrate deploy` (not `migrate dev`).
-For Neon free tier, point `DATABASE_URL` at the pooled endpoint
-(`...-pooler...neon.tech`) with `?pgbouncer=true&connection_limit=1`.
-
-For the default local Windows PostgreSQL install, you can create the local database and `.env` automatically:
+For the default local Windows PostgreSQL install, you can create the local
+database and `.env` automatically:
 
 ```bash
 npm run db:setup
@@ -77,6 +138,47 @@ Run the app:
 ```bash
 npm run dev
 ```
+
+## Production setup notes
+
+On deploy, run migrations with `prisma migrate deploy`, not `migrate dev`.
+
+For Neon free tier, use the pooled connection string in production. The host
+usually contains `-pooler`, and the URL should include:
+
+```txt
+?pgbouncer=true&connection_limit=1
+```
+
+After setting Discord env vars, register slash commands:
+
+```bash
+npm run discord:commands
+```
+
+In the Discord developer portal, set the Interactions Endpoint URL to:
+
+```txt
+https://your-domain.example/api/discord/interactions
+```
+
+Vercel reminders use `vercel.json` to call:
+
+```txt
+/api/cron/discord-reminders
+```
+
+Set `CRON_SECRET` in Vercel and send it as a bearer token for non-Vercel/manual
+cron calls.
+
+**Cron schedule and plan limits.** `vercel.json` uses a daily schedule
+(`0 17 * * *`) because Vercel's Hobby plan only permits once-per-day cron jobs —
+a more frequent expression (e.g. `*/15 * * * *`) fails deployment on Hobby. The
+reminder job is safe at this cadence: each run sends every reminder that has
+become due since the last run and dedupes by `(session, type, scheduledFor)`, so
+no reminder is missed or sent twice — they are simply delivered up to ~24h late.
+For timely reminders (e.g. "2 hours before"), upgrade to Pro and change the
+schedule to a finer interval such as `*/15 * * * *`.
 
 ## Tool setup on Windows
 
@@ -94,7 +196,8 @@ Install missing required tools from `dependencies.txt`:
 powershell -ExecutionPolicy Bypass -File scripts/check-dependencies.ps1 -InstallMissing
 ```
 
-PostgreSQL is required for the real create/share session flow. After installing it, create a database and set `DATABASE_URL` in `.env`, then run:
+PostgreSQL is required for the real create/share session flow. After installing
+it, create a database and set `DATABASE_URL` in `.env`, then run:
 
 ```bash
 npm run prisma:migrate
