@@ -89,6 +89,7 @@ const baseProps = {
   dealLookupConfigured: true,
   friendInviteUrl: null,
   savedFriends: [],
+  libraryConnectionSummary: { connected: 0, total: 2 },
 };
 
 describe("PickPanel", () => {
@@ -159,6 +160,54 @@ describe("PickPanel", () => {
     expect(screen.getByText("Perfect matches")).toBeInTheDocument();
     expect(screen.getByText("Alignment: High")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Score mode" })).toBeInTheDocument();
+  });
+
+  it("shows Steam library coverage guidance", () => {
+    render(
+      <PickPanel
+        {...baseProps}
+        sessionGames={[]}
+        currentParticipantHasPickSignals={false}
+      />,
+    );
+
+    expect(screen.getByText("No one has connected Steam yet. You can still plan a time. Connect Steam later to find games everyone owns.")).toBeInTheDocument();
+  });
+
+  it("shows partial Steam library coverage guidance", () => {
+    render(
+      <PickPanel
+        {...baseProps}
+        libraryConnectionSummary={{ connected: 1, total: 2 }}
+        sessionGames={[]}
+        currentParticipantHasPickSignals={false}
+      />,
+    );
+
+    expect(screen.getByText("1 of 2 libraries connected. Recommendations will improve as more people connect.")).toBeInTheDocument();
+  });
+
+  it("shows close alternatives when no perfect matches exist", () => {
+    render(
+      <PickPanel
+        {...baseProps}
+        scoredGames={[
+          {
+            ...baseProps.scoredGames[0],
+            sessionGameId: "sg-close",
+            title: "Almost Shared",
+            categories: ["almostReady" as const],
+            ownership: { have: 1, missing: 1, selected: 2 },
+            reasons: ["1/2 selected players have it"],
+          },
+        ]}
+        sessionGames={[sessionGame([{ participantId: "p1", signal: "OWNED" }])]}
+        currentParticipantHasPickSignals={true}
+      />,
+    );
+
+    expect(screen.getAllByText("Almost Shared")[0]).toBeInTheDocument();
+    expect(screen.getByText("No game is owned by everyone, but these are close.")).toBeInTheDocument();
   });
 
   it("separates games with uncertain player-count metadata from compatible recommendations", () => {

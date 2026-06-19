@@ -123,13 +123,20 @@ export default function NewSessionPage() {
             <fieldset>
               <legend className="text-sm font-bold text-ink">Reminder preferences</legend>
               <div className="mt-3 flex flex-wrap gap-2">
-                {["24 hours before", "2 hours before", "15 minutes before"].map((label) => (
+                {["No reminders", "24 hours before", "2 hours before", "15 minutes before"].map((label) => (
                   <label key={label} className="inline-flex items-center gap-2 rounded-md border border-ink/10 bg-paper px-3 py-2 text-sm font-bold text-ink">
-                    <input name="reminders" type="checkbox" value={label} className="h-4 w-4 accent-teal" />
+                    <input name="reminders" type={label === "No reminders" ? "radio" : "checkbox"} value={label} className="h-4 w-4 accent-teal" />
                     {label}
                   </label>
                 ))}
               </div>
+              <label className="mt-3 block">
+                <span className="text-sm font-bold text-ink">Custom reminder minutes before</span>
+                <input name="customReminderMinutes" min={1} max={10080} type="number" placeholder="Optional" className="field" />
+              </label>
+              <p className="mt-2 text-xs font-bold leading-5 text-ink/50">
+                Discord reminders are sent only for sessions linked to a Discord channel.
+              </p>
             </fieldset>
           </Panel>
 

@@ -27,7 +27,7 @@ type SessionGameView = SessionGame & {
 
 type ParticipantView = Participant & {
   preference: ParticipantPreference | null;
-  user: (User & { preference: UserPreference | null }) | null;
+  user: (User & { preference: UserPreference | null; steamAccount?: SteamAccount | null }) | null;
 };
 
 type UserWithSteam =
@@ -61,6 +61,7 @@ export function PickPanel({
   dealLookupConfigured,
   friendInviteUrl,
   savedFriends,
+  libraryConnectionSummary,
 }: {
   shareToken: string;
   participantId?: string;
@@ -85,6 +86,7 @@ export function PickPanel({
   dealLookupConfigured: boolean;
   friendInviteUrl: string | null;
   savedFriends: User[];
+  libraryConnectionSummary: { connected: number; total: number };
 }) {
   const steamAccount = currentUser?.steamAccount;
   const importStatus = steamAccount?.lastImportStatus ?? null;
@@ -155,6 +157,7 @@ export function PickPanel({
               </div>
             )}
           </div>
+          <LibraryConnectionNotice summary={libraryConnectionSummary} />
         </section>
 
         <nav aria-label="Pick workspace" className="grid gap-2 rounded-xl border border-ink/10 bg-white/75 p-2 shadow-sm sm:grid-cols-4">
@@ -198,6 +201,7 @@ export function PickPanel({
                   priceAlertEvents={priceAlertEvents}
                   friendInviteUrl={friendInviteUrl}
                   savedFriends={savedFriends}
+                  dealLookupConfigured={dealLookupConfigured}
                 />
               </div>
             </details>
@@ -342,6 +346,34 @@ function steamImportMessage(status: string) {
   };
 }
 
+function LibraryConnectionNotice({ summary }: { summary: { connected: number; total: number } }) {
+  if (summary.total === 0) {
+    return null;
+  }
+
+  if (summary.connected === 0) {
+    return (
+      <p className="mt-3 rounded-lg border border-dashed border-ink/20 bg-white p-3 text-sm font-bold leading-6 text-ink/62">
+        No one has connected Steam yet. You can still plan a time. Connect Steam later to find games everyone owns.
+      </p>
+    );
+  }
+
+  if (summary.connected < summary.total) {
+    return (
+      <p className="mt-3 rounded-lg border border-teal/20 bg-teal/10 p-3 text-sm font-bold leading-6 text-ink/70">
+        {summary.connected} of {summary.total} libraries connected. Recommendations will improve as more people connect.
+      </p>
+    );
+  }
+
+  return (
+    <p className="mt-3 rounded-lg border border-moss/20 bg-moss/10 p-3 text-sm font-bold leading-6 text-moss">
+      All {summary.total} Steam libraries are connected.
+    </p>
+  );
+}
+
 function MatchDashboard({
   id,
   shareToken,
@@ -363,8 +395,12 @@ function MatchDashboard({
 }) {
   const compatibleGames = scoredGames.filter((game) => game.playerCountStatus === "supported");
   const uncertainGames = scoredGames.filter((game) => game.playerCountStatus === "uncertain");
+  const closeGames = compatibleGames
+    .filter((game) => !game.categories.includes("perfect"))
+    .sort((a, b) => b.ownership.have - a.ownership.have || a.ownership.missing - b.ownership.missing || b.score - a.score)
+    .slice(0, 3);
   const categorySections: Array<{ id: MatchCategory; title: string; empty: string }> = [
-    { id: "perfect", title: "Perfect matches", empty: "No game is owned by everyone and confirmed for this group size yet." },
+    { id: "perfect", title: "Perfect matches", empty: "No game is owned by everyone, but these are close." },
     { id: "hiddenBacklog", title: "Hidden backlog", empty: "No shared low-playtime backlog picks yet." },
     { id: "oldFavourites", title: "Old favourites", empty: "No heavily played group favourites yet." },
     { id: "almostReady", title: "Almost ready", empty: "No one-missing games yet." },
@@ -444,9 +480,14 @@ function MatchDashboard({
           return (
             <section key={section.id} id={`category-${section.id}`} className="rounded-lg border border-ink/10 bg-paper p-4 scroll-mt-5">
               <h3 className="text-lg font-black text-ink">{section.title}</h3>
+              {section.id === "perfect" && games.length === 0 && closeGames.length > 0 ? (
+                <p className="mt-2 text-sm font-bold leading-6 text-ink/60">{section.empty}</p>
+              ) : null}
               <div className="mt-3 grid gap-3 lg:grid-cols-2">
                 {games.length > 0 ? (
                   games.map((game) => <ScoredGameCard key={`${section.id}-${game.sessionGameId}`} game={game} />)
+                ) : section.id === "perfect" && closeGames.length > 0 ? (
+                  closeGames.map((game) => <ScoredGameCard key={`close-${game.sessionGameId}`} game={game} />)
                 ) : (
                   <p className="rounded-md border border-dashed border-ink/15 bg-white p-3 text-sm leading-6 text-ink/55">{section.empty}</p>
                 )}
@@ -536,6 +577,7 @@ function DealAndFriendsPanel({
   priceAlertEvents,
   friendInviteUrl,
   savedFriends,
+  dealLookupConfigured,
 }: {
   shareToken: string;
   participantId?: string;
@@ -545,6 +587,7 @@ function DealAndFriendsPanel({
   priceAlertEvents: PriceAlertEvent[];
   friendInviteUrl: string | null;
   savedFriends: User[];
+  dealLookupConfigured: boolean;
 }) {
   return (
     <section>
@@ -589,7 +632,9 @@ function DealAndFriendsPanel({
               ))
             ) : (
               <p className="rounded-lg border border-dashed border-ink/20 bg-paper p-3 text-sm leading-6 text-ink/55">
-                Deal alerts appear here when ITAD finds a matching price.
+                {dealLookupConfigured
+                  ? "No sale alerts yet. This usually means no shortlisted game currently has a matching discounted or cached deal."
+                  : "Deal alerts need ITAD_API_KEY before live prices and sale alerts can appear."}
               </p>
             )}
           </div>

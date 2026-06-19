@@ -4,14 +4,15 @@ import { notFound } from "next/navigation";
 import { CalendarCheck, Download, Gamepad2, Lock, UsersRound } from "lucide-react";
 import { lockSessionAction, submitAvailabilityAction } from "@/app/actions";
 import { AvailabilityForm } from "@/components/availability-form";
-import { CopyLinkButton } from "@/components/copy-link-button";
 import { PickPanel } from "@/components/pick-panel";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { RecommendationsDisclosure } from "@/components/recommendations-disclosure";
 import { SessionTabs } from "@/components/session-tabs";
+import { SharePanel } from "@/components/share-panel";
 import { getAppUrl } from "@/lib/app-url";
 import { getCurrentUser } from "@/lib/auth";
 import { curatedGames } from "@/lib/curated-games";
+import { announceDiscordPriceAlerts } from "@/lib/discord";
 import { refreshGameMetadata } from "@/lib/game-metadata";
 import { commonMultiplayerGames, excludeExistingGames, rankSessionGames } from "@/lib/games";
 import { defaultGroupBuyFilters, scoreGroupBuyCandidates } from "@/lib/group-buy";
@@ -82,7 +83,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
         include: {
           responses: true,
           preference: true,
-          user: { include: { preference: true } },
+          user: { include: { preference: true, steamAccount: true } },
         },
       },
     },
@@ -248,6 +249,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       selectedCount: selectedParticipantIds.length,
       currency: session.dealCurrency,
     });
+    await announceDiscordPriceAlerts(session.id);
   }
   const [priceAlertEvents, latestFriendInvite, savedFriends] =
     activeTab === "pick"
@@ -328,6 +330,10 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     activeTab === "pick" && currentParticipant
       ? sessionGames.some((sessionGame) => sessionGame.signals.some((signal) => signal.participantId === currentParticipant.id))
       : false;
+  const libraryConnectionSummary = {
+    connected: session.participants.filter((participant) => participant.user?.steamAccount).length,
+    total: session.participants.length,
+  };
 
   return (
     <main className="ui-shell">
@@ -339,7 +345,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           Let&apos;s Play Games
         </Link>
         <div className="flex flex-wrap gap-2">
-          <CopyLinkButton url={shareUrl} />
+          <SharePanel url={shareUrl} title={session.title} />
           {locked ? (
             <a href={`/s/${session.shareToken}/ics`} className="primary-button">
               <Download className="h-4 w-4" />
@@ -422,6 +428,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           dealLookupConfigured={Boolean(process.env.ITAD_API_KEY)}
           friendInviteUrl={latestFriendInvite ? `${appUrl}/friends/invite/${latestFriendInvite.token}` : null}
           savedFriends={savedFriends.map((friend) => friend.friend)}
+          libraryConnectionSummary={libraryConnectionSummary}
         />
       ) : (
       <section className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">

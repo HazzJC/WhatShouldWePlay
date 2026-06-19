@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { fromZonedTime } from "date-fns-tz";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
+import { announceLockedSessionToDiscord, normalizeReminderPreferences } from "@/lib/discord";
 import { getCuratedGame } from "@/lib/curated-games";
 import { mergeCuratedMetadata } from "@/lib/curated-metadata";
 import { addGameToSession, importSteamGamesForUser, upsertGame } from "@/lib/games";
@@ -76,7 +77,10 @@ export async function createSessionAction(formData: FormData) {
     weekendEndHour: formData.get("weekendEndHour") || undefined,
     timezone: formData.get("timezone"),
     discordChannel: formData.get("discordChannel") || undefined,
-    reminders: formData.getAll("reminders"),
+    reminders: [
+      ...formData.getAll("reminders").map(String),
+      formData.get("customReminderMinutes") ? `Custom:${formData.get("customReminderMinutes")}` : "",
+    ].filter(Boolean),
   });
 
   if (!parsed.success) {
@@ -100,7 +104,7 @@ export async function createSessionAction(formData: FormData) {
       weekendEndHour: values.separateWeekendTimes ? values.weekendEndHour : null,
       timezone: values.timezone,
       discordChannel: values.discordChannel || null,
-      reminderPreferences: values.reminders,
+      reminderPreferences: normalizeReminderPreferences(values.reminders),
       participants: {
         create: {
           name: values.hostName,
@@ -284,6 +288,8 @@ export async function lockSessionAction(formData: FormData) {
       lockedEndTime: new Date(parsed.data.endsAt),
     },
   });
+
+  await announceLockedSessionToDiscord(parsed.data.shareToken);
 
   revalidatePath(`/s/${parsed.data.shareToken}`);
 }

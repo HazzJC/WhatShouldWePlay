@@ -80,6 +80,9 @@ model Session {
   games               SessionGame[]
   priceAlertRules     PriceAlertRule[]
   priceAlertEvents    PriceAlertEvent[]
+  discordIntegrations DiscordIntegration[]
+  discordNotifications DiscordNotificationLog[]
+  discordAttendance   DiscordAttendance[]
 }
 
 model Participant {
@@ -89,6 +92,8 @@ model Participant {
   userId    String?
   user      User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
   name      String
+  discordUserId String?
+  discordUsername String?
   isHost    Boolean                @default(false)
   createdAt DateTime               @default(now())
   responses AvailabilityResponse[]
@@ -97,10 +102,62 @@ model Participant {
   gameInterests SessionGameInterest[]
   preference ParticipantPreference?
   preferenceNudgeDismissedAt DateTime?
+  discordAttendance DiscordAttendance[]
 
   @@index([sessionId])
   @@index([userId])
   @@index([sessionId, userId])
+  @@unique([sessionId, discordUserId])
+}
+
+model DiscordIntegration {
+  id              String   @id @default(cuid())
+  sessionId       String
+  session         Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  guildId         String
+  channelId       String
+  channelName     String?
+  createdByUserId String?
+  messageId       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([sessionId, guildId, channelId])
+  @@index([guildId, channelId])
+}
+
+model DiscordNotificationLog {
+  id          String   @id @default(cuid())
+  sessionId   String
+  session     Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  guildId     String?
+  channelId   String?
+  type        String
+  scheduledFor DateTime?
+  messageId   String?
+  status      String
+  error       String?
+  createdAt   DateTime @default(now())
+
+  @@unique([sessionId, type, scheduledFor])
+  @@index([sessionId, type])
+  @@index([scheduledFor, status])
+}
+
+model DiscordAttendance {
+  id            String      @id @default(cuid())
+  sessionId     String
+  session       Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  participantId String?
+  participant   Participant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
+  discordUserId String
+  discordUsername String?
+  status        String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([sessionId, discordUserId])
+  @@index([participantId])
 }
 
 model AvailabilityResponse {
