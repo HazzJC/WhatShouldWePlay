@@ -7,6 +7,19 @@ const defaultTimezone = "Europe/London";
 const hours = Array.from({ length: 24 }, (_, hour) => hour);
 const finishHours = Array.from({ length: 24 }, (_, index) => index + 1);
 
+function supportedTimezones(): string[] {
+  const supported = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf;
+  const zones = supported ? supported("timeZone") : [];
+
+  if (zones.length > 0) {
+    return zones.includes(defaultTimezone) ? zones : [defaultTimezone, ...zones];
+  }
+
+  return [defaultTimezone, "Europe/Dublin", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "UTC"];
+}
+
+const timezones = supportedTimezones();
+
 export default function NewSessionPage() {
   return (
     <main className="ui-shell pb-24 sm:pb-8">
@@ -77,7 +90,13 @@ export default function NewSessionPage() {
               <HourSelect name="dailyEndHour" label="Weekday finish" defaultValue="23" values={finishHours} />
               <label>
                 <span className="text-sm font-bold text-ink">Timezone</span>
-                <input name="timezone" required defaultValue={defaultTimezone} className="field" />
+                <select name="timezone" required defaultValue={defaultTimezone} className="field">
+                  {timezones.map((zone) => (
+                    <option key={zone} value={zone}>
+                      {zone.replace(/_/g, " ")}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
 

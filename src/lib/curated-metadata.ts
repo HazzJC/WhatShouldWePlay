@@ -1,9 +1,5 @@
 import { curatedGames, type CuratedGame } from "@/lib/curated-games";
 import { normalizeGameTitle, type GameInput } from "@/lib/games";
-import { prisma } from "@/lib/prisma";
-
-const syncTtlMs = 1000 * 60 * 30;
-let lastSyncAt = 0;
 
 export function findCuratedGameForGame(game: Pick<GameInput, "title" | "steamAppId">) {
   const steamAppId = game.steamAppId ?? null;
@@ -54,51 +50,6 @@ export function curatedCapabilityData(curatedGame: CuratedGame) {
     capabilitySource: "curated",
     capabilityConfidence: curatedGame.capabilityConfidence ?? 0.9,
   };
-}
-
-export async function syncCuratedGameMetadata({ force = false } = {}) {
-  if (!force && Date.now() - lastSyncAt < syncTtlMs) {
-    return;
-  }
-
-  lastSyncAt = Date.now();
-
-  for (const curatedGame of curatedGames) {
-    const normalizedTitle = normalizeGameTitle(curatedGame.title);
-    const existing = await prisma.game.findFirst({
-      where: {
-        OR: [
-          ...(curatedGame.steamAppId ? [{ steamAppId: curatedGame.steamAppId }] : []),
-          { normalizedTitle },
-        ],
-      },
-    });
-    const capabilityData = curatedCapabilityData(curatedGame);
-
-    if (existing) {
-      const steamOwner = curatedGame.steamAppId ? await prisma.game.findUnique({ where: { steamAppId: curatedGame.steamAppId } }) : null;
-
-      await prisma.game.update({
-        where: { id: existing.id },
-        data: {
-          ...capabilityData,
-          steamAppId: curatedGame.steamAppId && (!steamOwner || steamOwner.id === existing.id) ? curatedGame.steamAppId : undefined,
-        },
-      });
-      continue;
-    }
-
-    await prisma.game.create({
-      data: {
-        title: curatedGame.title,
-        normalizedTitle,
-        steamAppId: curatedGame.steamAppId ?? null,
-        summary: curatedGame.description,
-        popularityScore: curatedGame.popularityScore ?? null,
-        ...capabilityData,
-      },
-    });
-  }
 }
 
 function mergeTextLists(primary?: string[], fallback?: string[]) {

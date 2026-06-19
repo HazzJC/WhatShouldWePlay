@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { prisma } from "@/lib/prisma";
 
 const itadBaseUrl = "https://api.isthereanydeal.com";
@@ -234,7 +235,7 @@ function itadUrl(path: string) {
 }
 
 async function fetchJson(url: URL, body?: unknown) {
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     method: body ? "POST" : "GET",
     body: body ? JSON.stringify(body) : undefined,
     headers: {
@@ -242,6 +243,7 @@ async function fetchJson(url: URL, body?: unknown) {
       ...(body ? { "Content-Type": "application/json" } : {}),
     },
     cache: "no-store",
+    timeoutMs: 4000,
   });
 
   if (!response.ok) {

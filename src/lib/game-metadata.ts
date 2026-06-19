@@ -1,4 +1,5 @@
 import type { Game } from "@prisma/client";
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { curatedCapabilityData, findCuratedGameForGame } from "@/lib/curated-metadata";
 import { getIgdbGameById, mapIgdbCapability, mapIgdbQuality, searchIgdbGames } from "@/lib/igdb";
 import { prisma } from "@/lib/prisma";
@@ -79,7 +80,7 @@ export async function fetchSteamReviewSummary(steamAppId: number) {
     url.searchParams.set("purchase_type", "all");
     url.searchParams.set("num_per_page", "0");
 
-    const response = await fetch(url, { cache: "no-store" });
+    const response = await fetchWithTimeout(url, { cache: "no-store", timeoutMs: 4000 });
 
     if (!response.ok) {
       return null;

@@ -10,6 +10,10 @@ export const prisma =
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
+// Cache the client on the global in every environment, including production.
+// On Vercel each warm serverless invocation reuses this module, so caching here
+// keeps a single PrismaClient (and therefore a single connection pool) per
+// instance instead of opening a fresh pool on every request — essential for
+// staying within Neon's free-tier connection limits. Point DATABASE_URL at the
+// Neon pooled endpoint (`-pooler` host, `?pgbouncer=true&connection_limit=1`).
+globalForPrisma.prisma = prisma;

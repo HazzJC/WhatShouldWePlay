@@ -21,7 +21,7 @@ describe("SharePanel", () => {
     await userEvent.click(screen.getByRole("button", { name: "Share" }));
 
     expect(screen.getByRole("button", { name: "Copy link" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Share to Discord" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy link & open Discord" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Share to WhatsApp" })).toHaveAttribute("href", expect.stringContaining("tab%3Dpick"));
     expect(screen.getByRole("link", { name: "Share to Messenger" })).toHaveAttribute("href", expect.stringContaining("tab%3Dpick"));
     expect(screen.getByRole("link", { name: "Share by email" })).toHaveAttribute("href", expect.stringContaining("tab%3Dpick"));

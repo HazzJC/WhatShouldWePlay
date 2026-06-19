@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { fromZonedTime } from "date-fns-tz";
 import { z } from "zod";
-import { getCurrentUser } from "@/lib/auth";
+import {
+  getCurrentUser,
+  getHostParticipantId,
+  resolveActingParticipantId,
+  setParticipantIdentity,
+} from "@/lib/auth";
 import { announceLockedSessionToDiscord, normalizeReminderPreferences } from "@/lib/discord";
 import { getCuratedGame } from "@/lib/curated-games";
 import { mergeCuratedMetadata } from "@/lib/curated-metadata";
@@ -13,6 +18,44 @@ import { prisma } from "@/lib/prisma";
 import { dateRangeFromPreset, type DatePreset } from "@/lib/scheduling";
 import { getOwnedSteamGames, getRecentlyPlayedSteamGames } from "@/lib/steam";
 import { createShareToken } from "@/lib/tokens";
+
+function isValidTimeZone(value: string) {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const timezoneSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .refine(isValidTimeZone, { message: "Choose a valid timezone." });
+
+// Confirms the caller holds the signed host cookie for this session. The public
+// share token is not enough to perform host-only actions (lock, remove game,
+// deal settings, price alerts) — otherwise anyone the link reaches could do them.
+async function requireHostParticipant(sessionId: string) {
+  const hostParticipantId = await getHostParticipantId(sessionId);
+
+  if (hostParticipantId) {
+    const host = await prisma.participant.findFirst({
+      where: { id: hostParticipantId, sessionId, isHost: true },
+      select: { id: true },
+    });
+
+    if (host) {
+      return host.id;
+    }
+  }
+
+  throw new Error(
+    "Only the session host can do this. Open the session on the device that created it.",
+  );
+}
 
 const createSessionSchema = z
   .object({
@@ -27,7 +70,7 @@ const createSessionSchema = z
     separateWeekendTimes: z.boolean().default(false),
     weekendStartHour: z.coerce.number().int().min(0).max(23).optional(),
     weekendEndHour: z.coerce.number().int().min(1).max(24).optional(),
-    timezone: z.string().trim().min(1).max(80),
+    timezone: timezoneSchema,
     discordChannel: z.string().trim().max(120).optional(),
     reminders: z.array(z.string()).default([]),
   })
@@ -118,13 +161,14 @@ export async function createSessionAction(formData: FormData) {
   });
 
   const host = session.participants[0];
+  await setParticipantIdentity(session.id, host.id, { isHost: true });
   redirect(`/s/${session.shareToken}?participant=${host.id}`);
 }
 
 const createPickSessionSchema = z.object({
   title: z.string().trim().min(2).max(120),
   hostName: z.string().trim().min(1).max(80),
-  timezone: z.string().trim().min(1).max(80).default("Europe/London"),
+  timezone: timezoneSchema.default("Europe/London"),
   initialGameSlug: z.string().trim().max(120).optional(),
 });
 
@@ -169,6 +213,7 @@ export async function createPickSessionAction(formData: FormData) {
     },
   });
   const host = session.participants[0];
+  await setParticipantIdentity(session.id, host.id, { isHost: true });
   const initialGame = values.initialGameSlug ? getCuratedGame(values.initialGameSlug) : null;
 
   if (initialGame) {
@@ -212,9 +257,13 @@ export async function submitAvailabilityAction(formData: FormData) {
     throw new Error("Session not found.");
   }
 
-  const existingParticipant = parsed.data.participantId
+  // Only let the caller edit a participant they actually own (proven by the
+  // signed per-session cookie). A form-supplied id without a matching cookie is
+  // ignored so a link-holder cannot overwrite someone else's availability.
+  const actingParticipantId = await resolveActingParticipantId(session.id, parsed.data.participantId);
+  const existingParticipant = actingParticipantId
     ? await prisma.participant.findFirst({
-        where: { id: parsed.data.participantId, sessionId: session.id },
+        where: { id: actingParticipantId, sessionId: session.id },
       })
     : null;
 
@@ -229,6 +278,8 @@ export async function submitAvailabilityAction(formData: FormData) {
           name: parsed.data.participantName,
         },
       });
+
+  await setParticipantIdentity(session.id, participant.id);
 
   const responses = Array.from(formData.entries())
     .filter(([key]) => key.startsWith("status:"))
@@ -281,11 +332,29 @@ export async function lockSessionAction(formData: FormData) {
     throw new Error(parsed.error.issues[0]?.message ?? "Could not lock the session.");
   }
 
-  await prisma.session.update({
+  const startsAt = new Date(parsed.data.startsAt);
+  const endsAt = new Date(parsed.data.endsAt);
+
+  if (endsAt <= startsAt) {
+    throw new Error("The session end time must be after the start time.");
+  }
+
+  const session = await prisma.session.findUnique({
     where: { shareToken: parsed.data.shareToken },
+    select: { id: true },
+  });
+
+  if (!session) {
+    throw new Error("Session not found.");
+  }
+
+  await requireHostParticipant(session.id);
+
+  await prisma.session.update({
+    where: { id: session.id },
     data: {
-      lockedStartTime: new Date(parsed.data.startsAt),
-      lockedEndTime: new Date(parsed.data.endsAt),
+      lockedStartTime: startsAt,
+      lockedEndTime: endsAt,
     },
   });
 
@@ -362,7 +431,7 @@ export async function addSessionGameAction(formData: FormData) {
     : null;
   const currentUser = await getCurrentUser();
   const game = parsed.data.gameId
-    ? await prisma.game.findUniqueOrThrow({ where: { id: parsed.data.gameId } })
+    ? await prisma.game.findUniqueOrThrow({ where: { id: parsed.data.gameId }, select: { id: true } })
     : await upsertGame(
         mergeCuratedMetadata({
           title: parsed.data.title,
@@ -439,10 +508,21 @@ export async function removeSessionGameAction(formData: FormData) {
     throw new Error(parsed.error.issues[0]?.message ?? "Could not remove game.");
   }
 
+  const session = await prisma.session.findUnique({
+    where: { shareToken: parsed.data.shareToken },
+    select: { id: true },
+  });
+
+  if (!session) {
+    throw new Error("Session not found.");
+  }
+
+  await requireHostParticipant(session.id);
+
   await prisma.sessionGame.deleteMany({
     where: {
       id: parsed.data.sessionGameId,
-      session: { shareToken: parsed.data.shareToken },
+      sessionId: session.id,
     },
   });
 
@@ -480,10 +560,16 @@ export async function markGameAvailableAction(formData: FormData) {
     throw new Error("Game not found.");
   }
 
-  const participant = await prisma.participant.findFirst({
-    where: { id: parsed.data.participantId, sessionId: sessionGame.sessionId },
-    select: { id: true },
-  });
+  const actingParticipantId = await resolveActingParticipantId(
+    sessionGame.sessionId,
+    parsed.data.participantId,
+  );
+  const participant = actingParticipantId
+    ? await prisma.participant.findFirst({
+        where: { id: actingParticipantId, sessionId: sessionGame.sessionId },
+        select: { id: true },
+      })
+    : null;
 
   if (!participant) {
     throw new Error("Participant not found.");
@@ -538,10 +624,16 @@ export async function markGameInterestAction(formData: FormData) {
     throw new Error("Game not found.");
   }
 
-  const participant = await prisma.participant.findFirst({
-    where: { id: parsed.data.participantId, sessionId: sessionGame.sessionId },
-    select: { id: true },
-  });
+  const actingParticipantId = await resolveActingParticipantId(
+    sessionGame.sessionId,
+    parsed.data.participantId,
+  );
+  const participant = actingParticipantId
+    ? await prisma.participant.findFirst({
+        where: { id: actingParticipantId, sessionId: sessionGame.sessionId },
+        select: { id: true },
+      })
+    : null;
 
   if (!participant) {
     throw new Error("Participant not found.");
@@ -710,8 +802,19 @@ export async function updateDealSettingsAction(formData: FormData) {
     throw new Error(parsed.error.issues[0]?.message ?? "Could not save deal settings.");
   }
 
-  await prisma.session.update({
+  const session = await prisma.session.findUnique({
     where: { shareToken: parsed.data.shareToken },
+    select: { id: true },
+  });
+
+  if (!session) {
+    throw new Error("Session not found.");
+  }
+
+  await requireHostParticipant(session.id);
+
+  await prisma.session.update({
+    where: { id: session.id },
     data: {
       dealCountry: parsed.data.dealCountry,
       dealCurrency: parsed.data.dealCurrency,
@@ -754,6 +857,8 @@ export async function createPriceAlertRuleAction(formData: FormData) {
   if (!session) {
     throw new Error("Session not found.");
   }
+
+  await requireHostParticipant(session.id);
 
   await prisma.priceAlertRule.create({
     data: {
@@ -826,12 +931,20 @@ export async function importSteamLibraryAction(formData: FormData) {
     throw new Error("Session not found.");
   }
 
-  let participant = parsed.data.participantId
+  // Resolve which slot to import into. Only adopt a requested slot if it is
+  // unlinked or already this user's — never steal a slot linked to someone else.
+  const requestedId = await resolveActingParticipantId(session.id, parsed.data.participantId);
+  const requested = requestedId
     ? await prisma.participant.findFirst({
-        where: { id: parsed.data.participantId, sessionId: session.id },
+        where: { id: requestedId, sessionId: session.id },
         select: { id: true, userId: true },
       })
     : null;
+
+  let participant =
+    requested && (requested.userId === null || requested.userId === currentUser.id)
+      ? requested
+      : null;
 
   if (!participant) {
     participant =
@@ -849,13 +962,15 @@ export async function importSteamLibraryAction(formData: FormData) {
       }));
   }
 
-  if (participant && participant.userId !== currentUser.id) {
+  if (participant.userId !== currentUser.id) {
     await prisma.participant.update({
       where: { id: participant.id },
       data: { userId: currentUser.id },
     });
     participant = { ...participant, userId: currentUser.id };
   }
+
+  await setParticipantIdentity(session.id, participant.id);
   const [owned, recent] = await Promise.all([
     getOwnedSteamGames(currentUser.steamAccount.steamId),
     getRecentlyPlayedSteamGames(currentUser.steamAccount.steamId),
@@ -933,14 +1048,14 @@ export async function importSteamLibraryAction(formData: FormData) {
                 },
               },
             },
-            include: { game: true },
+            select: { gameId: true },
             orderBy: [{ recentlyPlayedAt: "desc" }, { playtimeMinutes: "desc" }],
             take: 200,
           })
         : [];
     const importedGames = await prisma.userGame.findMany({
       where: { userId: currentUser.id },
-      include: { game: true },
+      select: { gameId: true },
       orderBy: [{ recentlyPlayedAt: "desc" }, { playtimeMinutes: "desc" }],
       take: 100,
     });

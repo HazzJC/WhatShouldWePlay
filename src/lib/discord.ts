@@ -1,5 +1,6 @@
 import nacl from "tweetnacl";
 import { fromZonedTime } from "date-fns-tz";
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { getAppUrl } from "@/lib/app-url";
 import { prisma } from "@/lib/prisma";
 import { dateRangeFromPreset, formatSlotRange, rankBestTimes, responseMap, type DatePreset } from "@/lib/scheduling";
@@ -478,13 +479,14 @@ export async function postDiscordChannelMessage(channelId: string, message: Disc
     throw new Error("DISCORD_BOT_TOKEN is not configured.");
   }
 
-  const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+  const response = await fetchWithTimeout(`https://discord.com/api/v10/channels/${channelId}/messages`, {
     method: "POST",
     headers: {
       Authorization: `Bot ${token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(message),
+    timeoutMs: 5000,
   });
 
   if (!response.ok) {

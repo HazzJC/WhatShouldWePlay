@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+
 export type SteamOwnedGame = {
   appid: number;
   name?: string;
@@ -48,13 +50,19 @@ export async function verifySteamOpenIdCallback(searchParams: URLSearchParams) {
   const verifyParams = new URLSearchParams(searchParams);
   verifyParams.set("openid.mode", "check_authentication");
 
-  const response = await fetch(steamOpenIdEndpoint, {
-    method: "POST",
-    body: verifyParams,
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    cache: "no-store",
-  });
-  const body = await response.text();
+  let body: string;
+
+  try {
+    const response = await fetchWithTimeout(steamOpenIdEndpoint, {
+      method: "POST",
+      body: verifyParams,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      cache: "no-store",
+    });
+    body = await response.text();
+  } catch {
+    return null;
+  }
 
   return body.includes("is_valid:true") ? steamId : null;
 }
@@ -73,7 +81,7 @@ export async function getOwnedSteamGames(steamId: string, apiKey = process.env.S
   let response: Response;
 
   try {
-    response = await fetch(url, { cache: "no-store" });
+    response = await fetchWithTimeout(url, { cache: "no-store", timeoutMs: 8000 });
   } catch {
     return getOwnedSteamGamesFromCommunityXml(steamId, "network_error_xml");
   }
@@ -101,7 +109,7 @@ export async function getOwnedSteamGamesFromCommunityXml(steamId: string, status
   let response: Response;
 
   try {
-    response = await fetch(url, { cache: "no-store" });
+    response = await fetchWithTimeout(url, { cache: "no-store", timeoutMs: 8000 });
   } catch {
     return { games: [] as SteamOwnedGame[], status: `${statusPrefix}_network_error` };
   }
@@ -129,14 +137,18 @@ export async function getRecentlyPlayedSteamGames(steamId: string, apiKey = proc
   url.searchParams.set("steamid", steamId);
   url.searchParams.set("count", "0");
 
-  const response = await fetch(url, { cache: "no-store" });
+  try {
+    const response = await fetchWithTimeout(url, { cache: "no-store", timeoutMs: 8000 });
 
-  if (!response.ok) {
+    if (!response.ok) {
+      return [];
+    }
+
+    const payload = (await response.json()) as { response?: { games?: SteamRecentlyPlayedGame[] } };
+    return payload.response?.games ?? [];
+  } catch {
     return [];
   }
-
-  const payload = (await response.json()) as { response?: { games?: SteamRecentlyPlayedGame[] } };
-  return payload.response?.games ?? [];
 }
 
 export function parseSteamCommunityGamesXml(xml: string): SteamOwnedGame[] {

@@ -19,7 +19,7 @@ export default function SessionError({
         <p className="mt-4 text-sm font-black uppercase tracking-[0.16em] text-coral">Session could not load</p>
         <h1 className="mt-2 text-3xl font-black text-ink">Something went wrong opening this session.</h1>
         <p className="mt-3 text-sm leading-6 text-ink/65">
-          Try again first. If this keeps happening after a deploy, check the Vercel function logs for the digest and confirm the production database schema matches the deployed code.
+          This is usually temporary. Try again, and if it keeps happening, reopen the link in a moment.
         </p>
         {error.digest ? <p className="mt-3 text-xs font-bold text-ink/45">Digest: {error.digest}</p> : null}
         <div className="mt-5 flex flex-wrap justify-center gap-3">

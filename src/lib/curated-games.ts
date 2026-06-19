@@ -1,4 +1,4 @@
-import { normalizeGameTitle, type GameInput } from "@/lib/games";
+import { type GameInput } from "@/lib/games";
 
 export type CuratedGame = GameInput & {
   slug: string;
@@ -149,10 +149,6 @@ export function curatedGamesForList(slug: string, minimumPlayers = 1) {
   return curatedGames.filter((game) => game.listSlugs.includes(slug) && supportsAtLeast(game, minimumPlayers));
 }
 
-export function curatedGamesForMinimumPlayerCount(minimumPlayers: number) {
-  return curatedGames.filter((game) => supportsAtLeast(game, minimumPlayers));
-}
-
 export function supportsAtLeast(game: CuratedGame, minimumPlayers: number) {
   return Math.max(game.maxPlayers ?? 1, game.moddedMaxPlayers ?? 0) >= minimumPlayers;
 }
@@ -163,10 +159,6 @@ export function curatedPlayerLabel(game: CuratedGame) {
       ? `${game.maxPlayers} player${game.maxPlayers === 1 ? "" : "s"}`
       : `Up to ${game.maxPlayers} players`;
   return game.moddedPlayersLabel ? `${nativeLabel}, ${game.moddedPlayersLabel}` : nativeLabel;
-}
-
-export function gameSlug(title: string) {
-  return normalizeGameTitle(title).replaceAll(" ", "-");
 }
 
 function game(seed: CuratedGameSeed): CuratedGame {

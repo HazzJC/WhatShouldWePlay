@@ -3,12 +3,15 @@ import { sendDueDiscordReminders } from "@/lib/discord";
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
 
-  if (secret) {
-    const auth = request.headers.get("authorization");
+  // Fail closed: an unset secret must not leave this endpoint publicly
+  // triggerable (it posts to Discord channels). Vercel Cron sends the secret
+  // as `Authorization: Bearer <CRON_SECRET>` when it is configured.
+  if (!secret) {
+    return new Response("Cron is not configured.", { status: 503 });
+  }
 
-    if (auth !== `Bearer ${secret}`) {
-      return new Response("Unauthorized", { status: 401 });
-    }
+  if (request.headers.get("authorization") !== `Bearer ${secret}`) {
+    return new Response("Unauthorized", { status: 401 });
   }
 
   const result = await sendDueDiscordReminders();

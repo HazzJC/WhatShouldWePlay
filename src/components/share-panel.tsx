@@ -56,7 +56,7 @@ export function SharePanel({ url, title }: { url: string; title: string }) {
             </button>
             <button type="button" className="secondary-button justify-start px-3 py-2" onClick={shareToDiscord}>
               <MessageCircle className="h-4 w-4" />
-              Share to Discord
+              {status === "copied" ? "Link copied — paste in Discord" : "Copy link & open Discord"}
             </button>
             <a className="secondary-button justify-start px-3 py-2" href={`https://wa.me/?text=${encodedText}`} target="_blank" rel="noreferrer">
               <MessageCircle className="h-4 w-4" />

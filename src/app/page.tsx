@@ -89,7 +89,12 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-t from-ink/75 via-ink/10 to-transparent" />
           <div className="absolute bottom-4 left-4 right-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
             <div className="rounded-lg bg-white/92 p-4 shadow-card backdrop-blur">
-              <p className="text-sm font-bold text-ink/60">Best time to play</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-bold text-ink/60">Best time to play</p>
+                <span className="rounded-full bg-ink/10 px-2 py-0.5 text-[0.65rem] font-black uppercase tracking-wide text-ink/60">
+                  Example
+                </span>
+              </div>
               <p className="mt-1 text-2xl font-black text-ink">Friday, 19:00-21:00</p>
               <div className="mt-4 grid grid-cols-3 gap-2 text-center">
                 <Score value="6" label="Available" className="text-moss" />

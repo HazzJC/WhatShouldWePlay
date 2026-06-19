@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+
 export type IgdbGameResult = {
   id: number;
   name: string;
@@ -54,7 +56,13 @@ export async function getIgdbAccessToken() {
   url.searchParams.set("client_secret", clientSecret);
   url.searchParams.set("grant_type", "client_credentials");
 
-  const response = await fetch(url, { method: "POST", cache: "no-store" });
+  let response: Response;
+
+  try {
+    response = await fetchWithTimeout(url, { method: "POST", cache: "no-store" });
+  } catch {
+    return null;
+  }
 
   if (!response.ok) {
     return null;
@@ -77,16 +85,22 @@ export async function queryIgdbGames(body: string) {
     return [] as IgdbGameResult[];
   }
 
-  const response = await fetch("https://api.igdb.com/v4/games", {
-    method: "POST",
-    body,
-    headers: {
-      "Client-ID": clientId,
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-    },
-    cache: "no-store",
-  });
+  let response: Response;
+
+  try {
+    response = await fetchWithTimeout("https://api.igdb.com/v4/games", {
+      method: "POST",
+      body,
+      headers: {
+        "Client-ID": clientId,
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    });
+  } catch {
+    return [];
+  }
 
   if (!response.ok) {
     return [];

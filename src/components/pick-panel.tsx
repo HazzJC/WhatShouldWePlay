@@ -301,13 +301,13 @@ function steamImportMessage(status: string) {
     const count = status.split(":")[1] ?? "some";
     return {
       className: "bg-moss/10 text-moss",
-      text: `Imported ${count} Steam game${count === "1" ? "" : "s"} from your public Steam profile. The Web API path was unavailable, so we used Steam's public library feed instead.`,
+      text: `Imported ${count} Steam game${count === "1" ? "" : "s"} from your public Steam profile.`,
     };
   }
 
   const messages: Record<string, string> = {
     missing_key:
-      "Steam import is not configured yet: STEAM_WEB_API_KEY is missing on the server.",
+      "Steam import isn't available right now. You can still add games manually.",
     private_or_empty:
       "Steam returned no visible games. This is usually because your Steam game details are private, or the account has no visible library.",
     network_error:
@@ -333,9 +333,9 @@ function steamImportMessage(status: string) {
     http_403_xml_private_or_empty:
       "Steam refused the API request, and your public Steam profile did not expose a visible game library. Check the key and Steam privacy settings.",
     missing_key_xml_private_or_empty:
-      "No Steam API key is configured, and your public Steam profile did not expose a visible game library.",
+      "We couldn't see any games on your Steam profile. Your game details may be private. You can still add games manually.",
     network_error_xml_private_or_empty:
-      "The Steam Web API could not be reached, and the public Steam profile fallback did not expose a visible library.",
+      "We couldn't reach Steam just now. Try again in a moment, or add games manually.",
   };
 
   return {
@@ -560,10 +560,9 @@ function ScoredGameCard({ game }: { game: ScoredGame }) {
           </div>
         ))}
       </div>
-      <p className="mt-3 text-xs font-bold leading-5 text-ink/45">
-        {game.reviewSummary ?? `Quality source: ${game.qualitySource ?? "fallback"}`} · Players:{" "}
-        {game.capabilitySource ?? (game.playerCountStatus === "uncertain" ? "unknown" : "metadata")}
-      </p>
+      {game.reviewSummary ? (
+        <p className="mt-3 text-xs font-bold leading-5 text-ink/45">{game.reviewSummary}</p>
+      ) : null}
     </div>
   );
 }
@@ -633,8 +632,8 @@ function DealAndFriendsPanel({
             ) : (
               <p className="rounded-lg border border-dashed border-ink/20 bg-paper p-3 text-sm leading-6 text-ink/55">
                 {dealLookupConfigured
-                  ? "No sale alerts yet. This usually means no shortlisted game currently has a matching discounted or cached deal."
-                  : "Deal alerts need ITAD_API_KEY before live prices and sale alerts can appear."}
+                  ? "No sale alerts yet. We'll show one here when a shortlisted game is discounted."
+                  : "Live prices and sale alerts aren't available yet."}
               </p>
             )}
           </div>
@@ -712,7 +711,7 @@ function GroupBuyPanel({
       <h2 className="mt-1 text-2xl font-black text-ink">Find a group buy</h2>
       {!dealLookupConfigured ? (
         <p className="mt-3 rounded-lg border border-gold/30 bg-gold/10 p-3 text-sm font-bold leading-6 text-ink/70">
-          Live deal lookup is not configured yet. Add ITAD_API_KEY in the deployment environment to show current prices and discounts.
+          Live prices and discounts aren&apos;t available yet. You can still shortlist and compare games.
         </p>
       ) : null}
       <form className="mt-4 grid gap-3 rounded-lg border border-ink/10 bg-paper p-4 md:grid-cols-4" action={`/s/${shareToken}`}>

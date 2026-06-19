@@ -1,27 +1,48 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 
 const cookieName = "lpg_session";
 const sessionDays = 30;
 
+function resolveSecret() {
+  const secret = process.env.AUTH_COOKIE_SECRET;
+
+  if (secret) {
+    return secret;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("AUTH_COOKIE_SECRET must be set in production.");
+  }
+
+  return "dev-secret";
+}
+
 export function hashSessionToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
-export function signValue(value: string, secret = process.env.AUTH_COOKIE_SECRET ?? "dev-secret") {
-  const signature = createHash("sha256").update(`${value}.${secret}`).digest("hex");
+export function signValue(value: string, secret = resolveSecret()) {
+  const signature = createHmac("sha256", secret).update(value).digest("hex");
   return `${value}.${signature}`;
 }
 
-export function verifySignedValue(signedValue: string, secret = process.env.AUTH_COOKIE_SECRET ?? "dev-secret") {
-  const [value, signature] = signedValue.split(".");
+export function verifySignedValue(signedValue: string, secret = resolveSecret()) {
+  const separator = signedValue.lastIndexOf(".");
+
+  if (separator <= 0) {
+    return null;
+  }
+
+  const value = signedValue.slice(0, separator);
+  const signature = signedValue.slice(separator + 1);
 
   if (!value || !signature) {
     return null;
   }
 
-  const expected = signValue(value, secret).split(".")[1];
+  const expected = signValue(value, secret).split(".").at(-1)!;
   const signatureBuffer = Buffer.from(signature);
   const expectedBuffer = Buffer.from(expected);
 
@@ -91,4 +112,69 @@ export async function getCurrentUser() {
   });
 
   return session?.user ?? null;
+}
+
+// --- Per-session participant identity ---------------------------------------
+// The public share token grants the right to view and join a session, but it
+// must not by itself authorise acting *as* a specific participant or as the
+// host. When a participant is created (host on session create, guest on first
+// availability submit) we set a signed, httpOnly cookie scoped to that session.
+// Host-only mutations (lock, remove game, deal settings, alerts) require the
+// host cookie; per-participant writes prefer the cookie's id over any value
+// supplied in the form, preventing impersonation by anyone holding the link.
+
+const participantCookiePrefix = "lpg_p_";
+const hostCookiePrefix = "lpg_host_";
+const participantCookieDays = 60;
+
+export async function setParticipantIdentity(
+  sessionId: string,
+  participantId: string,
+  options: { isHost?: boolean } = {},
+) {
+  const cookieStore = await cookies();
+  const expires = new Date(Date.now() + participantCookieDays * 24 * 60 * 60 * 1000);
+  const settings = {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    expires,
+  };
+
+  cookieStore.set(`${participantCookiePrefix}${sessionId}`, signValue(participantId), settings);
+
+  if (options.isHost) {
+    cookieStore.set(`${hostCookiePrefix}${sessionId}`, signValue(participantId), settings);
+  }
+}
+
+export async function getParticipantId(sessionId: string) {
+  const cookieStore = await cookies();
+  const signed = cookieStore.get(`${participantCookiePrefix}${sessionId}`)?.value;
+  return signed ? verifySignedValue(signed) : null;
+}
+
+export async function getHostParticipantId(sessionId: string) {
+  const cookieStore = await cookies();
+  const signed = cookieStore.get(`${hostCookiePrefix}${sessionId}`)?.value;
+  return signed ? verifySignedValue(signed) : null;
+}
+
+// Resolves the participant the caller is allowed to write as for this session.
+// Prefers the signed cookie; falls back to a supplied id only when no cookie is
+// present (legacy links shared before this cookie existed). Returns null if a
+// cookie exists but disagrees with the supplied id (impersonation attempt).
+export async function resolveActingParticipantId(sessionId: string, suppliedId?: string | null) {
+  const cookieId = await getParticipantId(sessionId);
+
+  if (cookieId) {
+    if (suppliedId && suppliedId !== cookieId) {
+      return null;
+    }
+
+    return cookieId;
+  }
+
+  return suppliedId ?? null;
 }

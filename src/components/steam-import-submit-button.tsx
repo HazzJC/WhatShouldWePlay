@@ -5,11 +5,11 @@ import { useFormStatus } from "react-dom";
 import { DownloadCloud } from "lucide-react";
 
 const importSteps = [
-  { label: "Contacting Steam", progress: 18 },
-  { label: "Reading your library", progress: 38 },
-  { label: "Saving owned games", progress: 64 },
-  { label: "Matching this shortlist", progress: 82 },
-  { label: "Finishing import", progress: 94 },
+  "Contacting Steam",
+  "Reading your library",
+  "Saving owned games",
+  "Matching this shortlist",
+  "Finishing import",
 ];
 
 export function SteamImportSubmitButton() {
@@ -46,10 +46,10 @@ export function SteamImportSubmitButton() {
     <div className="min-w-[16rem]" aria-live="polite">
       <button className="primary-button w-full" type="submit" disabled aria-busy="true">
         <span className="loading-spinner" aria-hidden="true" />
-        {step.label}
+        {step}…
       </button>
       <div className="mt-3 h-2 overflow-hidden rounded-full bg-linen">
-        <div className="h-full rounded-full bg-gradient-to-r from-coral via-gold to-teal transition-all duration-500" style={{ width: `${step.progress}%` }} />
+        <div className="indeterminate-bar h-full rounded-full bg-gradient-to-r from-coral via-gold to-teal" />
       </div>
       <p className="mt-2 text-xs font-bold leading-5 text-ink/55">
         Large Steam libraries can take a minute while we save playtime and ownership data.
