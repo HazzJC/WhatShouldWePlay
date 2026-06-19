@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Gamepad2 } from "lucide-react";
 import { PlayerCountFilter } from "@/components/player-count-filter";
-import { curatedGamesForList, getCuratedList } from "@/lib/curated-games";
+import { curatedGamesForList, curatedPlayerLabel, getCuratedList } from "@/lib/curated-games";
 import { curatedPriceLabel, curatedSaleLabel, enrichCuratedGamesWithDeals, sortCuratedGamesForDiscovery } from "@/lib/curated-deals";
 import { parseMinimumPlayers } from "@/lib/player-count";
 
@@ -52,13 +52,24 @@ export default async function DiscoverListPage({ params, searchParams }: PagePro
                 <p className="mt-2 text-sm leading-6 text-ink/60">{game.description}</p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <p className="rounded-md bg-teal/10 px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] text-teal">
-                    {game.minPlayers}-{game.maxPlayers} players
+                    {curatedPlayerLabel(game)}
                   </p>
+                  {game.moddedPlayersLabel ? (
+                    <p className="rounded-md bg-gold/20 px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] text-ink">
+                      Modded setup
+                    </p>
+                  ) : null}
                   <p className="rounded-md bg-paper px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] text-ink/60">
                     {curatedPriceLabel(game)}
                   </p>
                 </div>
                 {game.caveat ? <p className="mt-2 text-xs font-bold leading-5 text-coral">{game.caveat}</p> : null}
+                {game.moddedSupportNote ? <p className="mt-2 text-xs font-bold leading-5 text-ink/55">{game.moddedSupportNote}</p> : null}
+                {game.moddedSourceName ? (
+                  <p className="mt-2 text-xs font-black uppercase tracking-[0.12em] text-teal">
+                    Source: {game.moddedSourceName}
+                  </p>
+                ) : null}
               </Link>
             ))
           ) : (

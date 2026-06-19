@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Gamepad2 } from "lucide-react";
 import { curatedPriceLabel, curatedSaleLabel, enrichedCuratedGame } from "@/lib/curated-deals";
+import { curatedPlayerLabel } from "@/lib/curated-games";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -50,10 +51,31 @@ export default async function GameDetailPage({ params }: PageProps) {
           ))}
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <Fact label="Players" value={`${game.minPlayers}-${game.maxPlayers}`} />
+          <Fact label="Players" value={curatedPlayerLabel(game)} />
           <Fact label="Online" value={game.onlineCoop ? "Yes" : "No"} />
           <Fact label="Local" value={game.localCoop ? "Yes" : "No"} />
         </div>
+        {game.moddedSupportNote ? (
+          <div className="mt-4 rounded-lg border border-gold/30 bg-gold/15 p-4">
+            <p className="text-sm font-black text-ink">Modded multiplayer warning</p>
+            <p className="mt-1 text-sm leading-6 text-ink/65">
+              {game.moddedSupportNote}
+              {game.moddedUnrestricted ? " Larger groups may work, but stability depends on the mod and host." : ""}
+            </p>
+            {game.moddedSourceUrl ? (
+              <a
+                href={game.moddedSourceUrl}
+                className="mt-3 inline-flex text-sm font-black text-teal underline"
+                rel="noreferrer"
+                target="_blank"
+              >
+                View {game.moddedSourceName ?? "mod source"}
+              </a>
+            ) : game.moddedSourceName ? (
+              <p className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-teal">Source: {game.moddedSourceName}</p>
+            ) : null}
+          </div>
+        ) : null}
         {game.caveat ? (
           <div className="mt-4 rounded-lg border border-coral/20 bg-coral/10 p-4">
             <p className="text-sm font-black text-ink">Large-group note</p>

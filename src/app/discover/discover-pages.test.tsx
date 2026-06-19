@@ -27,6 +27,9 @@ vi.mock("@/lib/curated-deals", () => ({
           onlineCoop: true,
           localCoop: false,
           caveat: null,
+          moddedPlayersLabel: null,
+          moddedSupportNote: null,
+          moddedUnrestricted: false,
           deal: { currentPrice: 749, currency: "GBP", discountPercent: 50 },
         }
       : null,
@@ -46,6 +49,7 @@ describe("curated discovery pages", () => {
 
     expect(screen.getByText("Best online co-op games")).toBeInTheDocument();
     expect(screen.getByText("More than 4?")).toBeInTheDocument();
+    expect(screen.getByText("With mods")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Start Pick" })).toBeInTheDocument();
     expect(screen.getAllByText(/50\+ players/)[0]).toBeInTheDocument();
   });
@@ -58,6 +62,16 @@ describe("curated discovery pages", () => {
     expect(screen.getByText("Meccha Chameleon")).toBeInTheDocument();
     expect(screen.getByText("£4.99")).toBeInTheDocument();
     expect(screen.getByText("25% off")).toBeInTheDocument();
+  });
+
+  it("renders modded multiplayer caveats in the with-mods list", async () => {
+    render(await DiscoverListPage({ params: Promise.resolve({ slug: "with-mods" }), searchParams: Promise.resolve({ minPlayers: "8" }) }));
+
+    expect(screen.getByText("With mods")).toBeInTheDocument();
+    expect(screen.getByText("RimWorld")).toBeInTheDocument();
+    expect(screen.getAllByText(/1 player, 2-8 with mods/)[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Modded setup")[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/Solo by default/)[0]).toBeInTheDocument();
   });
 
   it("renders a curated game detail page", async () => {
