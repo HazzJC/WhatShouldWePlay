@@ -4,48 +4,70 @@
 
 :root {
   color-scheme: light;
-  --color-ink: 24 18 44;
-  --color-paper: 255 247 236;
-  --color-linen: 243 229 214;
+  --color-ink: 18 24 38;
+  --color-paper: 250 247 255;
+  --color-linen: 237 232 246;
   --color-surface: 255 255 255;
-  --color-surface-strong: 255 251 245;
-  --color-coral: 219 52 102;
-  --color-coral-dark: 171 26 75;
-  --color-teal: 0 140 165;
-  --color-teal-dark: 0 94 118;
-  --color-gold: 219 154 36;
-  --color-moss: 30 126 91;
-  --color-slate: 63 78 102;
-  --color-ember: 232 76 45;
-  --color-tide: 0 175 205;
-  --color-neon-pink: 236 40 121;
-  --color-neon-cyan: 0 220 255;
-  --color-neon-violet: 120 78 255;
-  --color-shadow: 49 22 72;
+  --color-surface-strong: 246 241 252;
+  --color-coral: 158 33 91;
+  --color-coral-dark: 115 22 66;
+  --color-teal: 12 105 116;
+  --color-teal-dark: 8 78 88;
+  --color-gold: 143 94 10;
+  --color-moss: 28 106 73;
+  --color-slate: 51 65 85;
+  --color-ember: 170 54 35;
+  --color-tide: 12 105 116;
+  --color-neon-pink: 158 33 91;
+  --color-neon-cyan: 12 105 116;
+  --color-neon-violet: 91 63 166;
+  --color-shadow: 45 38 62;
   background: rgb(var(--color-paper));
   color: rgb(var(--color-ink));
 }
 
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-ink: 238 242 255;
+  --color-paper: 9 12 25;
+  --color-linen: 18 23 42;
+  --color-surface: 20 25 45;
+  --color-surface-strong: 29 36 64;
+  --color-coral: 190 43 103;
+  --color-coral-dark: 145 28 78;
+  --color-teal: 28 129 133;
+  --color-teal-dark: 18 99 104;
+  --color-gold: 225 175 73;
+  --color-moss: 35 128 84;
+  --color-slate: 174 185 202;
+  --color-ember: 220 86 61;
+  --color-tide: 28 129 133;
+  --color-neon-pink: 190 43 103;
+  --color-neon-cyan: 28 129 133;
+  --color-neon-violet: 139 113 214;
+  --color-shadow: 0 0 0;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --color-ink: 244 247 255;
-    --color-paper: 8 10 24;
-    --color-linen: 17 22 45;
-    --color-surface: 15 18 38;
-    --color-surface-strong: 24 29 58;
-    --color-coral: 255 51 122;
-    --color-coral-dark: 213 32 96;
-    --color-teal: 0 224 255;
-    --color-teal-dark: 0 165 205;
-    --color-gold: 255 198 63;
-    --color-moss: 56 219 154;
-    --color-slate: 148 163 184;
-    --color-ember: 255 104 69;
-    --color-tide: 0 224 255;
-    --color-neon-pink: 255 51 140;
-    --color-neon-cyan: 0 224 255;
-    --color-neon-violet: 151 102 255;
+    --color-ink: 238 242 255;
+    --color-paper: 9 12 25;
+    --color-linen: 18 23 42;
+    --color-surface: 20 25 45;
+    --color-surface-strong: 29 36 64;
+    --color-coral: 190 43 103;
+    --color-coral-dark: 145 28 78;
+    --color-teal: 28 129 133;
+    --color-teal-dark: 18 99 104;
+    --color-gold: 225 175 73;
+    --color-moss: 35 128 84;
+    --color-slate: 174 185 202;
+    --color-ember: 220 86 61;
+    --color-tide: 28 129 133;
+    --color-neon-pink: 190 43 103;
+    --color-neon-cyan: 28 129 133;
+    --color-neon-violet: 139 113 214;
     --color-shadow: 0 0 0;
   }
 }
@@ -64,8 +86,8 @@ body {
   margin: 0;
   background:
     radial-gradient(circle at 10% -8%, rgb(var(--color-neon-pink) / 0.18), transparent 26rem),
-    radial-gradient(circle at 94% 4%, rgb(var(--color-neon-cyan) / 0.18), transparent 28rem),
-    radial-gradient(circle at 50% 112%, rgb(var(--color-neon-violet) / 0.10), transparent 32rem),
+    radial-gradient(circle at 94% 4%, rgb(var(--color-neon-cyan) / 0.12), transparent 28rem),
+    radial-gradient(circle at 50% 112%, rgb(var(--color-neon-violet) / 0.08), transparent 32rem),
     linear-gradient(180deg, rgb(var(--color-paper)) 0%, rgb(var(--color-linen)) 100%);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -113,7 +135,7 @@ canvas {
 
 .primary-button {
   @apply focus-ring inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2.5 text-sm font-black text-white shadow-card transition duration-200 hover:-translate-y-0.5;
-  background: linear-gradient(135deg, rgb(var(--color-coral)), rgb(var(--color-neon-violet)));
+  background: linear-gradient(135deg, rgb(var(--color-coral-dark)), rgb(var(--color-coral)));
 }
 
 .secondary-button {
@@ -139,34 +161,65 @@ canvas {
 }
 
 @media (prefers-color-scheme: dark) {
-  body {
+  html:not([data-theme="light"]) body {
     background:
-      radial-gradient(circle at 8% -10%, rgb(var(--color-neon-pink) / 0.24), transparent 24rem),
-      radial-gradient(circle at 92% 0%, rgb(var(--color-neon-cyan) / 0.20), transparent 26rem),
-      radial-gradient(circle at 50% 112%, rgb(var(--color-neon-violet) / 0.18), transparent 34rem),
-      linear-gradient(180deg, #080a18 0%, #0f1430 58%, #070816 100%);
+      radial-gradient(circle at 8% -10%, rgb(var(--color-neon-pink) / 0.16), transparent 24rem),
+      radial-gradient(circle at 92% 0%, rgb(var(--color-neon-cyan) / 0.14), transparent 26rem),
+      radial-gradient(circle at 50% 112%, rgb(var(--color-neon-violet) / 0.12), transparent 34rem),
+      linear-gradient(180deg, #090c19 0%, #11172b 58%, #080a16 100%);
   }
+}
 
-  .bg-white,
-  .bg-white\/70,
-  .bg-white\/75,
-  .bg-white\/85,
-  .bg-white\/92,
-  .bg-white\/95 {
+[data-theme="dark"] body {
+  background:
+    radial-gradient(circle at 8% -10%, rgb(var(--color-neon-pink) / 0.16), transparent 24rem),
+    radial-gradient(circle at 92% 0%, rgb(var(--color-neon-cyan) / 0.14), transparent 26rem),
+    radial-gradient(circle at 50% 112%, rgb(var(--color-neon-violet) / 0.12), transparent 34rem),
+    linear-gradient(180deg, #090c19 0%, #11172b 58%, #080a16 100%);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) .bg-white,
+  html:not([data-theme="light"]) .bg-white\/70,
+  html:not([data-theme="light"]) .bg-white\/75,
+  html:not([data-theme="light"]) .bg-white\/85,
+  html:not([data-theme="light"]) .bg-white\/92,
+  html:not([data-theme="light"]) .bg-white\/95 {
     background-color: rgb(var(--color-surface) / 0.88);
   }
 
-  .border-red-200 {
+  html:not([data-theme="light"]) .border-red-200 {
     border-color: rgb(248 113 113 / 0.42);
   }
 
-  .bg-red-50 {
+  html:not([data-theme="light"]) .bg-red-50 {
     background-color: rgb(127 29 29 / 0.22);
   }
 
-  .text-red-800 {
+  html:not([data-theme="light"]) .text-red-800 {
     color: rgb(254 202 202);
   }
+}
+
+[data-theme="dark"] .bg-white,
+[data-theme="dark"] .bg-white\/70,
+[data-theme="dark"] .bg-white\/75,
+[data-theme="dark"] .bg-white\/85,
+[data-theme="dark"] .bg-white\/92,
+[data-theme="dark"] .bg-white\/95 {
+  background-color: rgb(var(--color-surface) / 0.88);
+}
+
+[data-theme="dark"] .border-red-200 {
+  border-color: rgb(248 113 113 / 0.42);
+}
+
+[data-theme="dark"] .bg-red-50 {
+  background-color: rgb(127 29 29 / 0.22);
+}
+
+[data-theme="dark"] .text-red-800 {
+  color: rgb(254 202 202);
 }
 
 @media (prefers-reduced-motion: reduce) {
