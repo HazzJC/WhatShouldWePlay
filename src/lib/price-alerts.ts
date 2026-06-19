@@ -37,6 +37,15 @@ export async function evaluatePriceAlerts({
   selectedCount: number;
   currency: string;
 }) {
+  const gamesWithDeals = sessionGames.filter((sessionGame) => {
+    const deal = sessionGame.game.deal;
+    return deal?.status === "ok" && deal.currentPrice !== null && deal.currentPrice !== undefined;
+  });
+
+  if (gamesWithDeals.length === 0) {
+    return;
+  }
+
   const rules = await prisma.priceAlertRule.findMany({
     where: { sessionId, enabled: true },
   });
@@ -51,10 +60,12 @@ export async function evaluatePriceAlerts({
       ? rules
       : defaultRules;
 
-  for (const sessionGame of sessionGames) {
+  const writes: ReturnType<typeof prisma.priceAlertEvent.upsert>[] = [];
+
+  for (const sessionGame of gamesWithDeals) {
     const deal = sessionGame.game.deal;
 
-    if (!deal || deal.status !== "ok" || !deal.currentPrice) {
+    if (!deal || deal.currentPrice === null || deal.currentPrice === undefined) {
       continue;
     }
 
@@ -78,7 +89,7 @@ export async function evaluatePriceAlerts({
         continue;
       }
 
-      await prisma.priceAlertEvent.upsert({
+      writes.push(prisma.priceAlertEvent.upsert({
         where: {
           sessionId_gameId_message: {
             sessionId,
@@ -105,8 +116,12 @@ export async function evaluatePriceAlerts({
           url: deal.dealUrl ?? null,
           triggeredAt: new Date(),
         },
-      });
+      }));
     }
+  }
+
+  for (let index = 0; index < writes.length; index += 20) {
+    await prisma.$transaction(writes.slice(index, index + 20));
   }
 }
 

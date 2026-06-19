@@ -30,6 +30,9 @@ type TokenCache = {
 };
 
 let tokenCache: TokenCache | null = null;
+let popularCache: { expiresAt: number; games: IgdbGameResult[] } | null = null;
+let trendingCache: { expiresAt: number; games: IgdbGameResult[] } | null = null;
+const discoveryCacheMs = 1000 * 60 * 30;
 
 const fields =
   "fields id,name,summary,cover.url,genres.name,platforms.name,game_modes.name,multiplayer_modes.onlinecoop,multiplayer_modes.offlinecoop,multiplayer_modes.onlinecoopmax,multiplayer_modes.offlinecoopmax,multiplayer_modes.onlinemax,multiplayer_modes.offlinemax,multiplayer_modes.splitscreen,total_rating,total_rating_count,aggregated_rating,aggregated_rating_count,rating,rating_count,hypes;";
@@ -103,11 +106,23 @@ export async function searchIgdbGames(query: string) {
 }
 
 export async function getPopularIgdbGames() {
-  return queryIgdbGames(`${fields} where total_rating_count > 20; sort total_rating desc; limit 12;`);
+  if (popularCache && popularCache.expiresAt > Date.now()) {
+    return popularCache.games;
+  }
+
+  const games = await queryIgdbGames(`${fields} where total_rating_count > 20; sort total_rating desc; limit 12;`);
+  popularCache = { games, expiresAt: Date.now() + discoveryCacheMs };
+  return games;
 }
 
 export async function getTrendingIgdbGames() {
-  return queryIgdbGames(`${fields} where hypes != null; sort hypes desc; limit 12;`);
+  if (trendingCache && trendingCache.expiresAt > Date.now()) {
+    return trendingCache.games;
+  }
+
+  const games = await queryIgdbGames(`${fields} where hypes != null; sort hypes desc; limit 12;`);
+  trendingCache = { games, expiresAt: Date.now() + discoveryCacheMs };
+  return games;
 }
 
 export async function getIgdbGameById(id: number) {

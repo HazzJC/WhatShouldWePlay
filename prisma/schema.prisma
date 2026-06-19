@@ -100,6 +100,7 @@ model Participant {
 
   @@index([sessionId])
   @@index([userId])
+  @@index([sessionId, userId])
 }
 
 model AvailabilityResponse {
@@ -247,6 +248,7 @@ model GameDeal {
 
   @@index([itadId])
   @@index([fetchedAt])
+  @@index([country, fetchedAt, status])
 }
 
 model FriendInvite {
@@ -308,6 +310,7 @@ model UserGame {
 
   @@unique([userId, gameId])
   @@index([gameId])
+  @@index([userId, recentlyPlayedAt, playtimeMinutes])
 }
 
 model SessionGame {
@@ -348,6 +351,7 @@ model PriceAlertRule {
   events          PriceAlertEvent[]
 
   @@index([sessionId])
+  @@index([sessionId, enabled])
 }
 
 model PriceAlertEvent {

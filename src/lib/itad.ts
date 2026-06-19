@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 
 const itadBaseUrl = "https://api.isthereanydeal.com";
 const cacheMs = 1000 * 60 * 60 * 12;
+const maxRefreshBatchSize = 24;
 
 type ItadLookupResponse = {
   found?: boolean;
@@ -57,8 +58,14 @@ export async function refreshGameDeals({
     return;
   }
 
+  const uniqueGameIds = [...new Set(gameIds)].filter(Boolean).slice(0, maxRefreshBatchSize);
+
+  if (uniqueGameIds.length === 0) {
+    return;
+  }
+
   const games = await prisma.game.findMany({
-    where: { id: { in: gameIds } },
+    where: { id: { in: uniqueGameIds } },
     include: { deal: true },
   });
   const staleGames = games.filter((game) => {
@@ -146,6 +153,16 @@ export async function refreshGameDeals({
       });
     }),
   );
+}
+
+export async function refreshGameDealsWithin(
+  input: Parameters<typeof refreshGameDeals>[0],
+  timeoutMs = 700,
+) {
+  await Promise.race([
+    refreshGameDeals(input).catch(() => undefined),
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
 }
 
 export async function lookupItadId({ title, steamAppId }: { title: string; steamAppId?: number | null }) {

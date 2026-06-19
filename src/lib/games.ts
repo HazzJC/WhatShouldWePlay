@@ -137,36 +137,95 @@ export async function importSteamGamesForUser(userId: string, games: SteamOwnedG
   const recentAppIds = new Set(recentGames.map((game) => game.appid));
   const recentPlaytime = new Map(recentGames.map((game) => [game.appid, game.playtime_2weeks ?? 0]));
   const now = new Date();
-  const importableGames = games.filter((steamGame) => steamGame.name);
+  const importableGames = uniqueSteamGames(games.filter((steamGame) => steamGame.name && steamGame.appid));
 
-  for (const chunk of chunks(importableGames, 12)) {
-    await Promise.all(
-      chunk.map(async (steamGame) => {
-        const game = await upsertGame({
-          title: steamGame.name!,
-          steamAppId: steamGame.appid,
-        });
+  if (importableGames.length === 0) {
+    return { gameIds: [] as string[] };
+  }
 
-        await prisma.userGame.upsert({
-          where: { userId_gameId: { userId, gameId: game.id } },
-          create: {
-            userId,
-            gameId: game.id,
+  for (const chunk of chunks(importableGames, 500)) {
+    await prisma.game.createMany({
+      data: chunk.map((steamGame) => ({
+        title: steamGame.name!,
+        normalizedTitle: normalizeGameTitle(steamGame.name!),
+        steamAppId: steamGame.appid,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  const importedGames = await prisma.game.findMany({
+    where: { steamAppId: { in: importableGames.map((steamGame) => steamGame.appid) } },
+    select: { id: true, steamAppId: true },
+  });
+  const gameIdBySteamAppId = new Map(importedGames.map((game) => [game.steamAppId, game.id]));
+  const userGameRows = importableGames
+    .map((steamGame) => {
+      const gameId = gameIdBySteamAppId.get(steamGame.appid);
+
+      if (!gameId) {
+        return null;
+      }
+
+      return {
+        userId,
+        gameId,
+        source: "STEAM" as const,
+        playtimeMinutes: steamGame.playtime_forever ?? 0,
+        recentlyPlayedAt: recentAppIds.has(steamGame.appid) ? now : null,
+        lastImportedAt: now,
+        steamAppId: steamGame.appid,
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => Boolean(row));
+
+  for (const chunk of chunks(userGameRows, 500)) {
+    await prisma.userGame.createMany({
+      data: chunk.map((row) => ({
+        userId: row.userId,
+        gameId: row.gameId,
+        source: row.source,
+        playtimeMinutes: row.playtimeMinutes,
+        recentlyPlayedAt: row.recentlyPlayedAt,
+        lastImportedAt: row.lastImportedAt,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  for (const chunk of chunks(userGameRows, 50)) {
+    await prisma.$transaction(
+      chunk.map((row) =>
+        prisma.userGame.update({
+          where: { userId_gameId: { userId, gameId: row.gameId } },
+          data: {
             source: "STEAM",
-            playtimeMinutes: steamGame.playtime_forever ?? 0,
-            recentlyPlayedAt: recentAppIds.has(steamGame.appid) ? now : null,
+            playtimeMinutes: row.playtimeMinutes,
+            recentlyPlayedAt: recentAppIds.has(row.steamAppId) && (recentPlaytime.get(row.steamAppId) ?? 0) > 0 ? now : undefined,
             lastImportedAt: now,
           },
-          update: {
-            source: "STEAM",
-            playtimeMinutes: steamGame.playtime_forever ?? 0,
-            recentlyPlayedAt: recentAppIds.has(steamGame.appid) && (recentPlaytime.get(steamGame.appid) ?? 0) > 0 ? now : undefined,
-            lastImportedAt: now,
-          },
-        });
-      }),
+        }),
+      ),
     );
   }
+
+  return { gameIds: userGameRows.map((row) => row.gameId) };
+}
+
+function uniqueSteamGames(games: SteamOwnedGame[]) {
+  const seen = new Set<number>();
+  const unique: SteamOwnedGame[] = [];
+
+  for (const game of games) {
+    if (seen.has(game.appid)) {
+      continue;
+    }
+
+    seen.add(game.appid);
+    unique.push(game);
+  }
+
+  return unique;
 }
 
 function chunks<T>(items: T[], size: number) {

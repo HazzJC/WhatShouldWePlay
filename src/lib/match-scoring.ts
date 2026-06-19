@@ -169,38 +169,40 @@ export function scoreSessionGames({
   mode?: ScoreMode;
 }) {
   const selectedIds = selectedParticipantIds?.length ? selectedParticipantIds : participants.map((participant) => participant.id);
+  const selectedIdSet = new Set(selectedIds);
   const selectedParticipants = participants.filter((participant) => selectedIds.includes(participant.id));
   const selectedUserIds = new Set(selectedParticipants.map((participant) => participant.userId).filter((userId): userId is string => Boolean(userId)));
   const selectedCount = Math.max(selectedParticipants.length, 1);
   const baseWeights = modeWeights[mode];
+  const preference = averagePreference(selectedParticipants);
+  const weights = preferenceAdjustedWeights(baseWeights, preference);
+  const userGamesByGameId = groupUserGamesByGameId(userGames);
 
   return sessionGames
     .map((sessionGame) => {
       const game = withCuratedCapabilityFallback(sessionGame.game);
       const haveParticipantIds = new Set(
         sessionGame.signals
-          .filter((signal) => selectedIds.includes(signal.participantId) && signalMeansHave(signal.signal))
+          .filter((signal) => selectedIdSet.has(signal.participantId) && signalMeansHave(signal.signal))
           .map((signal) => signal.participantId),
       );
       const notAvailableIds = new Set(
         sessionGame.signals
-          .filter((signal) => selectedIds.includes(signal.participantId) && signal.signal === "NOT_AVAILABLE")
+          .filter((signal) => selectedIdSet.has(signal.participantId) && signal.signal === "NOT_AVAILABLE")
           .map((signal) => signal.participantId),
       );
       const interests = sessionGame.interests ?? [];
-      const wantCount = interests.filter((interest) => selectedIds.includes(interest.participantId) && interest.interest === "WANT_TO_PLAY").length;
-      const notTonightCount = interests.filter((interest) => selectedIds.includes(interest.participantId) && interest.interest === "NOT_TONIGHT").length;
+      const wantCount = interests.filter((interest) => selectedIdSet.has(interest.participantId) && interest.interest === "WANT_TO_PLAY").length;
+      const notTonightCount = interests.filter((interest) => selectedIdSet.has(interest.participantId) && interest.interest === "NOT_TONIGHT").length;
       const have = haveParticipantIds.size;
       const missing = Math.max(selectedCount - have, 0);
       const ownership = have / selectedCount;
       const playerCountStatus = playerCountStatusFor(game, playerCount);
       const playerCountFit = playerCountFits(game, playerCount);
-      const preference = averagePreference(selectedParticipants);
-      const weights = preferenceAdjustedWeights(baseWeights, preference);
       const onlineCoop = coOpFit(game.onlineCoop, preference.coOpVsCompetitive);
       const localCoop = coOpFit(game.localCoop, preference.coOpVsCompetitive);
       const relevantUserIds = selectedUserIdsForSessionGame(sessionGame, selectedIds, selectedUserIds);
-      const relevantUserGames = userGames.filter((userGame) => userGame.gameId === sessionGame.gameId && relevantUserIds.has(userGame.userId));
+      const relevantUserGames = (userGamesByGameId.get(sessionGame.gameId) ?? []).filter((userGame) => relevantUserIds.has(userGame.userId));
       const totalPlaytime = totalPlaytimeMinutes(relevantUserGames);
       const recentPlayCount = recentlyPlayedCount(relevantUserGames);
       const averagePlaytime = selectedCount > 0 ? totalPlaytime / selectedCount : 0;
@@ -361,6 +363,22 @@ function selectedUserIdsForSessionGame(
   }
 
   return relevantUserIds;
+}
+
+function groupUserGamesByGameId(userGames: UserGameInput[]) {
+  const grouped = new Map<string, UserGameInput[]>();
+
+  userGames.forEach((userGame) => {
+    const existing = grouped.get(userGame.gameId);
+
+    if (existing) {
+      existing.push(userGame);
+    } else {
+      grouped.set(userGame.gameId, [userGame]);
+    }
+  });
+
+  return grouped;
 }
 
 function totalPlaytimeMinutes(userGames: UserGameInput[]) {

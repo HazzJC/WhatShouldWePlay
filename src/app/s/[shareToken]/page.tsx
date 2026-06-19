@@ -12,12 +12,11 @@ import { SessionTabs } from "@/components/session-tabs";
 import { getAppUrl } from "@/lib/app-url";
 import { getCurrentUser } from "@/lib/auth";
 import { curatedGames } from "@/lib/curated-games";
-import { syncCuratedGameMetadata } from "@/lib/curated-metadata";
 import { refreshGameMetadata } from "@/lib/game-metadata";
 import { commonMultiplayerGames, excludeExistingGames, rankSessionGames } from "@/lib/games";
 import { defaultGroupBuyFilters, scoreGroupBuyCandidates } from "@/lib/group-buy";
 import { getPopularIgdbGames, getTrendingIgdbGames, mapIgdbGame, searchIgdbGames } from "@/lib/igdb";
-import { refreshGameDeals } from "@/lib/itad";
+import { refreshGameDealsWithin } from "@/lib/itad";
 import { scoreSessionGames, type ScoreMode } from "@/lib/match-scoring";
 import { evaluatePriceAlerts } from "@/lib/price-alerts";
 import { prisma } from "@/lib/prisma";
@@ -183,9 +182,6 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const bestMatchLabel = submittedPeople >= session.minimumPlayerCount ? "Best match" : submittedPeople > 0 ? "Best so far" : "Waiting for responses";
   const selectedParticipantIds = normalizeSelectedParticipants(selectedParticipants, session.participants.map((participant) => participant.id));
   const selectedPlayerCount = Math.max(1, Number(playerCount ?? session.minimumPlayerCount) || session.minimumPlayerCount);
-  if (activeTab === "pick") {
-    await syncCuratedGameMetadata();
-  }
   const [initialSessionGames, searchResults, popularGames, trendingGames] =
     activeTab === "pick"
       ? await Promise.all([
@@ -206,8 +202,8 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     const gameIds = initialSessionGames.map((sessionGame) => sessionGame.gameId);
 
     await Promise.all([
-      refreshGameMetadata(gameIds),
-      refreshGameDeals({
+      withTimeout(refreshGameMetadata(gameIds), 700),
+      refreshGameDealsWithin({
         gameIds,
         country: session.dealCountry,
         currency: session.dealCurrency,
@@ -216,16 +212,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   }
   const sessionGames =
     activeTab === "pick"
-      ? rankSessionGames(
-          await prisma.sessionGame.findMany({
-            where: { sessionId: session.id },
-            include: {
-              game: { include: { steamStorePrice: true, deal: true } },
-              signals: true,
-              interests: true,
-            },
-          }),
-        )
+      ? rankSessionGames(initialSessionGames)
       : [];
   const participantUserIds = session.participants
     .map((participant) => participant.userId)
@@ -300,18 +287,6 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     selectedPlayerCount,
   });
   const curatedSteamAppIds = curatedGames.map((game) => game.steamAppId).filter((steamAppId): steamAppId is number => Boolean(steamAppId));
-  if (activeTab === "pick") {
-    const curatedDealGames = await prisma.game.findMany({
-      where: { steamAppId: { in: curatedSteamAppIds } },
-      select: { id: true },
-    });
-
-    await refreshGameDeals({
-      gameIds: curatedDealGames.map((game) => game.id),
-      country: session.dealCountry,
-      currency: session.dealCurrency,
-    });
-  }
   const curatedDbGames =
     activeTab === "pick"
       ? await prisma.game.findMany({
@@ -595,6 +570,13 @@ function normalizeSelectedParticipants(value: string | string[] | undefined, fal
   const selected = values.flatMap((candidate) => candidate.split(",")).filter(Boolean);
 
   return selected.length > 0 ? selected : fallback;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  await Promise.race([
+    promise.then(() => undefined).catch(() => undefined),
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
 }
 
 function RecommendationList({

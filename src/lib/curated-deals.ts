@@ -1,8 +1,7 @@
 import type { GameDeal } from "@prisma/client";
 import { curatedGames, type CuratedGame } from "@/lib/curated-games";
-import { syncCuratedGameMetadata } from "@/lib/curated-metadata";
 import { normalizeGameTitle } from "@/lib/games";
-import { formatMinorPrice, refreshGameDeals } from "@/lib/itad";
+import { formatMinorPrice, refreshGameDealsWithin } from "@/lib/itad";
 import { prisma } from "@/lib/prisma";
 
 export type CuratedGameWithDeal = CuratedGame & {
@@ -13,8 +12,6 @@ export async function enrichCuratedGamesWithDeals(games: CuratedGame[], country 
   if (games.length === 0) {
     return [] as CuratedGameWithDeal[];
   }
-
-  await syncCuratedGameMetadata();
 
   const steamAppIds = games.map((game) => game.steamAppId).filter((steamAppId): steamAppId is number => Boolean(steamAppId));
   const normalizedTitles = games.map((game) => normalizeGameTitle(game.title));
@@ -28,7 +25,7 @@ export async function enrichCuratedGamesWithDeals(games: CuratedGame[], country 
     include: { deal: true },
   });
 
-  await refreshGameDeals({
+  await refreshGameDealsWithin({
     gameIds: dbGames.map((game) => game.id),
     country,
     currency,

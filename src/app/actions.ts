@@ -862,7 +862,7 @@ export async function importSteamLibraryAction(formData: FormData) {
     elapsedMs: Date.now() - importStartedAt,
   });
 
-  await importSteamGamesForUser(currentUser.id, owned.games, recent);
+  const imported = await importSteamGamesForUser(currentUser.id, owned.games, recent);
   console.info("[steam-import] saved steam library", {
     userId: currentUser.id,
     ownedCount: owned.games.length,
@@ -870,14 +870,7 @@ export async function importSteamLibraryAction(formData: FormData) {
   });
 
   if (participant) {
-    const ownedGameIds = new Set(
-      (
-        await prisma.userGame.findMany({
-          where: { userId: currentUser.id },
-          select: { gameId: true },
-        })
-      ).map((userGame) => userGame.gameId),
-    );
+    const ownedGameIds = new Set(imported.gameIds);
     const matchingSessionGames = await prisma.sessionGame.findMany({
       where: {
         sessionId: session.id,
@@ -886,8 +879,9 @@ export async function importSteamLibraryAction(formData: FormData) {
       select: { id: true },
     });
 
-    await Promise.all(
-      matchingSessionGames.map((sessionGame) =>
+    await runInChunks(
+      matchingSessionGames,
+      (sessionGame) =>
         prisma.sessionGameSignal.upsert({
           where: {
             sessionGameId_participantId: {
@@ -902,7 +896,6 @@ export async function importSteamLibraryAction(formData: FormData) {
           },
           update: { signal: "OWNED" },
         }),
-      ),
     );
     console.info("[steam-import] marked existing shortlist ownership", {
       userId: currentUser.id,
@@ -947,8 +940,9 @@ export async function importSteamLibraryAction(formData: FormData) {
     });
     const shortlistImports = uniqueUserGames([...sharedImportedGames, ...importedGames]);
 
-    await Promise.all(
-      shortlistImports.map((userGame) =>
+    await runInChunks(
+      shortlistImports,
+      (userGame) =>
         addGameToSession({
           sessionId: session.id,
           gameId: userGame.gameId,
@@ -957,7 +951,7 @@ export async function importSteamLibraryAction(formData: FormData) {
           source: "STEAM_MATCH",
           signal: "OWNED",
         }),
-      ),
+      20,
     );
     console.info("[steam-import] added top imported games to session", {
       userId: currentUser.id,
@@ -985,8 +979,9 @@ export async function importSteamLibraryAction(formData: FormData) {
       select: { userId: true, gameId: true },
     });
 
-    await Promise.all(
-      ownershipRows.map((ownership) => {
+    await runInChunks(
+      ownershipRows,
+      (ownership) => {
         const ownerParticipantId = participantByUserId.get(ownership.userId);
         const sessionGameId = sessionGameByGameId.get(ownership.gameId);
 
@@ -1008,7 +1003,8 @@ export async function importSteamLibraryAction(formData: FormData) {
           },
           update: { signal: "OWNED" },
         });
-      }),
+      },
+      50,
     );
     console.info("[steam-import] synced linked participant ownership", {
       userId: currentUser.id,
@@ -1049,4 +1045,10 @@ function uniqueUserGames<T extends { gameId: string }>(userGames: T[]) {
   }
 
   return unique;
+}
+
+async function runInChunks<T>(items: T[], worker: (item: T) => Promise<unknown>, chunkSize = 50) {
+  for (let index = 0; index < items.length; index += chunkSize) {
+    await Promise.all(items.slice(index, index + chunkSize).map(worker));
+  }
 }

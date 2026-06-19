@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const upsert = vi.fn();
+const transaction = vi.fn(async (operations: Array<Promise<unknown>>) => Promise.all(operations));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    $transaction: transaction,
     priceAlertRule: {
       findMany: vi.fn(async () => []),
     },
@@ -16,6 +18,7 @@ vi.mock("@/lib/prisma", () => ({
 describe("price alert evaluation", () => {
   beforeEach(() => {
     upsert.mockClear();
+    transaction.mockClear();
   });
 
   it("creates an in-app event for discounted missing-player games", async () => {
@@ -64,5 +67,37 @@ describe("price alert evaluation", () => {
       .find((message) => message.includes("remaining 2"));
 
     expect(missingPlayerAlert).toContain("close to its historical low");
+  });
+
+  it("skips alert writes when no current deals are present", async () => {
+    const { evaluatePriceAlerts } = await import("@/lib/price-alerts");
+
+    await evaluatePriceAlerts({
+      sessionId: "s1",
+      selectedCount: 2,
+      currency: "GBP",
+      sessionGames: [
+        {
+          id: "sg1",
+          gameId: "g1",
+          game: {
+            id: "g1",
+            title: "No Deal Game",
+            deal: {
+              status: "no_price",
+              currentPrice: null,
+              discountPercent: null,
+              historicalLow: null,
+              currency: "GBP",
+              dealUrl: null,
+            },
+          },
+          signals: [{ signal: "OWNED" }],
+        },
+      ],
+    });
+
+    expect(transaction).not.toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
   });
 });
