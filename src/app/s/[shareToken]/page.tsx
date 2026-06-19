@@ -299,10 +299,23 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     saleOnly,
     selectedPlayerCount,
   });
+  const curatedSteamAppIds = curatedGames.map((game) => game.steamAppId).filter((steamAppId): steamAppId is number => Boolean(steamAppId));
+  if (activeTab === "pick") {
+    const curatedDealGames = await prisma.game.findMany({
+      where: { steamAppId: { in: curatedSteamAppIds } },
+      select: { id: true },
+    });
+
+    await refreshGameDeals({
+      gameIds: curatedDealGames.map((game) => game.id),
+      country: session.dealCountry,
+      currency: session.dealCurrency,
+    });
+  }
   const curatedDbGames =
     activeTab === "pick"
       ? await prisma.game.findMany({
-          where: { steamAppId: { in: curatedGames.map((game) => game.steamAppId).filter((steamAppId): steamAppId is number => Boolean(steamAppId)) } },
+          where: { steamAppId: { in: curatedSteamAppIds } },
           include: { deal: true },
         })
       : [];
@@ -431,6 +444,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           priceAlertEvents={priceAlertEvents}
           groupBuyFilters={groupBuyFilters}
           groupBuyRecommendations={groupBuyRecommendations}
+          dealLookupConfigured={Boolean(process.env.ITAD_API_KEY)}
           friendInviteUrl={latestFriendInvite ? `${appUrl}/friends/invite/${latestFriendInvite.token}` : null}
           savedFriends={savedFriends.map((friend) => friend.friend)}
         />

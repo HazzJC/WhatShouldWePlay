@@ -137,35 +137,46 @@ export async function importSteamGamesForUser(userId: string, games: SteamOwnedG
   const recentAppIds = new Set(recentGames.map((game) => game.appid));
   const recentPlaytime = new Map(recentGames.map((game) => [game.appid, game.playtime_2weeks ?? 0]));
   const now = new Date();
+  const importableGames = games.filter((steamGame) => steamGame.name);
 
-  for (const steamGame of games) {
-    if (!steamGame.name) {
-      continue;
-    }
+  for (const chunk of chunks(importableGames, 12)) {
+    await Promise.all(
+      chunk.map(async (steamGame) => {
+        const game = await upsertGame({
+          title: steamGame.name!,
+          steamAppId: steamGame.appid,
+        });
 
-    const game = await upsertGame({
-      title: steamGame.name,
-      steamAppId: steamGame.appid,
-    });
-
-    await prisma.userGame.upsert({
-      where: { userId_gameId: { userId, gameId: game.id } },
-      create: {
-        userId,
-        gameId: game.id,
-        source: "STEAM",
-        playtimeMinutes: steamGame.playtime_forever ?? 0,
-        recentlyPlayedAt: recentAppIds.has(steamGame.appid) ? now : null,
-        lastImportedAt: now,
-      },
-      update: {
-        source: "STEAM",
-        playtimeMinutes: steamGame.playtime_forever ?? 0,
-        recentlyPlayedAt: recentAppIds.has(steamGame.appid) && (recentPlaytime.get(steamGame.appid) ?? 0) > 0 ? now : undefined,
-        lastImportedAt: now,
-      },
-    });
+        await prisma.userGame.upsert({
+          where: { userId_gameId: { userId, gameId: game.id } },
+          create: {
+            userId,
+            gameId: game.id,
+            source: "STEAM",
+            playtimeMinutes: steamGame.playtime_forever ?? 0,
+            recentlyPlayedAt: recentAppIds.has(steamGame.appid) ? now : null,
+            lastImportedAt: now,
+          },
+          update: {
+            source: "STEAM",
+            playtimeMinutes: steamGame.playtime_forever ?? 0,
+            recentlyPlayedAt: recentAppIds.has(steamGame.appid) && (recentPlaytime.get(steamGame.appid) ?? 0) > 0 ? now : undefined,
+            lastImportedAt: now,
+          },
+        });
+      }),
+    );
   }
+}
+
+function chunks<T>(items: T[], size: number) {
+  const result: T[][] = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    result.push(items.slice(index, index + size));
+  }
+
+  return result;
 }
 
 export function rankSessionGames<

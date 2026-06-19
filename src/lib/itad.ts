@@ -48,6 +48,10 @@ export async function refreshGameDeals({
   country: string;
   currency: string;
 }) {
+  if (!process.env.ITAD_API_KEY) {
+    return;
+  }
+
   const games = await prisma.game.findMany({
     where: { id: { in: gameIds } },
     include: { deal: true },

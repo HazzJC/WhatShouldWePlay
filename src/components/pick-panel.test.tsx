@@ -86,6 +86,7 @@ const baseProps = {
     saleOnly: false,
   },
   groupBuyRecommendations: [],
+  dealLookupConfigured: true,
   friendInviteUrl: null,
   savedFriends: [],
 };

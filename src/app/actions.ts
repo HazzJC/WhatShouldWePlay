@@ -795,6 +795,7 @@ const importSteamLibrarySchema = z.object({
 });
 
 export async function importSteamLibraryAction(formData: FormData) {
+  const importStartedAt = Date.now();
   const parsed = importSteamLibrarySchema.safeParse({
     shareToken: formData.get("shareToken"),
     participantId: formData.get("participantId") || undefined,
@@ -836,8 +837,20 @@ export async function importSteamLibraryAction(formData: FormData) {
     getOwnedSteamGames(currentUser.steamAccount.steamId),
     getRecentlyPlayedSteamGames(currentUser.steamAccount.steamId),
   ]);
+  console.info("[steam-import] fetched steam library", {
+    userId: currentUser.id,
+    ownedCount: owned.games.length,
+    recentCount: recent.length,
+    status: owned.status,
+    elapsedMs: Date.now() - importStartedAt,
+  });
 
   await importSteamGamesForUser(currentUser.id, owned.games, recent);
+  console.info("[steam-import] saved steam library", {
+    userId: currentUser.id,
+    ownedCount: owned.games.length,
+    elapsedMs: Date.now() - importStartedAt,
+  });
 
   if (participant) {
     const ownedGameIds = new Set(
@@ -874,6 +887,12 @@ export async function importSteamLibraryAction(formData: FormData) {
         }),
       ),
     );
+    console.info("[steam-import] marked existing shortlist ownership", {
+      userId: currentUser.id,
+      participantId: participant.id,
+      matchingCount: matchingSessionGames.length,
+      elapsedMs: Date.now() - importStartedAt,
+    });
 
     const importedGames = await prisma.userGame.findMany({
       where: { userId: currentUser.id },
@@ -894,6 +913,12 @@ export async function importSteamLibraryAction(formData: FormData) {
         }),
       ),
     );
+    console.info("[steam-import] added top imported games to session", {
+      userId: currentUser.id,
+      participantId: participant.id,
+      addedCount: importedGames.length,
+      elapsedMs: Date.now() - importStartedAt,
+    });
   }
 
   await prisma.steamAccount.update({
@@ -905,4 +930,9 @@ export async function importSteamLibraryAction(formData: FormData) {
   });
 
   revalidatePath(`/s/${session.shareToken}`);
+  console.info("[steam-import] complete", {
+    userId: currentUser.id,
+    ownedCount: owned.games.length,
+    elapsedMs: Date.now() - importStartedAt,
+  });
 }

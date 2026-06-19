@@ -94,6 +94,37 @@ describe("match scoring", () => {
     expect(game.categories).not.toContain("hiddenBacklog");
   });
 
+  it("explains cheap mode with current live price data", () => {
+    const [game] = scoreSessionGames({
+      participants,
+      selectedParticipantIds: ["p1", "p2"],
+      playerCount: 2,
+      mode: "cheap",
+      userGames: [],
+      sessionGames: [sessionGame("sg-sale", "Discounted", [{ participantId: "p1", signal: "OWNED" }], 4, "g-sale", 40)],
+    });
+
+    expect(game.reasons).toEqual(expect.arrayContaining(["Cheap mode: current price is £9.99 with 40% off"]));
+  });
+
+  it("explains familiar mode with recent-play and total playtime signals", () => {
+    const [game] = scoreSessionGames({
+      participants,
+      selectedParticipantIds: ["p1", "p2"],
+      playerCount: 2,
+      mode: "familiar",
+      userGames: [
+        { userId: "u1", gameId: "g-familiar", playtimeMinutes: 1_200, recentlyPlayedAt: new Date() },
+        { userId: "u2", gameId: "g-familiar", playtimeMinutes: 900 },
+      ],
+      sessionGames: [
+        sessionGame("sg-familiar", "Familiar Pick", [{ participantId: "p1", signal: "OWNED" }, { participantId: "p2", signal: "OWNED" }], 4, "g-familiar"),
+      ],
+    });
+
+    expect(game.reasons).toEqual(expect.arrayContaining(["Familiar mode: 1 selected player played it recently"]));
+  });
+
   it("lets account and participant preferences influence scores", () => {
     const [cheap] = scoreSessionGames({
       participants: [

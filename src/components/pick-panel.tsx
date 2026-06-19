@@ -17,6 +17,7 @@ import type { GroupBuyFilters, GroupBuyRecommendation } from "@/lib/group-buy";
 import { formatMinorPrice } from "@/lib/itad";
 import { isBarelyPlayedGroupPick, isHeavilyPlayedGroupPick, scoreModeLabels, type MatchCategory, type ScoredGame, type ScoreMode } from "@/lib/match-scoring";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { SteamImportSubmitButton } from "@/components/steam-import-submit-button";
 
 type SessionGameView = SessionGame & {
   game: Game & { steamStorePrice?: SteamStorePrice | null; deal?: GameDeal | null };
@@ -57,6 +58,7 @@ export function PickPanel({
   priceAlertEvents,
   groupBuyFilters,
   groupBuyRecommendations,
+  dealLookupConfigured,
   friendInviteUrl,
   savedFriends,
 }: {
@@ -80,6 +82,7 @@ export function PickPanel({
   priceAlertEvents: PriceAlertEvent[];
   groupBuyFilters: GroupBuyFilters;
   groupBuyRecommendations: GroupBuyRecommendation[];
+  dealLookupConfigured: boolean;
   friendInviteUrl: string | null;
   savedFriends: User[];
 }) {
@@ -123,6 +126,9 @@ export function PickPanel({
                       ? `Last imported ${steamAccount.lastImportAt.toLocaleDateString()}`
                       : "Import your library to find games this group already owns."}
                   </p>
+                  <p className="mt-1 text-xs font-bold leading-5 text-ink/45">
+                    We import ownership, playtime, and recent-played signals. Large libraries can take a little while.
+                  </p>
                   {importMessage ? (
                     <p className={`mt-2 rounded-md px-3 py-2 text-sm font-bold ${importMessage.className}`}>
                       {importMessage.text}
@@ -132,9 +138,7 @@ export function PickPanel({
                 <form action={importSteamLibraryAction}>
                   <input type="hidden" name="shareToken" value={shareToken} />
                   {participantId ? <input type="hidden" name="participantId" value={participantId} /> : null}
-                  <PendingSubmitButton className="primary-button" pendingLabel="Importing...">
-                    Import Steam library
-                  </PendingSubmitButton>
+                  <SteamImportSubmitButton />
                 </form>
               </div>
             ) : (
@@ -206,6 +210,7 @@ export function PickPanel({
                   filters={groupBuyFilters}
                   recommendations={groupBuyRecommendations}
                   currency={dealCurrency}
+                  dealLookupConfigured={dealLookupConfigured}
                 />
               </div>
             </details>
@@ -639,12 +644,14 @@ function GroupBuyPanel({
   filters,
   recommendations,
   currency,
+  dealLookupConfigured,
 }: {
   shareToken: string;
   participantId?: string;
   filters: GroupBuyFilters;
   recommendations: GroupBuyRecommendation[];
   currency: string;
+  dealLookupConfigured: boolean;
 }) {
   const labels: Record<GroupBuyRecommendation["section"], string> = {
     bestOverall: "Best overall group buy",
@@ -658,6 +665,11 @@ function GroupBuyPanel({
     <section>
       <p className="text-sm font-black uppercase tracking-[0.14em] text-gold">All buy a new game</p>
       <h2 className="mt-1 text-2xl font-black text-ink">Find a group buy</h2>
+      {!dealLookupConfigured ? (
+        <p className="mt-3 rounded-lg border border-gold/30 bg-gold/10 p-3 text-sm font-bold leading-6 text-ink/70">
+          Live deal lookup is not configured yet. Add ITAD_API_KEY in the deployment environment to show current prices and discounts.
+        </p>
+      ) : null}
       <form className="mt-4 grid gap-3 rounded-lg border border-ink/10 bg-paper p-4 md:grid-cols-4" action={`/s/${shareToken}`}>
         <input type="hidden" name="tab" value="pick" />
         {participantId ? <input type="hidden" name="participant" value={participantId} /> : null}
@@ -713,7 +725,11 @@ function GroupBuyPanel({
               <p className="mt-1 text-sm font-black text-teal">Group buy score: {recommendation.score}</p>
               <p className="mt-1 text-sm leading-6 text-ink/60">{recommendation.game.description}</p>
               <p className="mt-2 text-sm font-black text-coral">
-                {recommendation.price ? formatMinorPrice(recommendation.price, recommendation.currency ?? currency) : "Price unavailable"}
+                {recommendation.price !== null && recommendation.price !== undefined
+                  ? formatMinorPrice(recommendation.price, recommendation.currency ?? currency)
+                  : dealLookupConfigured
+                    ? "No live price found yet"
+                    : "Price lookup not configured"}
               </p>
               <ul className="mt-2 grid gap-1 text-sm text-ink/60">
                 {recommendation.reasons.map((reason) => <li key={reason}>{reason}</li>)}

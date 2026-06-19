@@ -1,5 +1,6 @@
 import { curatedGames } from "@/lib/curated-games";
 import { normalizeGameTitle, signalMeansHave } from "@/lib/games";
+import { formatMinorPrice } from "@/lib/itad";
 
 export type ScoreMode = "balanced" | "coop" | "backlog" | "cheap" | "familiar" | "fresh";
 export type AlignmentLevel = "High" | "Medium" | "Low";
@@ -50,6 +51,7 @@ type GameScoreInput = {
       finalPrice?: number | null;
       currentPrice?: number | null;
       historicalLow?: number | null;
+      currency?: string | null;
       status?: string | null;
     } | null;
   };
@@ -200,6 +202,7 @@ export function scoreSessionGames({
       const relevantUserIds = selectedUserIdsForSessionGame(sessionGame, selectedIds, selectedUserIds);
       const relevantUserGames = userGames.filter((userGame) => userGame.gameId === sessionGame.gameId && relevantUserIds.has(userGame.userId));
       const totalPlaytime = totalPlaytimeMinutes(relevantUserGames);
+      const recentPlayCount = recentlyPlayedCount(relevantUserGames);
       const averagePlaytime = selectedCount > 0 ? totalPlaytime / selectedCount : 0;
       const playtime = mode === "backlog" || preference.backlogImportance >= 60 ? lowPlaytimeScore(averagePlaytime) : familiarPlaytimeScore(averagePlaytime);
       const freshness = freshnessScore(relevantUserGames);
@@ -265,6 +268,10 @@ export function scoreSessionGames({
         wantCount,
         onlineCoop: game.onlineCoop,
         playerCountStatus,
+        mode,
+        totalPlaytime,
+        recentPlayCount,
+        currency: game.deal?.currency,
       });
 
       return {
@@ -551,15 +558,111 @@ function lowPlaytimeScore(averagePlaytime: number) {
 }
 
 function freshnessScore(userGames: UserGameInput[]) {
-  const recentlyPlayed = userGames.some((userGame) => {
-    if (!userGame.recentlyPlayedAt) {
-      return false;
-    }
-
-    return Date.now() - new Date(userGame.recentlyPlayedAt).getTime() < 1000 * 60 * 60 * 24 * 21;
-  });
+  const recentlyPlayed = userGames.some(wasRecentlyPlayed);
 
   return recentlyPlayed ? 45 : 80;
+}
+
+function recentlyPlayedCount(userGames: UserGameInput[]) {
+  return userGames.filter(wasRecentlyPlayed).length;
+}
+
+function wasRecentlyPlayed(userGame: UserGameInput) {
+  if (!userGame.recentlyPlayedAt) {
+    return false;
+  }
+
+  return Date.now() - new Date(userGame.recentlyPlayedAt).getTime() < 1000 * 60 * 60 * 24 * 21;
+}
+
+function formatPlaytime(minutes: number) {
+  if (minutes < 60) {
+    return `${Math.round(minutes)}m`;
+  }
+
+  return `${Math.round(minutes / 60)}h`;
+}
+
+function formatPriceOrUnavailable(value?: number | null, currency?: string | null) {
+  return formatMinorPrice(value, currency ?? "GBP") ?? "price unavailable";
+}
+
+function modeReason({
+  mode,
+  averagePlaytime,
+  totalPlaytime,
+  recentPlayCount,
+  currentPrice,
+  historicalLow,
+  discountPercent,
+  onlineCoop,
+  playerCountStatus,
+  currency,
+}: {
+  mode: ScoreMode;
+  averagePlaytime: number;
+  totalPlaytime: number;
+  recentPlayCount: number;
+  currentPrice?: number | null;
+  historicalLow?: number | null;
+  discountPercent: number;
+  onlineCoop?: boolean | null;
+  playerCountStatus: PlayerCountStatus;
+  currency?: string | null;
+}) {
+  switch (mode) {
+    case "cheap":
+      if (currentPrice !== null && currentPrice !== undefined) {
+        const price = formatPriceOrUnavailable(currentPrice, currency);
+        if (discountPercent > 0) {
+          return `Cheap mode: current price is ${price} with ${discountPercent}% off`;
+        }
+        if (historicalLow && currentPrice <= Math.round(historicalLow * 1.1)) {
+          return `Cheap mode: current price is ${price}, close to its historical low`;
+        }
+        return `Cheap mode: current price is ${price}`;
+      }
+      return "Cheap mode: no live price found yet";
+
+    case "familiar":
+      if (recentPlayCount > 0) {
+        return `Familiar mode: ${recentPlayCount} selected player${recentPlayCount === 1 ? "" : "s"} played it recently`;
+      }
+      if (totalPlaytime >= 600) {
+        return `Familiar mode: ${formatPlaytime(totalPlaytime)} total group playtime`;
+      }
+      if (totalPlaytime > 0) {
+        return `Familiar mode: ${formatPlaytime(totalPlaytime)} known group playtime`;
+      }
+      return "Familiar mode: no imported playtime yet";
+
+    case "backlog":
+      if (averagePlaytime < 120) {
+        return `Backlog mode: only ${formatPlaytime(totalPlaytime)} total group playtime`;
+      }
+      return `Backlog mode: ${formatPlaytime(totalPlaytime)} total group playtime makes it less hidden`;
+
+    case "coop":
+      if (onlineCoop) {
+        return "Co-op Night mode: online co-op support is confirmed";
+      }
+      return "Co-op Night mode: co-op support is not confirmed yet";
+
+    case "fresh":
+      if (recentPlayCount > 0) {
+        return "Fresh mode: recent group play lowers the freshness fit";
+      }
+      if (totalPlaytime > 0) {
+        return `Fresh mode: not played recently despite ${formatPlaytime(totalPlaytime)} known playtime`;
+      }
+      return "Fresh mode: no recent imported playtime found";
+
+    case "balanced":
+      if (playerCountStatus === "uncertain") {
+        return "Balanced mode: player-count support still needs metadata";
+      }
+      return null;
+  }
 }
 
 function alignmentLevel({
@@ -683,12 +786,18 @@ function reasonsFor({
   wantCount,
   onlineCoop,
   playerCountStatus,
+  mode,
+  totalPlaytime,
+  recentPlayCount,
+  currency,
 }: {
   have: number;
   selectedCount: number;
   missing: number;
   playerCount: number;
   averagePlaytime: number;
+  totalPlaytime: number;
+  recentPlayCount: number;
   discountPercent: number;
   currentPrice?: number | null;
   historicalLow?: number | null;
@@ -696,6 +805,8 @@ function reasonsFor({
   wantCount: number;
   onlineCoop?: boolean | null;
   playerCountStatus: PlayerCountStatus;
+  mode: ScoreMode;
+  currency?: string | null;
 }) {
   const reasons = [`${have}/${selectedCount} selected players have it`];
 
@@ -711,10 +822,27 @@ function reasonsFor({
     reasons.push(`${notTonightCount} player${notTonightCount === 1 ? "" : "s"} marked not tonight`);
   } else if (wantCount > 0) {
     reasons.push(`${wantCount} player${wantCount === 1 ? "" : "s"} want to play`);
-  } else if (averagePlaytime < 120) {
-    reasons.push("Low group playtime makes it a backlog candidate");
-  } else if (averagePlaytime >= 600) {
-    reasons.push("High group playtime makes it an old favourite");
+  } else {
+    const modeSpecificReason = modeReason({
+      mode,
+      averagePlaytime,
+      totalPlaytime,
+      recentPlayCount,
+      currentPrice,
+      historicalLow,
+      discountPercent,
+      onlineCoop,
+      playerCountStatus,
+      currency,
+    });
+
+    if (modeSpecificReason) {
+      reasons.push(modeSpecificReason);
+    } else if (averagePlaytime < 120) {
+      reasons.push("Low group playtime makes it a backlog candidate");
+    } else if (averagePlaytime >= 600) {
+      reasons.push("High group playtime makes it an old favourite");
+    }
   }
 
   if (missing > 0 && discountPercent > 0) {
