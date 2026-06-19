@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import type { FormEvent } from "react";
-import { Check, ChevronLeft, ChevronRight, HelpCircle, X, type LucideIcon } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, HelpCircle, X, type LucideIcon } from "lucide-react";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import type { AvailabilityStatus } from "@/lib/scheduling";
 
@@ -84,6 +84,9 @@ export function AvailabilityForm({
 }: AvailabilityFormProps) {
   const [responses, setResponses] = useState<Record<string, AvailabilityStatus>>(currentResponses);
   const [activeDayIndex, setActiveDayIndex] = useState(0);
+  const [incompletePromptOpen, setIncompletePromptOpen] = useState(false);
+  const [allowIncompleteSubmit, setAllowIncompleteSubmit] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
   const paintingStatus = useRef<AvailabilityStatus | null>(null);
   const allSlots = useMemo(() => groupedSlots.flatMap((group) => group.slots), [groupedSlots]);
   const allSlotKeys = allSlots.map((slot) => slot.key);
@@ -146,6 +149,11 @@ export function AvailabilityForm({
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    if (allowIncompleteSubmit) {
+      setAllowIncompleteSubmit(false);
+      return;
+    }
+
     const missingCount = allSlotKeys.length - Object.keys(responses).length;
 
     if (missingCount === 0) {
@@ -153,22 +161,19 @@ export function AvailabilityForm({
     }
 
     event.preventDefault();
+    setIncompletePromptOpen(true);
+  }
 
-    const fillRemaining = window.confirm(
-      `You have not filled in ${missingCount} of ${allSlotKeys.length} times. Fill the remaining times with Maybe?`,
-    );
-
-    if (!fillRemaining) {
-      return;
-    }
-
+  function fillBlanksAndSubmit() {
     const missingSlotKeys = allSlotKeys.filter((slotKey) => !responses[slotKey]);
     setSlots(missingSlotKeys, "MAYBE");
-    window.setTimeout(() => event.currentTarget.requestSubmit(), 0);
+    setAllowIncompleteSubmit(true);
+    setIncompletePromptOpen(false);
+    window.setTimeout(() => formRef.current?.requestSubmit(), 0);
   }
 
   return (
-    <form action={action} onSubmit={handleSubmit} className="surface overflow-hidden rounded-xl">
+    <form ref={formRef} action={action} onSubmit={handleSubmit} className="surface overflow-hidden rounded-xl">
       <input type="hidden" name="shareToken" value={shareToken} />
       {participantId ? <input type="hidden" name="participantId" value={participantId} /> : null}
       {Object.entries(responses).map(([slotKey, status]) => (
@@ -251,6 +256,16 @@ export function AvailabilityForm({
                   <SlotEditor key={slot.key} slot={slot} status={responses[slot.key]} onSetSlot={(status) => setSlots([slot.key], status)} />
                 ))}
               </div>
+
+              <div className="mt-4 rounded-lg border border-ink/10 bg-white p-3">
+                <p className="text-sm font-black text-ink">Group overlap preview</p>
+                <div className="mt-3 grid grid-cols-6 gap-1">
+                  {activeDay.slots.slice(0, 12).map((slot) => (
+                    <span key={slot.key} className={`h-8 rounded-md ${heatCellClass(slot, responses[slot.key])}`} title={`${slot.time}: ${slot.availableCount} available, ${slot.maybeCount} maybe`} />
+                  ))}
+                </div>
+                <p className="mt-2 text-xs font-bold text-ink/55">Darker cells show stronger overlap from submitted availability.</p>
+              </div>
             </div>
           ) : null}
         </section>
@@ -324,6 +339,21 @@ export function AvailabilityForm({
           Save
         </PendingSubmitButton>
       </div>
+
+      {incompletePromptOpen ? (
+        <div className="fixed inset-0 z-50 grid place-items-end bg-ink/35 p-4 sm:place-items-center" role="dialog" aria-modal="true" aria-labelledby="availability-incomplete-title">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-soft">
+            <h2 id="availability-incomplete-title" className="text-xl font-black text-ink">Some times are blank</h2>
+            <p className="mt-2 text-sm leading-6 text-ink/65">
+              You left {remainingCount} of {allSlotKeys.length} times blank. Fill them as Maybe, or go back and review the missing times.
+            </p>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <button type="button" className="primary-button" onClick={fillBlanksAndSubmit}>Fill blanks as Maybe</button>
+              <button type="button" className="secondary-button" onClick={() => setIncompletePromptOpen(false)}>Review missing</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </form>
   );
 }
@@ -444,14 +474,21 @@ function DayCard({
               {group.slots[0]?.time.split("-")[0]} - {group.slots.at(-1)?.time.split("-")[1]}
             </p>
           </div>
-          <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-black ${complete ? "bg-moss text-white" : "bg-white text-ink/65"}`}>
-            {complete ? "Done" : `${answeredCount}/${slotKeys.length}`}
+          <span className="flex shrink-0 items-center gap-2">
+            <span className={`rounded-md px-2 py-1 text-xs font-black ${complete ? "bg-moss text-white" : "bg-white text-ink/65"}`}>
+              {complete ? "Done" : `${answeredCount}/${slotKeys.length}`}
+            </span>
+            <span className="grid h-8 w-8 place-items-center rounded-md border border-ink/10 bg-white text-ink transition group-open:rotate-180" aria-hidden="true">
+              <ChevronDown className="h-4 w-4" />
+            </span>
           </span>
         </div>
 
         <div className="h-2 overflow-hidden rounded-full bg-white">
           <div className="h-full rounded-full bg-teal transition-all duration-300" style={{ width: `${Math.round((answeredCount / slotKeys.length) * 100)}%` }} />
         </div>
+
+        <p className="text-xs font-black uppercase tracking-[0.12em] text-teal">Edit individual slots</p>
 
         <div className="grid grid-cols-3 gap-2">
           {statusOptions.map((option) => (

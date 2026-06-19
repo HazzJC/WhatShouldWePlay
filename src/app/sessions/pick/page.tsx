@@ -2,10 +2,18 @@ import Link from "next/link";
 import { ArrowLeft, Gamepad2, ListChecks, UsersRound } from "lucide-react";
 import { createPickSessionAction } from "@/app/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { getCuratedGame } from "@/lib/curated-games";
 
 const defaultTimezone = "Europe/London";
 
-export default function NewPickSessionPage() {
+type PageProps = {
+  searchParams?: Promise<{ game?: string }>;
+};
+
+export default async function NewPickSessionPage({ searchParams }: PageProps) {
+  const query = await searchParams;
+  const initialGame = query?.game ? getCuratedGame(query.game) : null;
+
   return (
     <main className="ui-shell pb-24 sm:pb-8">
       <Link href="/" className="secondary-button px-3 py-2">
@@ -40,6 +48,15 @@ export default function NewPickSessionPage() {
               <input name="hostName" required maxLength={80} placeholder="Alex" className="field" />
             </label>
             <input type="hidden" name="timezone" value={defaultTimezone} />
+            {initialGame ? <input type="hidden" name="initialGameSlug" value={initialGame.slug} /> : null}
+            {initialGame ? (
+              <div className="rounded-lg border border-teal/20 bg-teal/10 p-4">
+                <p className="text-sm font-black text-ink">Starting shortlist with {initialGame.title}</p>
+                <p className="mt-1 text-sm leading-6 text-ink/65">
+                  This game will be added automatically so the group can mark who has it.
+                </p>
+              </div>
+            ) : null}
             <div className="rounded-lg border border-ink/10 bg-paper p-4 text-sm leading-6 text-ink/65">
               Scheduling is ready when you need it. This starts in Pick mode with sensible planning defaults hidden in the background.
             </div>

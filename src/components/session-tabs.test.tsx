@@ -23,7 +23,7 @@ describe("SessionTabs", () => {
   it("renders plan and pick tabs while preserving participant links", () => {
     render(<SessionTabs shareToken="abc" participantId="p1" activeTab="pick" />);
 
-    expect(screen.getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/s/abc?tab=plan&participant=p1");
-    expect(screen.getByRole("link", { name: "Pick" })).toHaveAttribute("href", "/s/abc?tab=pick&participant=p1");
+    expect(screen.getByRole("link", { name: "Plan time Collect availability" })).toHaveAttribute("href", "/s/abc?tab=plan&participant=p1");
+    expect(screen.getByRole("link", { name: "Pick game Compare libraries" })).toHaveAttribute("href", "/s/abc?tab=pick&participant=p1");
   });
 });

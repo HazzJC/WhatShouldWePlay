@@ -26,6 +26,6 @@ describe("curated discovery pages", () => {
     render(await GameDetailPage({ params: Promise.resolve({ slug: "deep-rock-galactic" }) }));
 
     expect(screen.getByText("Deep Rock Galactic")).toBeInTheDocument();
-    expect(screen.getByText("Start a Pick shortlist")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Start a Pick shortlist with this game" })).toHaveAttribute("href", "/sessions/pick?game=deep-rock-galactic");
   });
 });

@@ -153,7 +153,22 @@ export function PickPanel({
           </div>
         </section>
 
+        <nav aria-label="Pick workspace" className="grid gap-2 rounded-xl border border-ink/10 bg-white/75 p-2 shadow-sm sm:grid-cols-4">
+          {[
+            ["#match", "Match", "Best options"],
+            ["#review-games", "My games", "Have / don't have"],
+            ["#add-games", "Add games", "Search and suggestions"],
+            ["#pick-tools", "Tools", "Deals and preferences"],
+          ].map(([href, label, description]) => (
+            <a key={href} href={href} className="focus-ring rounded-lg px-3 py-2 text-sm font-black text-ink/70 transition hover:bg-paper hover:text-ink">
+              <span className="block">{label}</span>
+              <span className="mt-0.5 block text-xs font-bold text-ink/45">{description}</span>
+            </a>
+          ))}
+        </nav>
+
         <MatchDashboard
+          id="match"
           shareToken={shareToken}
           participantId={participantId}
           participants={participants}
@@ -163,34 +178,48 @@ export function PickPanel({
           scoredGames={scoredGames}
         />
 
-        <DealAndFriendsPanel
-          shareToken={shareToken}
-          participantId={participantId}
-          currentUser={currentUser}
-          dealCountry={dealCountry}
-          dealCurrency={dealCurrency}
-          priceAlertEvents={priceAlertEvents}
-          friendInviteUrl={friendInviteUrl}
-          savedFriends={savedFriends}
-        />
+        <section id="pick-tools" className="surface rounded-xl p-5">
+          <p className="text-sm font-black uppercase tracking-[0.14em] text-coral">Tools</p>
+          <h2 className="mt-1 text-2xl font-black text-ink">Deals, friends, and preferences</h2>
+          <div className="mt-4 grid gap-3">
+            <details className="rounded-lg border border-ink/10 bg-paper p-4">
+              <summary className="cursor-pointer list-none font-black text-ink">Price alerts and reusable friends</summary>
+              <div className="mt-4">
+                <DealAndFriendsPanel
+                  shareToken={shareToken}
+                  participantId={participantId}
+                  currentUser={currentUser}
+                  dealCountry={dealCountry}
+                  dealCurrency={dealCurrency}
+                  priceAlertEvents={priceAlertEvents}
+                  friendInviteUrl={friendInviteUrl}
+                  savedFriends={savedFriends}
+                />
+              </div>
+            </details>
+            <details className="rounded-lg border border-ink/10 bg-paper p-4">
+              <summary className="cursor-pointer list-none font-black text-ink">All buy a new game</summary>
+              <div className="mt-4">
+                <GroupBuyPanel
+                  shareToken={shareToken}
+                  participantId={participantId}
+                  filters={groupBuyFilters}
+                  recommendations={groupBuyRecommendations}
+                  currency={dealCurrency}
+                />
+              </div>
+            </details>
+            <PreferencePanel
+              shareToken={shareToken}
+              participantId={participantId}
+              currentUser={currentUser}
+              currentParticipant={participants.find((participant) => participant.id === participantId)}
+              hasPickSignals={currentParticipantHasPickSignals}
+            />
+          </div>
+        </section>
 
-        <GroupBuyPanel
-          shareToken={shareToken}
-          participantId={participantId}
-          filters={groupBuyFilters}
-          recommendations={groupBuyRecommendations}
-          currency={dealCurrency}
-        />
-
-        <PreferencePanel
-          shareToken={shareToken}
-          participantId={participantId}
-          currentUser={currentUser}
-          currentParticipant={participants.find((participant) => participant.id === participantId)}
-          hasPickSignals={currentParticipantHasPickSignals}
-        />
-
-        <section className="surface rounded-xl p-5">
+        <section id="review-games" className="surface rounded-xl p-5 scroll-mt-5">
           {!showFullGroupList && participantId ? (
             <div className="mb-4 rounded-lg border border-teal/20 bg-teal/10 p-4">
               <p className="font-black text-ink">Import or mark what you have</p>
@@ -224,7 +253,7 @@ export function PickPanel({
           </details>
         </section>
 
-        <section className="surface rounded-xl p-5">
+        <section id="add-games" className="surface rounded-xl p-5 scroll-mt-5">
           <p className="text-sm font-black uppercase tracking-[0.14em] text-coral">Add games</p>
           <h2 className="mt-1 text-2xl font-black text-ink">Search by title</h2>
           <form className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]" action={`/s/${shareToken}`}>
@@ -309,6 +338,7 @@ function steamImportMessage(status: string) {
 }
 
 function MatchDashboard({
+  id,
   shareToken,
   participantId,
   participants,
@@ -317,6 +347,7 @@ function MatchDashboard({
   scoreMode,
   scoredGames,
 }: {
+  id?: string;
   shareToken: string;
   participantId?: string;
   participants: ParticipantView[];
@@ -345,7 +376,7 @@ function MatchDashboard({
   ] as const;
 
   return (
-    <section className="surface rounded-xl p-5">
+    <section id={id} className="surface rounded-xl p-5 scroll-mt-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-black uppercase tracking-[0.14em] text-teal">Group matching</p>
@@ -393,10 +424,10 @@ function MatchDashboard({
         </div>
       </form>
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap gap-2" aria-label="Match summary counts">
         {filters.map(([label, count]) => (
-          <span key={label} className="rounded-md border border-ink/10 bg-white px-3 py-2 text-xs font-black text-ink/65">
-            {label}: {count}
+          <span key={label} className="rounded-md bg-linen px-3 py-2 text-xs font-black text-ink/65">
+            <span className="text-ink">{count}</span> {label.toLowerCase()}
           </span>
         ))}
       </div>
@@ -406,7 +437,7 @@ function MatchDashboard({
           const games = compatibleGames.filter((game) => game.categories.includes(section.id)).slice(0, 4);
 
           return (
-            <section key={section.id} className="rounded-lg border border-ink/10 bg-paper p-4">
+            <section key={section.id} id={`category-${section.id}`} className="rounded-lg border border-ink/10 bg-paper p-4 scroll-mt-5">
               <h3 className="text-lg font-black text-ink">{section.title}</h3>
               <div className="mt-3 grid gap-3 lg:grid-cols-2">
                 {games.length > 0 ? (
@@ -511,7 +542,7 @@ function DealAndFriendsPanel({
   savedFriends: User[];
 }) {
   return (
-    <section className="surface rounded-xl p-5">
+    <section>
       <div className="grid gap-4 xl:grid-cols-2">
         <div>
           <p className="text-sm font-black uppercase tracking-[0.14em] text-teal">Deals</p>
@@ -624,7 +655,7 @@ function GroupBuyPanel({
   };
 
   return (
-    <section className="surface rounded-xl p-5">
+    <section>
       <p className="text-sm font-black uppercase tracking-[0.14em] text-gold">All buy a new game</p>
       <h2 className="mt-1 text-2xl font-black text-ink">Find a group buy</h2>
       <form className="mt-4 grid gap-3 rounded-lg border border-ink/10 bg-paper p-4 md:grid-cols-4" action={`/s/${shareToken}`}>
@@ -720,7 +751,7 @@ function PreferencePanel({
   const showNudge = hasPickSignals && !currentParticipant?.preferenceNudgeDismissedAt && !preference;
 
   return (
-    <section className="surface rounded-xl p-5">
+    <section>
       {showNudge ? (
         <div className="mb-4 rounded-lg border border-teal/20 bg-teal/10 p-4">
           <p className="font-black text-ink">Quick match tune-up</p>
@@ -823,13 +854,6 @@ function SessionGameCard({
             <p className="mt-1 text-xs font-bold text-ink/45">Player data: {formatCapabilitySource(sessionGame.game.capabilitySource)}</p>
           ) : null}
         </div>
-        <form action={removeSessionGameAction}>
-          <input type="hidden" name="shareToken" value={shareToken} />
-          <input type="hidden" name="sessionGameId" value={sessionGame.id} />
-          <PendingSubmitButton className="secondary-button px-3 py-2" pendingLabel="Removing...">
-            Remove
-          </PendingSubmitButton>
-        </form>
       </div>
       {participantId ? (
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -861,9 +885,19 @@ function SessionGameCard({
           ))}
         </div>
       ) : null}
-      {participantId ? (
+      {participantId && currentSignal ? (
         <InterestControls shareToken={shareToken} participantId={participantId} sessionGame={sessionGame} />
       ) : null}
+      <details className="mt-3">
+        <summary className="cursor-pointer list-none text-xs font-black uppercase tracking-[0.12em] text-ink/45">Manage game</summary>
+        <form action={removeSessionGameAction} className="mt-2">
+          <input type="hidden" name="shareToken" value={shareToken} />
+          <input type="hidden" name="sessionGameId" value={sessionGame.id} />
+          <PendingSubmitButton className="secondary-button px-3 py-2" pendingLabel="Removing...">
+            Remove from shortlist
+          </PendingSubmitButton>
+        </form>
+      </details>
     </div>
   );
 }

@@ -10,13 +10,13 @@ export function SessionTabs({
   activeTab: "plan" | "pick";
 }) {
   const tabs = [
-    ["plan", "Plan"],
-    ["pick", "Pick"],
+    ["plan", "Plan time", "Collect availability"],
+    ["pick", "Pick game", "Compare libraries"],
   ] as const;
 
   return (
     <div className="mt-5 flex rounded-xl border border-ink/10 bg-white/75 p-1 shadow-sm">
-      {tabs.map(([tab, label]) => {
+      {tabs.map(([tab, label, description]) => {
         const href = `/s/${shareToken}?tab=${tab}${participantId ? `&participant=${participantId}` : ""}`;
         const active = activeTab === tab;
 
@@ -28,7 +28,8 @@ export function SessionTabs({
               active ? "bg-teal text-white shadow-card" : "text-ink/65 hover:bg-paper hover:text-ink"
             }`}
           >
-            {label}
+            <span className="block">{label}</span>
+            <span className={`mt-0.5 block text-xs font-bold ${active ? "text-white/72" : "text-ink/45"}`}>{description}</span>
           </Link>
         );
       })}

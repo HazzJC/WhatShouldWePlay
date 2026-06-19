@@ -52,7 +52,7 @@ export default async function DiscoverListPage({ params, searchParams }: PagePro
             ))
           ) : (
             <p className="rounded-xl border border-dashed border-ink/20 bg-paper p-5 text-sm font-bold leading-6 text-ink/60">
-              No picks in this list support {minimumPlayers}+ players yet. Try the 16+ list or lower the player requirement.
+              No picks in this list support {minimumPlayers}+ players yet. Try <Link href={`/discover/more-than-4?minPlayers=${minimumPlayers}`} className="text-teal underline">More than 4?</Link> or lower the player requirement.
             </p>
           )}
         </div>

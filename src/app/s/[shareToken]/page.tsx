@@ -180,6 +180,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const responseTotal = session.participants.reduce((total, participant) => total + participant.responses.length, 0);
   const possibleResponses = Math.max(session.participants.length * slots.length, 1);
   const responsePercent = Math.round((responseTotal / possibleResponses) * 100);
+  const bestMatchLabel = submittedPeople >= session.minimumPlayerCount ? "Best match" : submittedPeople > 0 ? "Best so far" : "Waiting for responses";
   const selectedParticipantIds = normalizeSelectedParticipants(selectedParticipants, session.participants.map((participant) => participant.id));
   const selectedPlayerCount = Math.max(1, Number(playerCount ?? session.minimumPlayerCount) || session.minimumPlayerCount);
   if (activeTab === "pick") {
@@ -381,7 +382,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           </div>
 
           <div className="rounded-xl bg-white/95 p-4 text-ink shadow-card backdrop-blur">
-            <p className="text-sm font-black uppercase tracking-[0.14em] text-teal">Best match</p>
+            <p className="text-sm font-black uppercase tracking-[0.14em] text-teal">{bestMatchLabel}</p>
             <h2 className="mt-2 text-2xl font-black leading-tight">
               {bestTimes[0]
                 ? formatSlotRange(bestTimes[0].startsAt, bestTimes[0].endsAt, session.timezone)
@@ -396,6 +397,10 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
             {needsMoreSubmissions ? (
               <p className="mt-2 text-xs font-bold text-ink/50">
                 Waiting for {session.minimumPlayerCount - submittedPeople} more player{session.minimumPlayerCount - submittedPeople === 1 ? "" : "s"} to submit.
+              </p>
+            ) : submittedPeople === 0 ? (
+              <p className="mt-2 text-xs font-bold text-ink/50">
+                Share the link to start collecting availability.
               </p>
             ) : null}
           </div>

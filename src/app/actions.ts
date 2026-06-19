@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { fromZonedTime } from "date-fns-tz";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
+import { getCuratedGame } from "@/lib/curated-games";
 import { mergeCuratedMetadata } from "@/lib/curated-metadata";
 import { addGameToSession, importSteamGamesForUser, upsertGame } from "@/lib/games";
 import { prisma } from "@/lib/prisma";
@@ -120,6 +121,7 @@ const createPickSessionSchema = z.object({
   title: z.string().trim().min(2).max(120),
   hostName: z.string().trim().min(1).max(80),
   timezone: z.string().trim().min(1).max(80).default("Europe/London"),
+  initialGameSlug: z.string().trim().max(120).optional(),
 });
 
 export async function createPickSessionAction(formData: FormData) {
@@ -127,6 +129,7 @@ export async function createPickSessionAction(formData: FormData) {
     title: formData.get("title"),
     hostName: formData.get("hostName"),
     timezone: formData.get("timezone") || "Europe/London",
+    initialGameSlug: formData.get("initialGameSlug") || undefined,
   });
 
   if (!parsed.success) {
@@ -162,6 +165,19 @@ export async function createPickSessionAction(formData: FormData) {
     },
   });
   const host = session.participants[0];
+  const initialGame = values.initialGameSlug ? getCuratedGame(values.initialGameSlug) : null;
+
+  if (initialGame) {
+    const game = await upsertGame(mergeCuratedMetadata(initialGame));
+
+    await addGameToSession({
+      sessionId: session.id,
+      gameId: game.id,
+      participantId: host.id,
+      source: "COMMON",
+      signal: "OWNED",
+    });
+  }
 
   redirect(`/s/${session.shareToken}?tab=pick&participant=${host.id}`);
 }

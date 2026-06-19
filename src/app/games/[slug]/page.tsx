@@ -24,7 +24,7 @@ export default async function GameDetailPage({ params }: PageProps) {
           </span>
           Discover
         </Link>
-        <Link href="/sessions/pick" className="primary-button">Start Pick</Link>
+        <Link href={`/sessions/pick?game=${game.slug}`} className="primary-button">Start Pick</Link>
       </nav>
       <section className="surface mt-8 rounded-xl p-6">
         <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">Group game</p>
@@ -52,7 +52,7 @@ export default async function GameDetailPage({ params }: PageProps) {
             <p className="mt-1 text-sm leading-6 text-ink/65">{game.caveat}</p>
           </div>
         ) : null}
-        <Link href={`/sessions/pick`} className="primary-button mt-6">Start a Pick shortlist</Link>
+        <Link href={`/sessions/pick?game=${game.slug}`} className="primary-button mt-6">Start a Pick shortlist with this game</Link>
       </section>
     </main>
   );

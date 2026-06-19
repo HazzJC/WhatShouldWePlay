@@ -13,6 +13,9 @@ export default function Home() {
           Let&apos;s Play Games
         </Link>
         <div className="flex gap-2">
+          <Link href="/release-notes" className="secondary-button hidden md:inline-flex">
+            Updates
+          </Link>
           <Link href="/sessions/pick" className="secondary-button">
             <Gamepad2 className="h-4 w-4" />
             <span className="hidden sm:inline">Pick games</span>
@@ -39,19 +42,25 @@ export default function Home() {
             across chat.
           </p>
           <div className="mt-7 grid gap-3 sm:grid-cols-2">
-            <Link href="/sessions/new" className="primary-button px-5 py-3 text-base">
-              <CalendarDays className="h-5 w-5" />
-              Plan a game night
+            <Link href="/sessions/new" className="rounded-xl border border-coral/20 bg-coral p-5 text-white shadow-card transition hover:bg-coralDark focus-ring">
+              <CalendarDays className="h-6 w-6" />
+              <span className="mt-4 block text-xl font-black">Plan a time</span>
+              <span className="mt-2 block text-sm font-bold leading-6 text-white/78">
+                Build an availability poll, share one link, and lock the best slot.
+              </span>
             </Link>
-          <Link href="/sessions/pick" className="secondary-button px-5 py-3 text-base">
-            <ListChecks className="h-5 w-5" />
-            Pick games first
-          </Link>
-          <Link href="/discover" className="secondary-button px-5 py-3 text-base sm:col-span-2">
-            <Gamepad2 className="h-5 w-5" />
-            Browse game ideas
-          </Link>
-        </div>
+            <Link href="/sessions/pick" className="rounded-xl border border-ink/10 bg-white p-5 text-ink shadow-card transition hover:-translate-y-0.5 hover:bg-paper focus-ring">
+              <ListChecks className="h-6 w-6 text-teal" />
+              <span className="mt-4 block text-xl font-black">Pick a game</span>
+              <span className="mt-2 block text-sm font-bold leading-6 text-ink/62">
+                Import libraries, compare ownership, and shortlist what the group can play.
+              </span>
+            </Link>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-3 text-sm font-bold">
+            <Link href="/discover" className="text-teal underline underline-offset-4">Browse game ideas</Link>
+            <Link href="/release-notes" className="text-ink/60 underline underline-offset-4 md:hidden">Updates</Link>
+          </div>
 
           <div className="mt-8 grid gap-3 sm:grid-cols-3">
             {[
