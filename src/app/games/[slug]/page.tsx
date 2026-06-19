@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Gamepad2 } from "lucide-react";
-import { getCuratedGame } from "@/lib/curated-games";
+import { curatedPriceLabel, curatedSaleLabel, enrichedCuratedGame } from "@/lib/curated-deals";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -9,7 +9,7 @@ type PageProps = {
 
 export default async function GameDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const game = getCuratedGame(slug);
+  const game = await enrichedCuratedGame(slug);
 
   if (!game) {
     notFound();
@@ -28,8 +28,16 @@ export default async function GameDetailPage({ params }: PageProps) {
       </nav>
       <section className="surface mt-8 rounded-xl p-6">
         <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">Group game</p>
-        <h1 className="mt-3 text-4xl font-black text-ink">{game.title}</h1>
+        <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+          <h1 className="text-4xl font-black text-ink">{game.title}</h1>
+          {curatedSaleLabel(game) ? (
+            <span className="rounded-md bg-coral px-3 py-2 text-sm font-black uppercase tracking-[0.08em] text-white">{curatedSaleLabel(game)}</span>
+          ) : null}
+        </div>
         <p className="mt-3 max-w-2xl text-base leading-7 text-ink/65">{game.description}</p>
+        <p className="mt-3 inline-flex rounded-md bg-paper px-3 py-2 text-sm font-black text-ink">
+          {curatedPriceLabel(game)}
+        </p>
         {game.releaseStatus === "upcoming" ? (
           <p className="mt-3 inline-flex rounded-md bg-gold/20 px-3 py-2 text-sm font-black text-ink">Upcoming pick</p>
         ) : null}

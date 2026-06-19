@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Gamepad2 } from "lucide-react";
 import { PlayerCountFilter } from "@/components/player-count-filter";
 import { curatedGamesForList, getCuratedList } from "@/lib/curated-games";
+import { curatedPriceLabel, curatedSaleLabel, enrichCuratedGamesWithDeals, sortCuratedGamesForDiscovery } from "@/lib/curated-deals";
 import { parseMinimumPlayers } from "@/lib/player-count";
 
 type PageProps = {
@@ -20,7 +21,7 @@ export default async function DiscoverListPage({ params, searchParams }: PagePro
     notFound();
   }
 
-  const games = curatedGamesForList(slug, minimumPlayers);
+  const games = sortCuratedGamesForDiscovery(await enrichCuratedGamesWithDeals(curatedGamesForList(slug, minimumPlayers)));
 
   return (
     <main className="ui-shell">
@@ -42,11 +43,21 @@ export default async function DiscoverListPage({ params, searchParams }: PagePro
           {games.length > 0 ? (
             games.map((game) => (
               <Link key={game.slug} href={`/games/${game.slug}`} className="surface rounded-xl p-5 transition hover:-translate-y-0.5">
-                <h2 className="text-xl font-black text-ink">{game.title}</h2>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <h2 className="text-xl font-black text-ink">{game.title}</h2>
+                  {curatedSaleLabel(game) ? (
+                    <span className="rounded-md bg-coral px-2.5 py-1 text-xs font-black uppercase tracking-[0.08em] text-white">{curatedSaleLabel(game)}</span>
+                  ) : null}
+                </div>
                 <p className="mt-2 text-sm leading-6 text-ink/60">{game.description}</p>
-                <p className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-teal">
-                  {game.minPlayers}-{game.maxPlayers} players
-                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <p className="rounded-md bg-teal/10 px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] text-teal">
+                    {game.minPlayers}-{game.maxPlayers} players
+                  </p>
+                  <p className="rounded-md bg-paper px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] text-ink/60">
+                    {curatedPriceLabel(game)}
+                  </p>
+                </div>
                 {game.caveat ? <p className="mt-2 text-xs font-bold leading-5 text-coral">{game.caveat}</p> : null}
               </Link>
             ))
