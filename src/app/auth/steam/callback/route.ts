@@ -49,9 +49,36 @@ export async function GET(request: Request) {
     });
   }
 
+  let redirectParticipantId = participantId;
+
+  if (shareToken && !redirectParticipantId) {
+    const session = await prisma.session.findUnique({
+      where: { shareToken },
+      select: { id: true },
+    });
+
+    if (session) {
+      const participant =
+        (await prisma.participant.findFirst({
+          where: { sessionId: session.id, userId: user.id },
+          select: { id: true },
+        })) ??
+        (await prisma.participant.create({
+          data: {
+            sessionId: session.id,
+            userId: user.id,
+            name: user.displayName,
+          },
+          select: { id: true },
+        }));
+
+      redirectParticipantId = participant.id;
+    }
+  }
+
   await createUserSession(user.id);
   if (friendInvite) {
     redirect(`/friends/invite/${friendInvite}`);
   }
-  redirect(shareToken ? `/s/${shareToken}?participant=${participantId}&tab=pick` : "/");
+  redirect(shareToken ? `/s/${shareToken}?tab=pick${redirectParticipantId ? `&participant=${redirectParticipantId}` : ""}` : "/");
 }

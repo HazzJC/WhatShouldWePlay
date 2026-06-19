@@ -94,7 +94,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   }
 
   const appUrl = await getAppUrl();
-  const shareUrl = `${appUrl}/s/${session.shareToken}`;
+  const shareUrl = `${appUrl}/s/${session.shareToken}${activeTab === "pick" ? "?tab=pick" : ""}`;
   const slots = generateHourlySlots(session);
   const participantAvailability = session.participants.map((participant) => ({
     participantId: participant.id,

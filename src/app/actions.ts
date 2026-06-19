@@ -820,18 +820,35 @@ export async function importSteamLibraryAction(formData: FormData) {
     throw new Error("Session not found.");
   }
 
-  const participant = parsed.data.participantId
+  let participant = parsed.data.participantId
     ? await prisma.participant.findFirst({
         where: { id: parsed.data.participantId, sessionId: session.id },
         select: { id: true, userId: true },
       })
     : null;
 
+  if (!participant) {
+    participant =
+      (await prisma.participant.findFirst({
+        where: { sessionId: session.id, userId: currentUser.id },
+        select: { id: true, userId: true },
+      })) ??
+      (await prisma.participant.create({
+        data: {
+          sessionId: session.id,
+          userId: currentUser.id,
+          name: currentUser.displayName,
+        },
+        select: { id: true, userId: true },
+      }));
+  }
+
   if (participant && participant.userId !== currentUser.id) {
     await prisma.participant.update({
       where: { id: participant.id },
       data: { userId: currentUser.id },
     });
+    participant = { ...participant, userId: currentUser.id };
   }
   const [owned, recent] = await Promise.all([
     getOwnedSteamGames(currentUser.steamAccount.steamId),
@@ -894,15 +911,44 @@ export async function importSteamLibraryAction(formData: FormData) {
       elapsedMs: Date.now() - importStartedAt,
     });
 
+    const linkedParticipants = await prisma.participant.findMany({
+      where: {
+        sessionId: session.id,
+        userId: { not: null },
+      },
+      select: { id: true, userId: true },
+    });
+    const otherUserIds = linkedParticipants
+      .map((linkedParticipant) => linkedParticipant.userId)
+      .filter((userId): userId is string => Boolean(userId) && userId !== currentUser.id);
+    const sharedImportedGames =
+      otherUserIds.length > 0
+        ? await prisma.userGame.findMany({
+            where: {
+              userId: currentUser.id,
+              game: {
+                userGames: {
+                  some: {
+                    userId: { in: otherUserIds },
+                  },
+                },
+              },
+            },
+            include: { game: true },
+            orderBy: [{ recentlyPlayedAt: "desc" }, { playtimeMinutes: "desc" }],
+            take: 200,
+          })
+        : [];
     const importedGames = await prisma.userGame.findMany({
       where: { userId: currentUser.id },
       include: { game: true },
       orderBy: [{ recentlyPlayedAt: "desc" }, { playtimeMinutes: "desc" }],
-      take: 40,
+      take: 100,
     });
+    const shortlistImports = uniqueUserGames([...sharedImportedGames, ...importedGames]);
 
     await Promise.all(
-      importedGames.map((userGame) =>
+      shortlistImports.map((userGame) =>
         addGameToSession({
           sessionId: session.id,
           gameId: userGame.gameId,
@@ -916,7 +962,58 @@ export async function importSteamLibraryAction(formData: FormData) {
     console.info("[steam-import] added top imported games to session", {
       userId: currentUser.id,
       participantId: participant.id,
-      addedCount: importedGames.length,
+      addedCount: shortlistImports.length,
+      sharedCount: sharedImportedGames.length,
+      elapsedMs: Date.now() - importStartedAt,
+    });
+
+    const participantByUserId = new Map(
+      linkedParticipants
+        .filter((linkedParticipant): linkedParticipant is { id: string; userId: string } => Boolean(linkedParticipant.userId))
+        .map((linkedParticipant) => [linkedParticipant.userId, linkedParticipant.id]),
+    );
+    const sessionShortlist = await prisma.sessionGame.findMany({
+      where: { sessionId: session.id },
+      select: { id: true, gameId: true },
+    });
+    const sessionGameByGameId = new Map(sessionShortlist.map((sessionGame) => [sessionGame.gameId, sessionGame.id]));
+    const ownershipRows = await prisma.userGame.findMany({
+      where: {
+        userId: { in: Array.from(participantByUserId.keys()) },
+        gameId: { in: sessionShortlist.map((sessionGame) => sessionGame.gameId) },
+      },
+      select: { userId: true, gameId: true },
+    });
+
+    await Promise.all(
+      ownershipRows.map((ownership) => {
+        const ownerParticipantId = participantByUserId.get(ownership.userId);
+        const sessionGameId = sessionGameByGameId.get(ownership.gameId);
+
+        if (!ownerParticipantId || !sessionGameId) {
+          return Promise.resolve();
+        }
+
+        return prisma.sessionGameSignal.upsert({
+          where: {
+            sessionGameId_participantId: {
+              sessionGameId,
+              participantId: ownerParticipantId,
+            },
+          },
+          create: {
+            sessionGameId,
+            participantId: ownerParticipantId,
+            signal: "OWNED",
+          },
+          update: { signal: "OWNED" },
+        });
+      }),
+    );
+    console.info("[steam-import] synced linked participant ownership", {
+      userId: currentUser.id,
+      participantCount: participantByUserId.size,
+      signalCount: ownershipRows.length,
       elapsedMs: Date.now() - importStartedAt,
     });
   }
@@ -935,4 +1032,21 @@ export async function importSteamLibraryAction(formData: FormData) {
     ownedCount: owned.games.length,
     elapsedMs: Date.now() - importStartedAt,
   });
+  redirect(`/s/${session.shareToken}?tab=pick&participant=${participant.id}`);
+}
+
+function uniqueUserGames<T extends { gameId: string }>(userGames: T[]) {
+  const seen = new Set<string>();
+  const unique: T[] = [];
+
+  for (const userGame of userGames) {
+    if (seen.has(userGame.gameId)) {
+      continue;
+    }
+
+    seen.add(userGame.gameId);
+    unique.push(userGame);
+  }
+
+  return unique;
 }
