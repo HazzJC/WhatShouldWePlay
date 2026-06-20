@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Gamepad2 } from "lucide-react";
 import { PlayerCountFilter } from "@/components/player-count-filter";
+import { LocalSetupBadge } from "@/components/local-setup-badge";
 import { curatedGamesForList, curatedPlayerLabel, getCuratedList } from "@/lib/curated-games";
 import { curatedPriceLabel, curatedSaleLabel, enrichCuratedGamesWithDeals, sortCuratedGamesForDiscovery } from "@/lib/curated-deals";
 import { parseMinimumPlayers } from "@/lib/player-count";
@@ -54,6 +55,9 @@ export default async function DiscoverListPage({ params, searchParams }: PagePro
                   <p className="rounded-md bg-teal/10 px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] text-teal">
                     {curatedPlayerLabel(game)}
                   </p>
+                  {game.localRequirement ? (
+                    <LocalSetupBadge setup={game.localSetup} requirement={game.localRequirement} />
+                  ) : null}
                   {game.moddedPlayersLabel ? (
                     <p className="rounded-md bg-gold/20 px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] text-ink">
                       Modded setup

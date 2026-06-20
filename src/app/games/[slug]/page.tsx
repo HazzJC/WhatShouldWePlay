@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Gamepad2 } from "lucide-react";
 import { curatedPriceLabel, curatedSaleLabel, enrichedCuratedGame } from "@/lib/curated-deals";
 import { curatedPlayerLabel } from "@/lib/curated-games";
+import { LocalSetupBadge } from "@/components/local-setup-badge";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -55,6 +56,14 @@ export default async function GameDetailPage({ params }: PageProps) {
           <Fact label="Online" value={game.onlineCoop ? "Yes" : "No"} />
           <Fact label="Local" value={game.localCoop ? "Yes" : "No"} />
         </div>
+        {game.localRequirement ? (
+          <div className="mt-3 rounded-lg bg-paper p-4">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-ink/45">Local setup</p>
+            <div className="mt-2">
+              <LocalSetupBadge setup={game.localSetup} requirement={game.localRequirement} />
+            </div>
+          </div>
+        ) : null}
         {game.moddedSupportNote ? (
           <div className="mt-4 rounded-lg border border-gold/30 bg-gold/15 p-4">
             <p className="text-sm font-black text-ink">Modded multiplayer warning</p>
