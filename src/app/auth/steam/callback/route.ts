@@ -1,18 +1,25 @@
 import { redirect } from "next/navigation";
-import { createUserSession, getCurrentUser } from "@/lib/auth";
+import { createUserSession, getCurrentUser, safeInternalRedirect } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { verifySteamOpenIdCallback } from "@/lib/steam";
+
+function withSteamStatus(path: string, status: string) {
+  const destination = new URL(safeInternalRedirect(path), "https://local.invalid");
+  destination.searchParams.set("steam", status);
+  return `${destination.pathname}${destination.search}`;
+}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const shareToken = url.searchParams.get("shareToken") ?? "";
   const participantId = url.searchParams.get("participant") ?? "";
   const friendInvite = url.searchParams.get("friendInvite") ?? "";
+  const redirectTo = safeInternalRedirect(url.searchParams.get("redirectTo"));
   const steamId = await verifySteamOpenIdCallback(url.searchParams);
   const currentUser = await getCurrentUser();
 
   if (!steamId) {
-    redirect(friendInvite ? `/friends/invite/${friendInvite}?steam=failed` : shareToken ? `/s/${shareToken}?tab=pick&steam=failed` : "/?steam=failed");
+    redirect(friendInvite ? `/friends/invite/${friendInvite}?steam=failed` : shareToken ? `/s/${shareToken}?tab=pick&steam=failed` : withSteamStatus(redirectTo, "failed"));
   }
 
   const existingSteam = await prisma.steamAccount.findUnique({
@@ -21,7 +28,7 @@ export async function GET(request: Request) {
   });
 
   if (currentUser && existingSteam && existingSteam.userId !== currentUser.id) {
-    redirect(shareToken ? `/s/${shareToken}?tab=pick&steam=linked-elsewhere` : "/?steam=linked-elsewhere");
+    redirect(shareToken ? `/s/${shareToken}?tab=pick&steam=linked-elsewhere` : withSteamStatus(redirectTo, "linked-elsewhere"));
   }
 
   const user =
@@ -87,5 +94,5 @@ export async function GET(request: Request) {
   if (friendInvite) {
     redirect(`/friends/invite/${friendInvite}`);
   }
-  redirect(shareToken ? `/s/${shareToken}?tab=pick${redirectParticipantId ? `&participant=${redirectParticipantId}` : ""}` : "/");
+  redirect(shareToken ? `/s/${shareToken}?tab=pick${redirectParticipantId ? `&participant=${redirectParticipantId}` : ""}` : redirectTo);
 }

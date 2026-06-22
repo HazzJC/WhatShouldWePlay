@@ -8,6 +8,27 @@ export type GoogleProfile = {
   picture?: string | null;
 };
 
+export type GoogleAuthErrorCode =
+  | "not_configured"
+  | "token_exchange_failed"
+  | "missing_id_token"
+  | "tokeninfo_failed"
+  | "invalid_issuer"
+  | "invalid_audience"
+  | "expired_token"
+  | "missing_subject"
+  | "unverified_email";
+
+export class GoogleAuthError extends Error {
+  code: GoogleAuthErrorCode;
+
+  constructor(code: GoogleAuthErrorCode, message: string) {
+    super(message);
+    this.name = "GoogleAuthError";
+    this.code = code;
+  }
+}
+
 type GoogleTokenInfo = {
   iss?: string;
   aud?: string;
@@ -24,7 +45,7 @@ function googleEnv() {
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    throw new Error("Google sign-in is not configured.");
+    throw new GoogleAuthError("not_configured", "Google sign-in is not configured.");
   }
 
   return { clientId, clientSecret };
@@ -63,19 +84,19 @@ export async function getGoogleProfileFromCode(code: string): Promise<GoogleProf
   });
 
   if (!tokenResponse.ok) {
-    throw new Error("Google rejected the sign-in request.");
+    throw new GoogleAuthError("token_exchange_failed", "Google rejected the sign-in request.");
   }
 
   const tokens = (await tokenResponse.json()) as { id_token?: string };
 
   if (!tokens.id_token) {
-    throw new Error("Google did not return an identity token.");
+    throw new GoogleAuthError("missing_id_token", "Google did not return an identity token.");
   }
 
   const infoResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(tokens.id_token)}`);
 
   if (!infoResponse.ok) {
-    throw new Error("Google identity token could not be verified.");
+    throw new GoogleAuthError("tokeninfo_failed", "Google identity token could not be verified.");
   }
 
   return verifyGoogleTokenInfo(await infoResponse.json(), clientId);
@@ -83,25 +104,25 @@ export async function getGoogleProfileFromCode(code: string): Promise<GoogleProf
 
 export function verifyGoogleTokenInfo(info: GoogleTokenInfo, clientId = process.env.GOOGLE_CLIENT_ID ?? ""): GoogleProfile {
   if (info.iss !== "https://accounts.google.com" && info.iss !== "accounts.google.com") {
-    throw new Error("Google identity token has an invalid issuer.");
+    throw new GoogleAuthError("invalid_issuer", "Google identity token has an invalid issuer.");
   }
 
   if (!clientId || info.aud !== clientId) {
-    throw new Error("Google identity token has an invalid audience.");
+    throw new GoogleAuthError("invalid_audience", "Google identity token has an invalid audience.");
   }
 
   if (!info.exp || Number(info.exp) * 1000 <= Date.now()) {
-    throw new Error("Google identity token has expired.");
+    throw new GoogleAuthError("expired_token", "Google identity token has expired.");
   }
 
   if (!info.sub) {
-    throw new Error("Google identity token is missing an account id.");
+    throw new GoogleAuthError("missing_subject", "Google identity token is missing an account id.");
   }
 
   const emailVerified = info.email_verified === true || info.email_verified === "true";
 
   if (!info.email || !emailVerified) {
-    throw new Error("Google account email is not verified.");
+    throw new GoogleAuthError("unverified_email", "Google account email is not verified.");
   }
 
   return {

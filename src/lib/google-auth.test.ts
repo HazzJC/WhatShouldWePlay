@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { verifyGoogleTokenInfo } from "@/lib/google-auth";
+import { GoogleAuthError, verifyGoogleTokenInfo } from "@/lib/google-auth";
 
 describe("Google token verification", () => {
   const validToken = {
@@ -29,5 +29,15 @@ describe("Google token verification", () => {
     expect(() => verifyGoogleTokenInfo({ ...validToken, exp: "1" }, "client-id")).toThrow("expired");
     expect(() => verifyGoogleTokenInfo({ ...validToken, sub: undefined }, "client-id")).toThrow("account id");
     expect(() => verifyGoogleTokenInfo({ ...validToken, email_verified: "false" }, "client-id")).toThrow("not verified");
+  });
+
+  it("exposes stable error codes for Google auth failures", () => {
+    try {
+      verifyGoogleTokenInfo({ ...validToken, aud: "other-client" }, "client-id");
+      throw new Error("Expected verification to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(GoogleAuthError);
+      expect((error as GoogleAuthError).code).toBe("invalid_audience");
+    }
   });
 });

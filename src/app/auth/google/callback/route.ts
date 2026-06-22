@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createUserSession, getCurrentUser, parseOAuthState, rotateUserSession, safeInternalRedirect, setParticipantIdentity } from "@/lib/auth";
-import { getGoogleProfileFromCode } from "@/lib/google-auth";
+import { getGoogleProfileFromCode, GoogleAuthError } from "@/lib/google-auth";
 import { prisma } from "@/lib/prisma";
 
 function destinationFromState(state: NonNullable<ReturnType<typeof parseOAuthState>>, participantId?: string) {
@@ -19,16 +19,46 @@ function destinationFromState(state: NonNullable<ReturnType<typeof parseOAuthSta
   return safeInternalRedirect(state.redirectTo);
 }
 
+function withGoogleError(path: string, code: string) {
+  const destination = new URL(safeInternalRedirect(path), "https://local.invalid");
+  destination.searchParams.set("google_error", code);
+  return `${destination.pathname}${destination.search}`;
+}
+
+function authErrorCode(error: unknown) {
+  if (error instanceof GoogleAuthError) {
+    return error.code;
+  }
+
+  return "unknown";
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
+  const providerError = url.searchParams.get("error");
   const state = parseOAuthState(url.searchParams.get("state"));
 
-  if (!code || !state) {
-    redirect("/?google=failed");
+  if (!state) {
+    redirect("/?google_error=missing_or_invalid_state");
   }
 
-  const profile = await getGoogleProfileFromCode(code);
+  if (providerError) {
+    redirect(withGoogleError(destinationFromState(state), `provider_${providerError}`));
+  }
+
+  if (!code) {
+    redirect(withGoogleError(destinationFromState(state), "missing_code"));
+  }
+
+  let profile: Awaited<ReturnType<typeof getGoogleProfileFromCode>>;
+
+  try {
+    profile = await getGoogleProfileFromCode(code);
+  } catch (error) {
+    redirect(withGoogleError(destinationFromState(state), authErrorCode(error)));
+  }
+
   const currentUser = await getCurrentUser();
   const existingAccount = await prisma.oAuthAccount.findUnique({
     where: {
@@ -41,7 +71,7 @@ export async function GET(request: Request) {
   });
 
   if (currentUser && existingAccount && existingAccount.userId !== currentUser.id) {
-    redirect(`${safeInternalRedirect(state.redirectTo)}?google=linked-elsewhere`);
+    redirect(withGoogleError(destinationFromState(state), "linked_elsewhere"));
   }
 
   const user = currentUser

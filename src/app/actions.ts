@@ -886,7 +886,7 @@ export async function createFriendInviteAction(formData: FormData) {
   const currentUser = await getCurrentUser();
 
   if (!currentUser) {
-    throw new Error("Sign in with Steam before creating friend invites.");
+    throw new Error("Sign in with Google before creating friend invites.");
   }
 
   await prisma.friendInvite.create({
