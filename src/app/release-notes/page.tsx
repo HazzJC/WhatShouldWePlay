@@ -23,6 +23,69 @@ const releaseNotes: ReleaseMonth[] = [
     month: "June 2026",
     entries: [
       {
+        date: "22 June 2026",
+        headline: "Google accounts and reusable friend groups",
+        details: [
+          "Google sign-in was added as the cross-device account layer, with secure OAuth state handling, verified Google identity checks, and explicit account linking so Steam remains the library provider.",
+          "Pick sessions can now be saved as reusable friend groups, invited by group links, managed from new group pages, and used to start future Pick sessions with the same crew.",
+          "Friend invites now prefer Google for persistent accounts while still allowing Steam connection when someone wants library import and ownership matching.",
+        ],
+      },
+      {
+        date: "20 June 2026",
+        headline: "Better large-group discovery controls",
+        details: [
+          "Curated discovery gained stronger support for larger groups, including more options for 10+ player sessions and notes for controller sharing or practical local co-op constraints.",
+          "The player-count refinement now helps split broad party and co-op lists into more useful results for groups that need higher capacity.",
+          "This made discovery more useful before a group has connected Steam or created a shortlist.",
+        ],
+      },
+      {
+        date: "19 June 2026",
+        headline: "Theme refresh and visible dark-mode control",
+        details: [
+          "The interface received a broader visual refresh with denser layouts, cleaner surfaces, stronger focus states, and a more modern gaming-inspired colour system.",
+          "A visible dark-mode slider was added so users can switch between light, dark, and system-driven themes without hunting through browser or OS settings.",
+          "The palette was softened after review to favour accessible AA/AAA-oriented contrast over harsh neon treatment.",
+        ],
+      },
+      {
+        date: "19 June 2026",
+        headline: "Shared game cache and faster Pick rendering",
+        details: [
+          "The app now searches previously imported or added games before reaching out to IGDB, making the catalogue faster and more useful as groups use it.",
+          "A daily game-data refresh endpoint keeps active game metadata and deal data warmer without blocking session page loads.",
+          "Post-import feedback was added so Steam imports show a clear calculating state while ownership matches and recommendations refresh.",
+        ],
+      },
+      {
+        date: "19 June 2026",
+        headline: "Discord bot, sharing, and useful empty states",
+        details: [
+          "Discord HTTP interactions were added for creating sessions, checking status, posting reminders, suggesting games, and confirming attendance from channel messages.",
+          "Session sharing expanded from a copy-link button into a full share panel with copy, Discord, WhatsApp, Messenger, email, and QR options.",
+          "Pick empty states now explain Steam-library coverage, close-but-not-perfect matches, and deal availability more clearly.",
+        ],
+      },
+      {
+        date: "19 June 2026",
+        headline: "Deployment reliability and serverless efficiency",
+        details: [
+          "Host-only actions and cron routes were tightened, external API calls gained timeouts, and serverless database usage was tuned for Vercel and Neon.",
+          "Prisma migrations can now run as part of deployment with direct-connection support, reducing the risk of production schema drift.",
+          "Pick and discovery pages were adjusted to prefer cached data over blocking external lookups when third-party APIs are slow or unavailable.",
+        ],
+      },
+      {
+        date: "19 June 2026",
+        headline: "Modded multiplayer discovery",
+        details: [
+          "Curated lists now include games that are traditionally single-player but can support multiplayer through mods, with caveats where setup or hosting is required.",
+          "Game detail and discovery cards can surface modded support notes, including cases where mods expand the practical player count.",
+          "This broadened discovery for groups willing to do a little setup work to play something unusual together.",
+        ],
+      },
+      {
         date: "18 June 2026",
         headline: "Group game matching, deals, and discovery pages",
         details: [
