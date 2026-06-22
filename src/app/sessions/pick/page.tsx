@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft, Gamepad2, ListChecks, UsersRound } from "lucide-react";
-import { createPickSessionAction } from "@/app/actions";
+import { createPickSessionAction, startPickSessionFromFriendGroupAction } from "@/app/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { getCurrentUser } from "@/lib/auth";
 import { getCuratedGame } from "@/lib/curated-games";
+import { prisma } from "@/lib/prisma";
 
 const defaultTimezone = "Europe/London";
 
@@ -13,6 +15,15 @@ type PageProps = {
 export default async function NewPickSessionPage({ searchParams }: PageProps) {
   const query = await searchParams;
   const initialGame = query?.game ? getCuratedGame(query.game) : null;
+  const currentUser = await getCurrentUser();
+  const friendGroups = currentUser
+    ? await prisma.friendGroup.findMany({
+        where: { ownerId: currentUser.id },
+        include: { members: { select: { id: true } } },
+        orderBy: { updatedAt: "desc" },
+        take: 4,
+      })
+    : [];
 
   return (
     <main className="ui-shell pb-24 sm:pb-8">
@@ -66,6 +77,47 @@ export default async function NewPickSessionPage({ searchParams }: PageProps) {
             </PendingSubmitButton>
           </div>
         </form>
+
+        {currentUser ? (
+          <section className="surface rounded-xl p-5 sm:p-6">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-moss">Saved crews</p>
+            <h2 className="mt-1 text-2xl font-black text-ink">Start with a saved group</h2>
+            <div className="mt-4 grid gap-3">
+              {friendGroups.length > 0 ? (
+                friendGroups.map((group) => (
+                  <div key={group.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ink/10 bg-paper p-3">
+                    <div>
+                      <p className="font-black text-ink">{group.name}</p>
+                      <p className="mt-1 text-xs font-bold text-ink/50">{group.members.length} member{group.members.length === 1 ? "" : "s"}</p>
+                    </div>
+                    <form action={startPickSessionFromFriendGroupAction}>
+                      <input type="hidden" name="groupId" value={group.id} />
+                      <input type="hidden" name="timezone" value={defaultTimezone} />
+                      <PendingSubmitButton className="secondary-button px-3 py-2" pendingLabel="Starting...">
+                        Start Pick
+                      </PendingSubmitButton>
+                    </form>
+                  </div>
+                ))
+              ) : (
+                <p className="rounded-lg border border-dashed border-ink/20 bg-paper p-4 text-sm leading-6 text-ink/62">
+                  Save a crew from any Pick session to reuse it here.
+                </p>
+              )}
+            </div>
+          </section>
+        ) : (
+          <section className="surface rounded-xl p-5 sm:p-6">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-moss">Across devices</p>
+            <h2 className="mt-1 text-2xl font-black text-ink">Save friends with Google</h2>
+            <p className="mt-2 text-sm leading-6 text-ink/62">
+              Sign in to reuse friend groups and bring your saved crew into future Pick sessions.
+            </p>
+            <a href={`/auth/google/start?redirectTo=${encodeURIComponent("/sessions/pick")}`} className="primary-button mt-4">
+              Sign in with Google
+            </a>
+          </section>
+        )}
       </section>
     </main>
   );

@@ -25,9 +25,12 @@ export default async function FriendInvitePage({ params }: PageProps) {
     return (
       <main className="ui-shell">
         <InviteShell inviterName={invite.inviter.displayName}>
-          <a href={`/auth/steam/start?friendInvite=${token}`} className="primary-button">
+          <a href={`/auth/google/start?friendInvite=${token}&redirectTo=${encodeURIComponent(`/friends/invite/${token}`)}`} className="primary-button">
+            Sign in with Google
+          </a>
+          <a href={`/auth/steam/start?friendInvite=${token}`} className="secondary-button">
             <Gamepad2 className="h-4 w-4" />
-            Sign in with Steam
+            Steam instead
           </a>
         </InviteShell>
       </main>
@@ -65,7 +68,7 @@ function InviteShell({ inviterName, children }: { inviterName: string; children:
       <p className="mt-4 text-sm font-black uppercase tracking-[0.14em] text-coral">Friend invite</p>
       <h1 className="mt-2 text-3xl font-black text-ink">{inviterName} invited you to match games</h1>
       <p className="mt-3 text-sm leading-6 text-ink/62">
-        Sign in so this friend can be reused across future Pick sessions.
+        Sign in with Google to save this friend across devices. Steam is still available when you want game-library import.
       </p>
       <div className="mt-5 flex justify-center gap-3">
         {children}

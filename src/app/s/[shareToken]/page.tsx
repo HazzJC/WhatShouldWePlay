@@ -255,7 +255,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     });
     await announceDiscordPriceAlerts(session.id);
   }
-  const [priceAlertEvents, latestFriendInvite, savedFriends] =
+  const [priceAlertEvents, latestFriendInvite, savedFriends, friendGroups] =
     activeTab === "pick"
       ? await Promise.all([
           prisma.priceAlertEvent.findMany({
@@ -280,8 +280,24 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
                 orderBy: { createdAt: "desc" },
               })
             : Promise.resolve([]),
+          currentUser
+            ? prisma.friendGroup.findMany({
+                where: { ownerId: currentUser.id },
+                include: {
+                  members: { select: { id: true, status: true } },
+                  invites: {
+                    where: { expiresAt: { gt: new Date() }, acceptedAt: null },
+                    orderBy: { createdAt: "desc" },
+                    take: 1,
+                    select: { token: true, expiresAt: true, acceptedAt: true },
+                  },
+                },
+                orderBy: { updatedAt: "desc" },
+                take: 5,
+              })
+            : Promise.resolve([]),
         ])
-      : [[], null, []];
+      : [[], null, [], []];
   const groupBuyFilters = parseGroupBuyFilters({
     groupBudget,
     groupGenre,
@@ -436,6 +452,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           dealLookupConfigured={Boolean(process.env.ITAD_API_KEY)}
           friendInviteUrl={latestFriendInvite ? `${appUrl}/friends/invite/${latestFriendInvite.token}` : null}
           savedFriends={savedFriends.map((friend) => friend.friend)}
+          friendGroups={friendGroups}
           libraryConnectionSummary={libraryConnectionSummary}
         />
       ) : (

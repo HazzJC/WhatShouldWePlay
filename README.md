@@ -20,6 +20,8 @@ library import, discovery, deals, alerts, and channel reminders when configured.
 - Lock a time as host and download an `.ics` calendar invite.
 
 **Pick games**
+- Sign in with Google to save your account, friends, groups, preferences, and
+  session participation across devices.
 - Start with Pick from the home page or switch to Pick from any shared session.
 - Import Steam libraries through Steam OpenID and the Steam Web API, with
   graceful fallback messaging when profiles or game details are private.
@@ -78,6 +80,12 @@ library import, discovery, deals, alerts, and channel reminders when configured.
 - Discord-linked sessions can announce locked times, send reminder pings through
   Vercel Cron, and post sale alerts.
 
+**Persistent accounts and friend groups**
+- Google sign-in is the cross-device account provider.
+- Steam remains separate and optional for library import.
+- Saved friend groups can be created from Pick sessions, invited by link, and
+  reused to start future Pick sessions quickly.
+
 ### Authorization model
 
 The share token lets anyone open and join a session. Acting *as* a participant
@@ -107,6 +115,8 @@ AUTH_COOKIE_SECRET="<openssl rand -base64 32>"
 Optional integrations:
 
 ```bash
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
 STEAM_WEB_API_KEY=""
 IGDB_CLIENT_ID=""
 IGDB_CLIENT_SECRET=""

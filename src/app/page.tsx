@@ -16,6 +16,9 @@ export default function Home() {
           <Link href="/release-notes" className="secondary-button hidden md:inline-flex">
             Updates
           </Link>
+          <a href="/auth/google/start" className="secondary-button hidden lg:inline-flex">
+            Sign in
+          </a>
           <Link href="/sessions/pick" className="secondary-button">
             <Gamepad2 className="h-4 w-4" />
             <span className="hidden sm:inline">Pick games</span>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { signValue, verifySignedValue } from "@/lib/auth";
+import { createOAuthState, parseOAuthState, signValue, verifySignedValue } from "@/lib/auth";
 
 describe("signed cookie values", () => {
   const secret = "test-secret-value";
@@ -23,5 +23,22 @@ describe("signed cookie values", () => {
   it("rejects malformed input", () => {
     expect(verifySignedValue("no-signature", secret)).toBeNull();
     expect(verifySignedValue("", secret)).toBeNull();
+  });
+
+  it("round-trips OAuth state and rejects tampering", () => {
+    const state = createOAuthState({
+      shareToken: "share",
+      participant: "participant",
+      redirectTo: "/sessions/pick",
+      intent: "signin",
+    });
+
+    expect(parseOAuthState(state)).toMatchObject({
+      shareToken: "share",
+      participant: "participant",
+      redirectTo: "/sessions/pick",
+      intent: "signin",
+    });
+    expect(parseOAuthState(`${state}tampered`)).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createUserSession } from "@/lib/auth";
+import { createUserSession, getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { verifySteamOpenIdCallback } from "@/lib/steam";
 
@@ -9,6 +9,7 @@ export async function GET(request: Request) {
   const participantId = url.searchParams.get("participant") ?? "";
   const friendInvite = url.searchParams.get("friendInvite") ?? "";
   const steamId = await verifySteamOpenIdCallback(url.searchParams);
+  const currentUser = await getCurrentUser();
 
   if (!steamId) {
     redirect(friendInvite ? `/friends/invite/${friendInvite}?steam=failed` : shareToken ? `/s/${shareToken}?tab=pick&steam=failed` : "/?steam=failed");
@@ -18,7 +19,13 @@ export async function GET(request: Request) {
     where: { steamId },
     include: { user: true },
   });
+
+  if (currentUser && existingSteam && existingSteam.userId !== currentUser.id) {
+    redirect(shareToken ? `/s/${shareToken}?tab=pick&steam=linked-elsewhere` : "/?steam=linked-elsewhere");
+  }
+
   const user =
+    currentUser ??
     existingSteam?.user ??
     (await prisma.user.create({
       data: {

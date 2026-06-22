@@ -900,6 +900,370 @@ export async function createFriendInviteAction(formData: FormData) {
   revalidatePath(parsed.success ? parsed.data.redirectTo : "/");
 }
 
+const createFriendGroupFromSessionSchema = z.object({
+  shareToken: z.string().min(1),
+  name: z.string().trim().min(2).max(80),
+});
+
+export async function createFriendGroupFromSessionAction(formData: FormData) {
+  const parsed = createFriendGroupFromSessionSchema.safeParse({
+    shareToken: formData.get("shareToken"),
+    name: formData.get("name"),
+  });
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    throw new Error("Sign in with Google to save reusable friend groups.");
+  }
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Could not save friend group.");
+  }
+
+  const session = await prisma.session.findUnique({
+    where: { shareToken: parsed.data.shareToken },
+    include: { participants: { orderBy: [{ isHost: "desc" }, { createdAt: "asc" }] } },
+  });
+
+  if (!session) {
+    throw new Error("Session not found.");
+  }
+
+  const group = await prisma.friendGroup.create({
+    data: {
+      ownerId: currentUser.id,
+      name: parsed.data.name,
+      members: {
+        create: [
+          {
+            userId: currentUser.id,
+            displayName: currentUser.displayName,
+            status: "ACCEPTED",
+          },
+          ...session.participants
+            .filter((participant) => participant.userId !== currentUser.id)
+            .map((participant) => ({
+              userId: participant.userId,
+              displayName: participant.name,
+              status: participant.userId ? "ACCEPTED" as const : "PENDING" as const,
+            })),
+        ],
+      },
+    },
+  });
+
+  revalidatePath(`/s/${session.shareToken}`);
+  redirect(`/groups/${group.id}`);
+}
+
+const createFriendGroupInviteSchema = z.object({
+  groupId: z.string().min(1),
+  redirectTo: z.string().min(1).default("/groups"),
+});
+
+export async function createFriendGroupInviteAction(formData: FormData) {
+  const parsed = createFriendGroupInviteSchema.safeParse({
+    groupId: formData.get("groupId"),
+    redirectTo: formData.get("redirectTo") || "/groups",
+  });
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    throw new Error("Sign in with Google to invite group members.");
+  }
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Could not create group invite.");
+  }
+
+  const group = await prisma.friendGroup.findFirst({
+    where: { id: parsed.data.groupId, ownerId: currentUser.id },
+    select: { id: true },
+  });
+
+  if (!group) {
+    throw new Error("Friend group not found.");
+  }
+
+  await prisma.friendGroupInvite.create({
+    data: {
+      token: createShareToken(),
+      groupId: group.id,
+      inviterId: currentUser.id,
+      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14),
+    },
+  });
+
+  revalidatePath(parsed.data.redirectTo);
+}
+
+const acceptFriendGroupInviteSchema = z.object({
+  token: z.string().min(1),
+});
+
+export async function acceptFriendGroupInviteAction(formData: FormData) {
+  const parsed = acceptFriendGroupInviteSchema.safeParse({
+    token: formData.get("token"),
+  });
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    throw new Error("Sign in with Google to join this group.");
+  }
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Could not accept invite.");
+  }
+
+  const invite = await prisma.friendGroupInvite.findUnique({
+    where: { token: parsed.data.token },
+    include: { group: true },
+  });
+
+  if (!invite || invite.expiresAt < new Date()) {
+    throw new Error("This group invite has expired.");
+  }
+
+  await prisma.$transaction([
+    prisma.friendGroupMember.upsert({
+      where: { groupId_userId: { groupId: invite.groupId, userId: currentUser.id } },
+      create: {
+        groupId: invite.groupId,
+        userId: currentUser.id,
+        displayName: currentUser.displayName,
+        status: "ACCEPTED",
+      },
+      update: {
+        displayName: currentUser.displayName,
+        status: "ACCEPTED",
+      },
+    }),
+    prisma.friendGroupInvite.update({
+      where: { id: invite.id },
+      data: { acceptedById: currentUser.id, acceptedAt: new Date() },
+    }),
+    prisma.userFriend.upsert({
+      where: { userId_friendId: { userId: invite.group.ownerId, friendId: currentUser.id } },
+      create: { userId: invite.group.ownerId, friendId: currentUser.id },
+      update: {},
+    }),
+    prisma.userFriend.upsert({
+      where: { userId_friendId: { userId: currentUser.id, friendId: invite.group.ownerId } },
+      create: { userId: currentUser.id, friendId: invite.group.ownerId },
+      update: {},
+    }),
+  ]);
+
+  redirect(`/groups/${invite.groupId}`);
+}
+
+const startPickSessionFromFriendGroupSchema = z.object({
+  groupId: z.string().min(1),
+  timezone: timezoneSchema.default("Europe/London"),
+});
+
+export async function startPickSessionFromFriendGroupAction(formData: FormData) {
+  const parsed = startPickSessionFromFriendGroupSchema.safeParse({
+    groupId: formData.get("groupId"),
+    timezone: formData.get("timezone") || "Europe/London",
+  });
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    throw new Error("Sign in with Google to start from a saved group.");
+  }
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Could not start Pick session.");
+  }
+
+  const group = await prisma.friendGroup.findFirst({
+    where: { id: parsed.data.groupId, ownerId: currentUser.id },
+    include: { members: { orderBy: { createdAt: "asc" } } },
+  });
+
+  if (!group) {
+    throw new Error("Friend group not found.");
+  }
+
+  const dateRange = dateRangeFromPreset("this_week", parsed.data.timezone);
+  const acceptedMembers = group.members.filter((member) => member.status === "ACCEPTED" && member.userId && member.userId !== currentUser.id);
+  const session = await prisma.session.create({
+    data: {
+      title: `${group.name} picks`,
+      shareToken: createShareToken(),
+      mode: "ONLINE",
+      requiredDuration: 2,
+      minimumPlayerCount: Math.max(2, acceptedMembers.length + 1),
+      dateRangeStart: fromZonedTime(`${dateRange.startsOn}T00:00:00`, parsed.data.timezone),
+      dateRangeEnd: fromZonedTime(`${dateRange.endsOn}T00:00:00`, parsed.data.timezone),
+      dailyStartHour: 18,
+      dailyEndHour: 23,
+      timezone: parsed.data.timezone,
+      dealCountry: "GB",
+      dealCurrency: "GBP",
+      reminderPreferences: [],
+      participants: {
+        create: [
+          {
+            name: currentUser.displayName,
+            userId: currentUser.id,
+            isHost: true,
+          },
+          ...acceptedMembers.map((member) => ({
+            name: member.displayName,
+            userId: member.userId,
+          })),
+        ],
+      },
+    },
+    include: { participants: true },
+  });
+  const host = session.participants.find((participant) => participant.isHost) ?? session.participants[0];
+
+  await setParticipantIdentity(session.id, host.id, { isHost: true });
+  redirect(`/s/${session.shareToken}?tab=pick&participant=${host.id}`);
+}
+
+const addSessionParticipantsAsFriendsSchema = z.object({
+  shareToken: z.string().min(1),
+});
+
+export async function addSessionParticipantsAsFriendsAction(formData: FormData) {
+  const parsed = addSessionParticipantsAsFriendsSchema.safeParse({
+    shareToken: formData.get("shareToken"),
+  });
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    throw new Error("Sign in with Google to add friends.");
+  }
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Could not add friends.");
+  }
+
+  const participants = await prisma.participant.findMany({
+    where: {
+      session: { shareToken: parsed.data.shareToken },
+      userId: { not: null },
+    },
+    select: { userId: true },
+  });
+  const friendIds = [
+    ...new Set(
+      participants
+        .map((participant) => participant.userId)
+        .filter((userId): userId is string => Boolean(userId) && userId !== currentUser.id),
+    ),
+  ];
+
+  await prisma.$transaction(
+    friendIds.flatMap((friendId) => [
+      prisma.userFriend.upsert({
+        where: { userId_friendId: { userId: currentUser.id, friendId } },
+        create: { userId: currentUser.id, friendId },
+        update: {},
+      }),
+      prisma.userFriend.upsert({
+        where: { userId_friendId: { userId: friendId, friendId: currentUser.id } },
+        create: { userId: friendId, friendId: currentUser.id },
+        update: {},
+      }),
+    ]),
+  );
+
+  revalidatePath(`/s/${parsed.data.shareToken}`);
+}
+
+const removeFriendGroupMemberSchema = z.object({
+  groupId: z.string().min(1),
+  memberId: z.string().min(1),
+});
+
+export async function removeFriendGroupMemberAction(formData: FormData) {
+  const parsed = removeFriendGroupMemberSchema.safeParse({
+    groupId: formData.get("groupId"),
+    memberId: formData.get("memberId"),
+  });
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    throw new Error("Sign in with Google to manage groups.");
+  }
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Could not remove group member.");
+  }
+
+  const group = await prisma.friendGroup.findFirst({
+    where: { id: parsed.data.groupId, ownerId: currentUser.id },
+    select: { id: true },
+  });
+
+  if (!group) {
+    throw new Error("Friend group not found.");
+  }
+
+  await prisma.friendGroupMember.deleteMany({
+    where: { id: parsed.data.memberId, groupId: parsed.data.groupId },
+  });
+
+  revalidatePath(`/groups/${parsed.data.groupId}`);
+}
+
+const addFriendToGroupSchema = z.object({
+  groupId: z.string().min(1),
+  friendId: z.string().min(1),
+});
+
+export async function addFriendToGroupAction(formData: FormData) {
+  const parsed = addFriendToGroupSchema.safeParse({
+    groupId: formData.get("groupId"),
+    friendId: formData.get("friendId"),
+  });
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    throw new Error("Sign in with Google to manage groups.");
+  }
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Could not add friend to group.");
+  }
+
+  const [group, friendship] = await Promise.all([
+    prisma.friendGroup.findFirst({
+      where: { id: parsed.data.groupId, ownerId: currentUser.id },
+      select: { id: true },
+    }),
+    prisma.userFriend.findUnique({
+      where: { userId_friendId: { userId: currentUser.id, friendId: parsed.data.friendId } },
+      include: { friend: true },
+    }),
+  ]);
+
+  if (!group || !friendship) {
+    throw new Error("Friend group or friend not found.");
+  }
+
+  await prisma.friendGroupMember.upsert({
+    where: { groupId_userId: { groupId: group.id, userId: friendship.friendId } },
+    create: {
+      groupId: group.id,
+      userId: friendship.friendId,
+      displayName: friendship.friend.displayName,
+      status: "ACCEPTED",
+    },
+    update: {
+      displayName: friendship.friend.displayName,
+      status: "ACCEPTED",
+    },
+  });
+
+  revalidatePath(`/groups/${group.id}`);
+}
+
 const importSteamLibrarySchema = z.object({
   shareToken: z.string().min(1),
   participantId: z.string().optional(),

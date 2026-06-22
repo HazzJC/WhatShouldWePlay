@@ -56,6 +56,15 @@ enum PriceAlertType {
   OWNED_COUNT_DISCOUNTED
 }
 
+enum OAuthProvider {
+  GOOGLE
+}
+
+enum FriendGroupMemberStatus {
+  ACCEPTED
+  PENDING
+}
+
 model Session {
   id                  String        @id @default(cuid())
   shareToken          String        @unique
@@ -179,9 +188,14 @@ model AvailabilityResponse {
 model User {
   id            String         @id @default(cuid())
   displayName   String
+  email         String?
+  emailVerified Boolean        @default(false)
+  avatarUrl     String?
+  lastSignedInAt DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   sessions      UserSession[]
+  oauthAccounts OAuthAccount[]
   steamAccount  SteamAccount?
   games         UserGame[]
   sessionGames  SessionGame[]
@@ -190,6 +204,27 @@ model User {
   sentFriendInvites FriendInvite[]
   friendsSent       UserFriend[] @relation("FriendUser")
   friendsReceived   UserFriend[] @relation("FriendFriend")
+  ownedFriendGroups FriendGroup[] @relation("FriendGroupOwner")
+  friendGroupMemberships FriendGroupMember[]
+  sentFriendGroupInvites FriendGroupInvite[]
+
+  @@index([email])
+}
+
+model OAuthAccount {
+  id                String        @id @default(cuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          OAuthProvider
+  providerAccountId String
+  email             String?
+  emailVerified     Boolean       @default(false)
+  avatarUrl         String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
 model UserPreference {
@@ -336,6 +371,53 @@ model UserFriend {
 
   @@unique([userId, friendId])
   @@index([friendId])
+}
+
+model FriendGroup {
+  id        String   @id @default(cuid())
+  ownerId   String
+  owner     User     @relation("FriendGroupOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  members   FriendGroupMember[]
+  invites   FriendGroupInvite[]
+
+  @@index([ownerId])
+}
+
+model FriendGroupMember {
+  id          String                  @id @default(cuid())
+  groupId     String
+  group       FriendGroup             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  displayName String
+  status      FriendGroupMemberStatus @default(PENDING)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  @@unique([groupId, userId])
+  @@index([userId])
+  @@index([groupId, status])
+}
+
+model FriendGroupInvite {
+  id          String       @id @default(cuid())
+  token       String       @unique
+  groupId     String
+  group       FriendGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  inviterId   String
+  inviter     User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+  acceptedById String?
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime     @default(now())
+
+  @@index([groupId])
+  @@index([inviterId])
+  @@index([acceptedById])
+  @@index([expiresAt])
 }
 
 model SteamStorePrice {

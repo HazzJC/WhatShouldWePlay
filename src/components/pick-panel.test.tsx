@@ -4,13 +4,17 @@ import { describe, expect, it, vi } from "vitest";
 import { PickPanel } from "@/components/pick-panel";
 
 vi.mock("@/app/actions", () => ({
+  addSessionParticipantsAsFriendsAction: vi.fn(),
   addSessionGameAction: vi.fn(),
   createFriendInviteAction: vi.fn(),
+  createFriendGroupFromSessionAction: vi.fn(),
+  createFriendGroupInviteAction: vi.fn(),
   createPriceAlertRuleAction: vi.fn(),
   importSteamLibraryAction: vi.fn(),
   markGameInterestAction: vi.fn(),
   markGameAvailableAction: vi.fn(),
   removeSessionGameAction: vi.fn(),
+  startPickSessionFromFriendGroupAction: vi.fn(),
   updateDealSettingsAction: vi.fn(),
   updatePreferenceAction: vi.fn(),
   updateQuickPreferenceAction: vi.fn(),
@@ -89,6 +93,7 @@ const baseProps = {
   dealLookupConfigured: true,
   friendInviteUrl: null,
   savedFriends: [],
+  friendGroups: [],
   libraryConnectionSummary: { connected: 0, total: 2 },
 };
 

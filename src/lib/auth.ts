@@ -75,6 +75,11 @@ export async function createUserSession(userId: string) {
   });
 }
 
+export async function rotateUserSession(userId: string) {
+  await clearUserSession();
+  await createUserSession(userId);
+}
+
 export async function clearUserSession() {
   const cookieStore = await cookies();
   const signedToken = cookieStore.get(cookieName)?.value;
@@ -104,6 +109,7 @@ export async function getCurrentUser() {
     include: {
       user: {
         include: {
+          oauthAccounts: true,
           steamAccount: true,
           preference: true,
         },
@@ -177,4 +183,54 @@ export async function resolveActingParticipantId(sessionId: string, suppliedId?:
   }
 
   return suppliedId ?? null;
+}
+
+export type OAuthState = {
+  shareToken?: string;
+  participant?: string;
+  friendInvite?: string;
+  friendGroupInvite?: string;
+  redirectTo?: string;
+  intent?: "signin" | "link";
+  exp: number;
+};
+
+export function createOAuthState(input: Omit<OAuthState, "exp">) {
+  const state = {
+    ...input,
+    exp: Date.now() + 10 * 60 * 1000,
+  };
+  return signValue(Buffer.from(JSON.stringify(state), "utf8").toString("base64url"));
+}
+
+export function parseOAuthState(signedState: string | null) {
+  if (!signedState) {
+    return null;
+  }
+
+  const raw = verifySignedValue(signedState);
+
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(Buffer.from(raw, "base64url").toString("utf8")) as Partial<OAuthState>;
+
+    if (typeof parsed.exp !== "number" || parsed.exp < Date.now()) {
+      return null;
+    }
+
+    return parsed as OAuthState;
+  } catch {
+    return null;
+  }
+}
+
+export function safeInternalRedirect(value?: string | null) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+    return "/";
+  }
+
+  return value;
 }

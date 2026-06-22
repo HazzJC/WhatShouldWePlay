@@ -1,8 +1,11 @@
-import type { Game, GameDeal, GameInterestSignal, Participant, ParticipantPreference, PriceAlertEvent, SessionGame, SessionGameInterest, SessionGameSignal, SteamAccount, SteamStorePrice, User, UserPreference } from "@prisma/client";
+import type { FriendGroup, Game, GameDeal, GameInterestSignal, Participant, ParticipantPreference, PriceAlertEvent, SessionGame, SessionGameInterest, SessionGameSignal, SteamAccount, SteamStorePrice, User, UserPreference } from "@prisma/client";
 import { Bell, Check, Gamepad2, Heart, Link as LinkIcon, LogOut, Plus, Search, Sparkles, TrendingUp, UsersRound, X } from "lucide-react";
 import {
+  addSessionParticipantsAsFriendsAction,
   addSessionGameAction,
   createFriendInviteAction,
+  createFriendGroupFromSessionAction,
+  createFriendGroupInviteAction,
   createPriceAlertRuleAction,
   importSteamLibraryAction,
   markGameInterestAction,
@@ -10,6 +13,7 @@ import {
   removeSessionGameAction,
   updateDealSettingsAction,
   updatePreferenceAction,
+  startPickSessionFromFriendGroupAction,
   updateQuickPreferenceAction,
 } from "@/app/actions";
 import { countDontHaveSignals, countHaveSignals, signalMeansHave, type GameInput } from "@/lib/games";
@@ -61,6 +65,7 @@ export function PickPanel({
   dealLookupConfigured,
   friendInviteUrl,
   savedFriends,
+  friendGroups,
   libraryConnectionSummary,
 }: {
   shareToken: string;
@@ -86,6 +91,7 @@ export function PickPanel({
   dealLookupConfigured: boolean;
   friendInviteUrl: string | null;
   savedFriends: User[];
+  friendGroups: Array<FriendGroup & { members: Array<{ id: string; status: string }>; invites: Array<{ token: string; expiresAt: Date; acceptedAt: Date | null }> }>;
   libraryConnectionSummary: { connected: number; total: number };
 }) {
   const steamAccount = currentUser?.steamAccount;
@@ -146,14 +152,23 @@ export function PickPanel({
             ) : (
               <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
                 <div>
-                  <p className="font-black text-ink">Connect Steam</p>
+                  <p className="font-black text-ink">{currentUser ? "Connect Steam" : "Save this across devices"}</p>
                   <p className="mt-1 text-sm leading-6 text-ink/62">
-                    Steam import is optional. You can still add games manually without signing in.
+                    {currentUser
+                      ? "Steam import is optional. Connect it when you want library matching."
+                      : "Sign in with Google to save friends and use this across devices. Connect Steam when you want library matching."}
                   </p>
                 </div>
-                <a href={`/auth/steam/start?shareToken=${shareToken}${participantId ? `&participant=${participantId}` : ""}`} className="primary-button">
-                  Connect Steam
-                </a>
+                <div className="flex flex-wrap gap-2">
+                  {!currentUser ? (
+                    <a href={`/auth/google/start?shareToken=${shareToken}${participantId ? `&participant=${participantId}` : ""}&redirectTo=${encodeURIComponent(`/s/${shareToken}?tab=pick${participantId ? `&participant=${participantId}` : ""}`)}`} className="primary-button">
+                      Sign in with Google
+                    </a>
+                  ) : null}
+                  <a href={`/auth/steam/start?shareToken=${shareToken}${participantId ? `&participant=${participantId}` : ""}`} className={currentUser ? "primary-button" : "secondary-button"}>
+                    Connect Steam
+                  </a>
+                </div>
               </div>
             )}
           </div>
@@ -201,6 +216,7 @@ export function PickPanel({
                   priceAlertEvents={priceAlertEvents}
                   friendInviteUrl={friendInviteUrl}
                   savedFriends={savedFriends}
+                  friendGroups={friendGroups}
                   dealLookupConfigured={dealLookupConfigured}
                 />
               </div>
@@ -576,6 +592,7 @@ function DealAndFriendsPanel({
   priceAlertEvents,
   friendInviteUrl,
   savedFriends,
+  friendGroups,
   dealLookupConfigured,
 }: {
   shareToken: string;
@@ -586,8 +603,13 @@ function DealAndFriendsPanel({
   priceAlertEvents: PriceAlertEvent[];
   friendInviteUrl: string | null;
   savedFriends: User[];
+  friendGroups: Array<FriendGroup & { members: Array<{ id: string; status: string }>; invites: Array<{ token: string; expiresAt: Date; acceptedAt: Date | null }> }>;
   dealLookupConfigured: boolean;
 }) {
+  const latestGroupInvite = friendGroups
+    .flatMap((group) => group.invites.map((invite) => ({ ...invite, groupId: group.id, groupName: group.name })))
+    .find((invite) => !invite.acceptedAt && invite.expiresAt > new Date());
+
   return (
     <section>
       <div className="grid gap-4 xl:grid-cols-2">
@@ -643,17 +665,67 @@ function DealAndFriendsPanel({
           <h2 className="mt-1 text-2xl font-black text-ink">Reusable group</h2>
           {currentUser ? (
             <>
-              <form action={createFriendInviteAction} className="mt-4">
-                <input type="hidden" name="redirectTo" value={`/s/${shareToken}?tab=pick${participantId ? `&participant=${participantId}` : ""}`} />
-                <PendingSubmitButton className="primary-button" pendingLabel="Creating...">
-                  <LinkIcon className="h-4 w-4" />
-                  Create friend invite
-                </PendingSubmitButton>
-              </form>
+              <div className="mt-4 grid gap-2">
+                <form action={createFriendGroupFromSessionAction} className="grid gap-2 rounded-lg border border-ink/10 bg-paper p-3 sm:grid-cols-[1fr_auto]">
+                  <input type="hidden" name="shareToken" value={shareToken} />
+                  <input name="name" defaultValue="Game night crew" className="field mt-0" aria-label="Friend group name" />
+                  <PendingSubmitButton className="primary-button" pendingLabel="Saving...">
+                    <UsersRound className="h-4 w-4" />
+                    Save this group
+                  </PendingSubmitButton>
+                </form>
+                <form action={addSessionParticipantsAsFriendsAction}>
+                  <input type="hidden" name="shareToken" value={shareToken} />
+                  <PendingSubmitButton className="secondary-button w-full justify-start" pendingLabel="Adding...">
+                    <UsersRound className="h-4 w-4" />
+                    Add linked session players as friends
+                  </PendingSubmitButton>
+                </form>
+                <form action={createFriendInviteAction}>
+                  <input type="hidden" name="redirectTo" value={`/s/${shareToken}?tab=pick${participantId ? `&participant=${participantId}` : ""}`} />
+                  <PendingSubmitButton className="secondary-button w-full justify-start" pendingLabel="Creating...">
+                    <LinkIcon className="h-4 w-4" />
+                    Create friend invite
+                  </PendingSubmitButton>
+                </form>
+              </div>
               {friendInviteUrl ? (
                 <div className="mt-3 rounded-lg border border-ink/10 bg-paper p-3">
                   <p className="text-xs font-black uppercase tracking-[0.12em] text-ink/45">Latest invite</p>
                   <p className="mt-1 break-all text-sm font-bold text-ink">{friendInviteUrl}</p>
+                </div>
+              ) : null}
+              {latestGroupInvite ? (
+                <div className="mt-3 rounded-lg border border-teal/20 bg-teal/10 p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-ink/45">Latest group invite</p>
+                  <p className="mt-1 break-all text-sm font-bold text-ink">{`/groups/invite/${latestGroupInvite.token}`}</p>
+                </div>
+              ) : null}
+              {friendGroups.length > 0 ? (
+                <div className="mt-3 grid gap-2">
+                  {friendGroups.map((group) => (
+                    <div key={group.id} className="rounded-lg border border-ink/10 bg-paper p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="font-black text-ink">{group.name}</p>
+                          <p className="mt-1 text-xs font-bold text-ink/50">{group.members.length} member{group.members.length === 1 ? "" : "s"}</p>
+                        </div>
+                        <form action={startPickSessionFromFriendGroupAction}>
+                          <input type="hidden" name="groupId" value={group.id} />
+                          <input type="hidden" name="timezone" value="Europe/London" />
+                          <PendingSubmitButton className="secondary-button px-3 py-2" pendingLabel="Starting...">Start Pick</PendingSubmitButton>
+                        </form>
+                      </div>
+                      <form action={createFriendGroupInviteAction} className="mt-2">
+                        <input type="hidden" name="groupId" value={group.id} />
+                        <input type="hidden" name="redirectTo" value={`/s/${shareToken}?tab=pick${participantId ? `&participant=${participantId}` : ""}`} />
+                        <PendingSubmitButton className="secondary-button w-full justify-start px-3 py-2" pendingLabel="Creating...">
+                          <LinkIcon className="h-4 w-4" />
+                          Invite missing group members
+                        </PendingSubmitButton>
+                      </form>
+                    </div>
+                  ))}
                 </div>
               ) : null}
               <div className="mt-3 grid gap-2">
@@ -673,7 +745,7 @@ function DealAndFriendsPanel({
             </>
           ) : (
             <p className="mt-4 rounded-lg border border-dashed border-ink/20 bg-paper p-3 text-sm leading-6 text-ink/55">
-              Sign in with Steam to create reusable friend invites.
+              Sign in with Google to save friends and use this across devices. Connect Steam later when you want library matching.
             </p>
           )}
         </div>
