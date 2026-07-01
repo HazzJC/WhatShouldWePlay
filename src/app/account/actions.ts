@@ -38,7 +38,7 @@ export async function saveUsernameAction(formData: FormData) {
 
   const changingUsername = Boolean(
     currentUser.normalizedUsername &&
-      currentUser.normalizedUsername !== result.username,
+      currentUser.normalizedUsername !== result.normalizedUsername,
   );
   const availableAt = usernameChangeAvailableAt(currentUser.usernameChangedAt);
 
@@ -51,7 +51,7 @@ export async function saveUsernameAction(formData: FormData) {
   }
 
   const reserved = await prisma.usernameHistory.findUnique({
-    where: { normalizedUsername: result.username },
+    where: { normalizedUsername: result.normalizedUsername },
   });
 
   if (reserved && reserved.userId !== currentUser.id && reserved.reservedUntil > new Date()) {
@@ -79,7 +79,7 @@ export async function saveUsernameAction(formData: FormData) {
         where: { id: currentUser.id },
         data: {
           username: result.username,
-          normalizedUsername: result.username,
+          normalizedUsername: result.normalizedUsername,
           usernameChangedAt: changingUsername || !currentUser.username ? new Date() : currentUser.usernameChangedAt,
           onboardingCompletedAt: currentUser.onboardingCompletedAt ?? new Date(),
         },

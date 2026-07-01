@@ -1,15 +1,13 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Download, Gamepad2, Library, LogOut, Mail, Pencil, ShieldCheck, Trash2, UserRound, X } from "lucide-react";
+import { Download, Gamepad2, Library, LogOut, Mail, ShieldCheck, Trash2 } from "lucide-react";
 import {
   deleteAccountAction,
-  removeProfileAvatarAction,
-  removeRecentSessionAction,
   updateAccountProfileAction,
-  uploadProfileAvatarAction,
 } from "@/app/account/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { ProfileAvatarEditor } from "@/components/profile-avatar-editor";
+import { RecentSessionAction } from "@/components/recent-session-action";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -152,42 +150,7 @@ export default async function AccountPage({ searchParams }: PageProps) {
             <section className="surface p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="relative shrink-0">
-                    {user.avatarUrl ? (
-                      <Image src={user.avatarUrl} alt="" width={56} height={56} className="h-14 w-14 rounded-lg object-cover" />
-                    ) : (
-                      <span className="grid h-14 w-14 place-items-center rounded-lg bg-teal/12 text-teal">
-                        <UserRound className="h-7 w-7" />
-                      </span>
-                    )}
-                    <details className="group absolute -bottom-2 -right-2 z-20">
-                      <summary
-                        className="focus-ring grid h-7 w-7 cursor-pointer list-none place-items-center rounded-full border-2 border-white bg-teal text-white shadow-card transition hover:bg-ink"
-                        aria-label="Edit profile picture"
-                        title="Edit profile picture"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </summary>
-                      <div className="absolute left-0 top-full mt-2 w-72 rounded-lg border border-ink/10 bg-white p-3 shadow-soft sm:left-auto sm:right-0">
-                        <p className="font-black text-ink">Profile picture</p>
-                        <p className="mt-1 text-xs font-bold leading-5 text-ink/52">JPEG, PNG, or WebP. Maximum 512 KB.</p>
-                        <form action={uploadProfileAvatarAction} className="mt-3 grid gap-2">
-                          <input name="avatar" type="file" required accept="image/jpeg,image/png,image/webp" className="block w-full text-xs font-bold text-ink" />
-                          <PendingSubmitButton className="primary-button justify-center px-3 py-2" pendingLabel="Uploading...">
-                            Upload picture
-                          </PendingSubmitButton>
-                        </form>
-                        {user.avatarUrl ? (
-                          <form action={removeProfileAvatarAction} className="mt-2">
-                            <button type="submit" className="secondary-button w-full justify-center px-3 py-2">
-                              <X className="h-4 w-4" />
-                              Remove picture
-                            </button>
-                          </form>
-                        ) : null}
-                      </div>
-                    </details>
-                  </div>
+                  <ProfileAvatarEditor avatarUrl={user.avatarUrl} displayName={user.displayName} />
                   <div className="min-w-0">
                     <h2 className="truncate text-2xl font-black text-ink">{user.displayName}</h2>
                     <p className="truncate text-sm font-bold text-ink/58">
@@ -220,27 +183,11 @@ export default async function AccountPage({ searchParams }: PageProps) {
                           {participant.isHost ? "Host" : "Participant"} · updated {participant.session.updatedAt.toLocaleDateString("en-GB")}
                         </p>
                       </Link>
-                      <details className="relative">
-                        <summary className="focus-ring grid h-8 w-8 cursor-pointer list-none place-items-center rounded-md text-ink/45 hover:bg-red-50 hover:text-red-800" aria-label={`${participant.isHost ? "Delete" : "Remove"} ${participant.session.title}`}>
-                          <Trash2 className="h-4 w-4" />
-                        </summary>
-                        <div className="absolute right-0 top-full z-20 mt-1 w-64 rounded-lg border border-red-200 bg-white p-3 shadow-card">
-                          <p className="text-sm font-black text-red-800">
-                            {participant.isHost ? "Delete this session?" : "Remove from recent sessions?"}
-                          </p>
-                          <p className="mt-1 text-xs font-bold leading-5 text-ink/55">
-                            {participant.isHost
-                              ? "This permanently deletes the shared session for everyone."
-                              : "The shared session remains available, but it will no longer be linked to your account."}
-                          </p>
-                          <form action={removeRecentSessionAction} className="mt-3">
-                            <input type="hidden" name="participantId" value={participant.id} />
-                            <PendingSubmitButton className="secondary-button w-full justify-center border-red-300 px-3 py-2 text-red-800" pendingLabel="Removing...">
-                              {participant.isHost ? "Delete session" : "Remove from recents"}
-                            </PendingSubmitButton>
-                          </form>
-                        </div>
-                      </details>
+                      <RecentSessionAction
+                        participantId={participant.id}
+                        title={participant.session.title}
+                        isHost={participant.isHost}
+                      />
                     </div>
                   </article>
                 )) : (
@@ -253,8 +200,9 @@ export default async function AccountPage({ searchParams }: PageProps) {
               <h2 className="text-xl font-black text-ink">Gaming profile</h2>
               <form action={updateAccountProfileAction} className="mt-4 grid gap-4 sm:grid-cols-2">
                 <label>
-                  <span className="text-sm font-bold text-ink">Display name</span>
+                  <span className="text-sm font-bold text-ink">Profile name</span>
                   <input name="displayName" required maxLength={80} defaultValue={user.displayName} className="field" />
+                  <span className="mt-1 block text-xs font-bold text-ink/48">Shown to friends; your unique sign-in name is @{user.username ?? "not set"}.</span>
                 </label>
                 <label>
                   <span className="text-sm font-bold text-ink">Favourite genres</span>

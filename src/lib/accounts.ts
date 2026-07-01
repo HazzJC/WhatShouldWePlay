@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, safeInternalRedirect } from "@/lib/auth";
 
-export const usernamePattern = /^[a-z0-9_]{3,24}$/;
+export const usernamePattern = /^[A-Za-z0-9_]{3,24}$/;
 export const usernameChangeCooldownMs = 30 * 24 * 60 * 60 * 1000;
 
 export function normalizeUsername(value: string) {
@@ -9,16 +9,20 @@ export function normalizeUsername(value: string) {
 }
 
 export function validateUsername(value: string) {
-  const normalized = normalizeUsername(value);
+  const username = value.trim();
 
-  if (!usernamePattern.test(normalized)) {
+  if (!usernamePattern.test(username)) {
     return {
       success: false as const,
-      error: "Use 3-24 lowercase letters, numbers, or underscores.",
+      error: "Use 3-24 letters, numbers, or underscores.",
     };
   }
 
-  return { success: true as const, username: normalized };
+  return {
+    success: true as const,
+    username,
+    normalizedUsername: normalizeUsername(username),
+  };
 }
 
 export function onboardingUrl(returnTo?: string | null) {

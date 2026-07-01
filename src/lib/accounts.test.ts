@@ -11,6 +11,12 @@ describe("account usernames", () => {
     expect(validateUsername("player_one")).toEqual({
       success: true,
       username: "player_one",
+      normalizedUsername: "player_one",
+    });
+    expect(validateUsername("HazzJC")).toEqual({
+      success: true,
+      username: "HazzJC",
+      normalizedUsername: "hazzjc",
     });
     expect(validateUsername("No spaces allowed")).toMatchObject({ success: false });
     expect(validateUsername("ab")).toMatchObject({ success: false });

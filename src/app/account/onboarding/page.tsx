@@ -21,6 +21,9 @@ export default async function AccountOnboardingPage({ searchParams }: PageProps)
     redirect(`/account?returnTo=${encodeURIComponent(returnTo)}`);
   }
 
+  const suggestedUsername = user.username ??
+    user.displayName.replace(/[^A-Za-z0-9_]/g, "").slice(0, 24);
+
   return (
     <main className="ui-shell">
       <nav className="flex items-center justify-between gap-3 py-1.5">
@@ -37,7 +40,7 @@ export default async function AccountOnboardingPage({ searchParams }: PageProps)
           <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">One last step</p>
           <h1 className="mt-2 text-3xl font-black text-ink">Choose your username</h1>
           <p className="mt-3 text-sm font-bold leading-6 text-ink/62">
-            This is how friends will find you. It is separate from your display name and never exposes your email or SteamID.
+            This is your unique account name and how friends will find you. Capitalisation is preserved, and your email and SteamID stay private.
           </p>
 
           {query?.error ? (
@@ -57,15 +60,15 @@ export default async function AccountOnboardingPage({ searchParams }: PageProps)
                   required
                   minLength={3}
                   maxLength={24}
-                  pattern="[a-z0-9_]{3,24}"
-                  defaultValue={user.username ?? ""}
+                  pattern="[A-Za-z0-9_]{3,24}"
+                  defaultValue={suggestedUsername.length >= 3 ? suggestedUsername : ""}
                   autoComplete="username"
                   className="min-w-0 flex-1 border-0 bg-transparent px-1 py-3 font-bold text-ink outline-none"
                   placeholder="player_one"
                 />
               </div>
               <span className="mt-1 block text-xs font-bold text-ink/48">
-                3–24 lowercase letters, numbers, or underscores. Changes have a 30-day cooldown.
+                3–24 letters, numbers, or underscores. Changes have a 30-day cooldown.
               </span>
             </label>
 
