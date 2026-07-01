@@ -1,4 +1,4 @@
-// Applies pending Prisma migrations as part of the build/deploy.
+// Applies pending Prisma migrations and deployment seeds as part of the build.
 //
 // This is what keeps the deployed database in sync with the schema: whenever a
 // feature adds a column and a migration, the next deploy applies it instead of
@@ -40,3 +40,19 @@ if (result.status !== 0) {
 }
 
 console.log("[migrate-deploy] Database is up to date.");
+
+console.log("[migrate-deploy] Seeding deployment catalogue data…");
+
+const seedResult = spawnSync("npx", ["tsx", "scripts/seed-challenges.ts"], {
+  stdio: "inherit",
+  shell: process.platform === "win32",
+  // Runtime writes can use the normal pooled Neon URL.
+  env: { ...process.env, DATABASE_URL: databaseUrl },
+});
+
+if (seedResult.status !== 0) {
+  console.error("[migrate-deploy] challenge seed failed.");
+  process.exit(seedResult.status ?? 1);
+}
+
+console.log("[migrate-deploy] Deployment catalogue data is up to date.");

@@ -2,8 +2,9 @@
 
 A game-night planner and game picker for friend groups. The app has two main
 workstreams: **Plan** for finding a time, and **Pick** for choosing what to play.
-Guests can use the core flow without accounts; Steam, IGDB, ITAD and Discord add
-library import, discovery, deals, alerts, and channel reminders when configured.
+Plan remains fully usable without an account. Pick workspaces use persistent
+Google- or Steam-backed accounts so library matching works across sessions and
+devices; public discovery remains open to everyone.
 
 ## What is built
 
@@ -20,19 +21,20 @@ library import, discovery, deals, alerts, and channel reminders when configured.
 - Lock a time as host and download an `.ics` calendar invite.
 
 **Pick games**
-- Sign in with Google to save your account, friends, groups, preferences, and
-  session participation across devices.
+- Sign in with Google or Steam and choose a unique username before entering a
+  Pick workspace.
+- Maintain one persistent personal library with ownership, wishlist, favourite,
+  1–10 rating, interest, played state, notes, Steam playtime, and recency.
 - Start with Pick from the home page or switch to Pick from any shared session.
 - Import Steam libraries through Steam OpenID and the Steam Web API, with
   graceful fallback messaging when profiles or game details are private.
 - Search and add non-Steam games through IGDB-backed search and discovery.
 - Treat Steam, IGDB, curated, and manually added games as one internal `Game`
   model.
-- Let invitees review existing games first instead of showing the whole group
-  shortlist by default.
-- Use simple ownership states: `Have` and `Don't have`.
-- Mark imported Steam games and manually added games as owned for the current
-  participant.
+- Build recommendations directly from selected friends' saved profiles without
+  copying whole libraries into each session shortlist.
+- Keep session-specific signals such as `Not tonight` separate from permanent
+  ownership and ratings.
 
 **Group matching and scoring**
 - Select participants and a target player count for the recommendation run.
@@ -41,7 +43,8 @@ library import, discovery, deals, alerts, and channel reminders when configured.
   high/low playtime, and ownership fit.
 - Score each game out of 100 with transparent factor breakdowns for ownership,
   player count, genre, availability, playtime, freshness, interest, price,
-  popularity, and local/online co-op fit.
+  popularity, personal ratings, session time, total commitment, and distinct
+  multiplayer/co-op fit.
 - Show alignment separately from average score so one strong mismatch can lower
   confidence even when the average looks high.
 - Support scoring modes: Balanced, Co-op Night, Backlog, Cheap, Familiar, and
@@ -67,6 +70,8 @@ library import, discovery, deals, alerts, and channel reminders when configured.
   from 1 to 50+ players.
 - Show player metadata, caveats such as server hosting or mods, and cached sale
   prices where available.
+- Browse sourced co-op challenges with player requirements, difficulty,
+  estimated attempt times, caveats, and persistent account progress.
 
 **Sharing and Discord**
 - Share sessions with a compact panel: copy link, Discord, WhatsApp, Messenger,
@@ -81,8 +86,12 @@ library import, discovery, deals, alerts, and channel reminders when configured.
   Vercel Cron, and post sale alerts.
 
 **Persistent accounts and friend groups**
-- Google sign-in is the cross-device account provider.
-- Steam remains separate and optional for library import.
+- Google and Steam can both create a cross-device account; linking remains
+  explicit and provider conflicts offer a short-lived confirmed merge.
+- Search usernames, exchange pending friend requests, block users, and keep
+  full libraries friends-only.
+- Export account data or permanently delete an account while leaving anonymous
+  Plan sessions intact.
 - Saved friend groups can be created from Pick sessions, invited by link, and
   reused to start future Pick sessions quickly.
 
@@ -151,11 +160,11 @@ npm run dev
 
 ## Production setup notes
 
-Migrations are applied automatically on deploy: the `build` script runs
-`prisma migrate deploy` (via `scripts/migrate-deploy.mjs`) before `next build`,
-so adding a feature + migration no longer leaves production drifting with
-`P2022 column does not exist` errors. The step is idempotent and skips when no
-database is configured (e.g. a local build with no DB).
+Database preparation is automatic on deploy: the `build` script runs
+`prisma migrate deploy` and the idempotent challenge catalogue seed through
+`scripts/migrate-deploy.mjs` before `next build`. The deployment fails instead
+of publishing incompatible application code if either database step fails.
+When no database is configured, such as an offline local build, both steps skip.
 
 For Neon free tier, use the pooled connection string for `DATABASE_URL` in
 production. The host usually contains `-pooler`, and the URL should include:
@@ -168,10 +177,18 @@ Migrations can't run over pgbouncer, so when `DATABASE_URL` is pooled, also set
 `DIRECT_URL` to the Neon *direct* endpoint (host without `-pooler`). The migrate
 step uses `DIRECT_URL` when present and falls back to `DATABASE_URL` otherwise.
 
-To apply pending migrations manually (e.g. to fix the current database now):
+The automatic order used by Vercel is:
+
+1. Generate Prisma Client.
+2. Apply pending migrations using `DIRECT_URL` when configured.
+3. Seed/update challenge catalogue data using `DATABASE_URL`.
+4. Build the Next.js application.
+
+To run the same database preparation manually:
 
 ```bash
 npm run prisma:deploy        # uses DATABASE_URL from your environment
+npm run challenges:seed      # idempotently populate/update sourced challenges
 ```
 
 After setting Discord env vars, register slash commands:

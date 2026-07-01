@@ -9,6 +9,7 @@ export type SteamOwnedGame = {
 
 export type SteamRecentlyPlayedGame = {
   appid: number;
+  name?: string;
   playtime_2weeks?: number;
   playtime_forever?: number;
 };

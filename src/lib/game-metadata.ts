@@ -1,7 +1,7 @@
 import type { Game } from "@prisma/client";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { curatedCapabilityData, findCuratedGameForGame } from "@/lib/curated-metadata";
-import { getIgdbGameById, mapIgdbCapability, mapIgdbQuality, searchIgdbGames } from "@/lib/igdb";
+import { getIgdbGameById, getIgdbTimeToBeat, mapIgdbCapability, mapIgdbPlatformCapabilities, mapIgdbQuality, searchIgdbGames } from "@/lib/igdb";
 import { prisma } from "@/lib/prisma";
 
 const metadataTtlMs = 1000 * 60 * 60 * 24 * 30;
@@ -49,6 +49,8 @@ async function refreshSingleGameMetadata(game: Game) {
   const capability = igdbMetadata?.capability ?? null;
   const curatedGame = findCuratedGameForGame(game);
   const curatedCapability = curatedGame ? curatedCapabilityData(curatedGame) : null;
+  const timeToBeat = igdbMetadata?.igdbId ? await getIgdbTimeToBeat(igdbMetadata.igdbId) : null;
+  const normalMinutes = secondsToMinutes(timeToBeat?.normally);
 
   await prisma.game.update({
     where: { id: game.id },
@@ -65,13 +67,48 @@ async function refreshSingleGameMetadata(game: Game) {
       maxPlayers: curatedCapability?.maxPlayers ?? game.maxPlayers ?? capability?.maxPlayers ?? undefined,
       onlineCoop: curatedCapability?.onlineCoop ?? game.onlineCoop ?? capability?.onlineCoop ?? undefined,
       localCoop: curatedCapability?.localCoop ?? game.localCoop ?? capability?.localCoop ?? undefined,
+      onlineMultiplayer: curatedCapability?.onlineMultiplayer ?? game.onlineMultiplayer ?? capability?.onlineMultiplayer ?? undefined,
+      localMultiplayer: curatedCapability?.localMultiplayer ?? game.localMultiplayer ?? capability?.localMultiplayer ?? undefined,
+      campaignCoop: curatedCapability?.campaignCoop ?? game.campaignCoop ?? capability?.campaignCoop ?? undefined,
       capabilitySource: curatedCapability?.capabilitySource ?? game.capabilitySource ?? capability?.capabilitySource ?? undefined,
       capabilityConfidence: curatedCapability?.capabilityConfidence ?? game.capabilityConfidence ?? capability?.capabilityConfidence ?? undefined,
       genres: curatedCapability?.genres ?? (Array.isArray(game.genres) && game.genres.length > 0 ? undefined : igdbMetadata?.genres),
       platforms: curatedCapability?.platforms ?? (Array.isArray(game.platforms) && game.platforms.length > 0 ? undefined : igdbMetadata?.platforms),
       gameModes: curatedCapability?.gameModes ?? (Array.isArray(game.gameModes) && game.gameModes.length > 0 ? undefined : igdbMetadata?.gameModes),
+      timeToBeatHastilyMinutes: secondsToMinutes(timeToBeat?.hastily) ?? game.timeToBeatHastilyMinutes,
+      timeToBeatNormallyMinutes: normalMinutes ?? game.timeToBeatNormallyMinutes,
+      timeToBeatCompletelyMinutes: secondsToMinutes(timeToBeat?.completely) ?? game.timeToBeatCompletelyMinutes,
+      timeToBeatCount: timeToBeat?.count ?? game.timeToBeatCount,
+      timeToBeatSource: timeToBeat ? "igdb:game_time_to_beats" : game.timeToBeatSource,
+      timeToBeatFetchedAt: timeToBeat ? new Date() : game.timeToBeatFetchedAt,
+      minimumSessionMinutes: curatedCapability?.minimumSessionMinutes ?? game.minimumSessionMinutes,
+      commitmentTier: curatedCapability?.commitmentTier ?? game.commitmentTier ?? commitmentFromMinutes(normalMinutes),
     },
   });
+
+  if (igdbMetadata?.platformCapabilities.length) {
+    await Promise.all(
+      igdbMetadata.platformCapabilities.map((platform) =>
+        prisma.gameCapability.upsert({
+          where: {
+            gameId_platform_source: {
+              gameId: game.id,
+              platform: platform.platform,
+              source: platform.source,
+            },
+          },
+          create: {
+            gameId: game.id,
+            ...platform,
+          },
+          update: {
+            ...platform,
+            fetchedAt: new Date(),
+          },
+        }),
+      ),
+    );
+  }
 }
 
 export async function fetchSteamReviewSummary(steamAppId: number) {
@@ -128,6 +165,7 @@ async function fetchIgdbMetadata(game: Game) {
     platforms: result.platforms?.map((platform) => platform.name) ?? undefined,
     gameModes: result.game_modes?.map((mode) => mode.name) ?? undefined,
     capability,
+    platformCapabilities: mapIgdbPlatformCapabilities(result),
     quality: {
       popularityScore: quality.popularityScore,
       steamReviewScore: null,
@@ -137,6 +175,20 @@ async function fetchIgdbMetadata(game: Game) {
       qualitySource: quality.qualitySource,
     },
   };
+}
+
+function secondsToMinutes(seconds?: number | null) {
+  return typeof seconds === "number" && seconds > 0 ? Math.round(seconds / 60) : null;
+}
+
+function commitmentFromMinutes(minutes?: number | null) {
+  if (!minutes) return undefined;
+  if (minutes <= 240) return "ONE_SESSION" as const;
+  if (minutes < 600) return "UNDER_10_HOURS" as const;
+  if (minutes < 1800) return "HOURS_10_TO_30" as const;
+  if (minutes < 6000) return "HOURS_30_TO_100" as const;
+  if (minutes < 60_000) return "HOURS_100_TO_1000" as const;
+  return "HOURS_1000_PLUS" as const;
 }
 
 function metadataIsStale(game: Game) {

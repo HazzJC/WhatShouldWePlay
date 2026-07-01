@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { createUserSession, getCurrentUser, safeInternalRedirect } from "@/lib/auth";
+import { onboardingUrl } from "@/lib/accounts";
+import { createAccountMergeIntent } from "@/lib/account-merge";
 import { prisma } from "@/lib/prisma";
 import { verifySteamOpenIdCallback } from "@/lib/steam";
 
@@ -28,7 +30,8 @@ export async function GET(request: Request) {
   });
 
   if (currentUser && existingSteam && existingSteam.userId !== currentUser.id) {
-    redirect(shareToken ? `/s/${shareToken}?tab=pick&steam=linked-elsewhere` : withSteamStatus(redirectTo, "linked-elsewhere"));
+    const mergeToken = await createAccountMergeIntent(currentUser.id, existingSteam.userId, "STEAM");
+    redirect(`/account/merge?token=${encodeURIComponent(mergeToken)}`);
   }
 
   const user =
@@ -94,5 +97,8 @@ export async function GET(request: Request) {
   if (friendInvite) {
     redirect(`/friends/invite/${friendInvite}`);
   }
-  redirect(shareToken ? `/s/${shareToken}?tab=pick${redirectParticipantId ? `&participant=${redirectParticipantId}` : ""}` : redirectTo);
+  const destination = shareToken
+    ? `/s/${shareToken}?tab=pick${redirectParticipantId ? `&participant=${redirectParticipantId}` : ""}`
+    : redirectTo;
+  redirect(user.username && user.onboardingCompletedAt ? destination : onboardingUrl(destination));
 }

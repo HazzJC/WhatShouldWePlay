@@ -18,4 +18,30 @@ describe("curated metadata", () => {
     expect(game.localCoop).toBe(false);
     expect(game.capabilitySource).toBe("curated");
   });
+
+  it("overrides stale capability values for known curated games", () => {
+    const baldursGate = mergeCuratedMetadata({
+      title: "Baldur's Gate 3",
+      steamAppId: 1086940,
+      onlineCoop: false,
+      localCoop: false,
+      maxPlayers: 1,
+    });
+    const golf = mergeCuratedMetadata({
+      title: "Golf With Your Friends",
+      steamAppId: 431240,
+      onlineCoop: true,
+    });
+
+    expect(baldursGate).toMatchObject({
+      onlineCoop: true,
+      campaignCoop: true,
+      maxPlayers: 4,
+    });
+    expect(golf).toMatchObject({
+      onlineCoop: false,
+      onlineMultiplayer: true,
+      maxPlayers: 12,
+    });
+  });
 });

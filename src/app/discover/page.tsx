@@ -30,6 +30,13 @@ export default async function DiscoverPage({ searchParams }: PageProps) {
           Browse curated multiplayer lists before anyone connects Steam.
         </p>
         <PlayerCountFilter minimumPlayers={minimumPlayers} action="/discover" />
+        <Link href="/discover/challenges" className="mt-5 block rounded-xl border border-coral/30 bg-coral p-5 text-white shadow-card transition hover:-translate-y-0.5 hover:bg-coralDark">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-white/75">New: co-op challenges</p>
+          <h2 className="mt-1 text-2xl font-black">Hard things worth attempting together</h2>
+          <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-white/80">
+            Browse sourced LASO runs, flawless raids, S-rank campaigns, and other difficult group goals with estimated completion times.
+          </p>
+        </Link>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {curatedLists.map((list) => (
             <Link key={list.slug} href={`/discover/${list.slug}?minPlayers=${minimumPlayers}`} className="surface rounded-xl p-5 transition hover:-translate-y-0.5">

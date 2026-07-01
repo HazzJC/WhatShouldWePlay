@@ -6,6 +6,13 @@ import { getCurrentUser } from "@/lib/auth";
 vi.mock("@/lib/auth", () => ({
   getCurrentUser: vi.fn(),
 }));
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    participant: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+  },
+}));
 
 const mockedGetCurrentUser = vi.mocked(getCurrentUser);
 
@@ -27,9 +34,15 @@ describe("account page", () => {
     mockedGetCurrentUser.mockResolvedValue({
       id: "user-1",
       displayName: "Player One",
+      username: "player_one",
+      normalizedUsername: "player_one",
+      usernameChangedAt: new Date(),
+      onboardingCompletedAt: new Date(),
       email: "player@example.com",
       emailVerified: true,
       avatarUrl: null,
+      favouriteGenres: [],
+      directoryVisible: true,
       lastSignedInAt: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),

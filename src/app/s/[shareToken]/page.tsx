@@ -11,6 +11,7 @@ import { RecommendationsDisclosure } from "@/components/recommendations-disclosu
 import { SessionTabs } from "@/components/session-tabs";
 import { SharePanel } from "@/components/share-panel";
 import { getAppUrl } from "@/lib/app-url";
+import { requireActivePickUser } from "@/lib/accounts";
 import { getCurrentUser } from "@/lib/auth";
 import { curatedGames } from "@/lib/curated-games";
 import { announceDiscordPriceAlerts } from "@/lib/discord";
@@ -19,7 +20,7 @@ import { commonMultiplayerGames, excludeExistingGames, rankSessionGames, searchG
 import { defaultGroupBuyFilters, scoreGroupBuyCandidates } from "@/lib/group-buy";
 import { getPopularIgdbGames, getTrendingIgdbGames, mapIgdbGame } from "@/lib/igdb";
 import { refreshGameDealsWithin } from "@/lib/itad";
-import { scoreSessionGames, type ScoreMode } from "@/lib/match-scoring";
+import { scoreSessionGames, type CommitmentFilter, type ScoreMode } from "@/lib/match-scoring";
 import { evaluatePriceAlerts } from "@/lib/price-alerts";
 import { prisma } from "@/lib/prisma";
 import {
@@ -51,6 +52,8 @@ type PageProps = {
     avoidOwned?: string;
     saleOnly?: string;
     imported?: string;
+    sessionMinutes?: string;
+    commitment?: string;
   }>;
 };
 
@@ -75,10 +78,17 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     avoidOwned,
     saleOnly,
     imported,
+    sessionMinutes,
+    commitment,
   } = await searchParams;
   const justImportedCount = imported ? Math.max(0, Number(imported) || 0) : null;
   const activeTab = tab === "pick" ? "pick" : "plan";
   const activeScoreMode = parseScoreMode(scoreMode);
+  const pickReturnTo = `/s/${shareToken}?tab=pick${participantId ? `&participant=${participantId}` : ""}`;
+  const currentUser =
+    activeTab === "pick"
+      ? await requireActivePickUser(pickReturnTo)
+      : await getCurrentUser();
   const session = await prisma.session.findUnique({
     where: { shareToken },
     include: {
@@ -154,7 +164,6 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const currentParticipant = session.participants.find((participant) => participant.id === participantId);
   const isCurrentHost = currentParticipant?.isHost === true;
   const currentResponses = responseMap(currentParticipant?.responses ?? []);
-  const currentUser = await getCurrentUser();
   const bestTimes = rankBestTimes(session, participantAvailability).slice(0, 5);
   const maybeTimes = rankMaybeTimes(session, participantAvailability).slice(0, 5);
   const locked = session.lockedStartTime && session.lockedEndTime;
@@ -187,6 +196,8 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const bestMatchLabel = submittedPeople >= session.minimumPlayerCount ? "Best match" : submittedPeople > 0 ? "Best so far" : "Waiting for responses";
   const selectedParticipantIds = normalizeSelectedParticipants(selectedParticipants, session.participants.map((participant) => participant.id));
   const selectedPlayerCount = Math.max(1, Number(playerCount ?? session.minimumPlayerCount) || session.minimumPlayerCount);
+  const selectedSessionMinutes = Math.max(30, Math.min(480, Number(sessionMinutes ?? session.requiredDuration * 60) || session.requiredDuration * 60));
+  const selectedCommitment = parseCommitmentFilter(commitment);
   const [initialSessionGames, searchResults, popularGames, trendingGames] =
     activeTab === "pick"
       ? await Promise.all([
@@ -222,27 +233,110 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const participantUserIds = session.participants
     .map((participant) => participant.userId)
     .filter((userId): userId is string => Boolean(userId));
+  const selectedUserIdSet = new Set(
+    session.participants
+      .filter((participant) => selectedParticipantIds.includes(participant.id))
+      .map((participant) => participant.userId)
+      .filter((userId): userId is string => Boolean(userId)),
+  );
   const sessionGameUserIds = sessionGames
     .map((sessionGame) => sessionGame.addedByUserId)
     .filter((userId): userId is string => Boolean(userId));
   const playtimeUserIds = [...new Set([...participantUserIds, ...sessionGameUserIds])];
+  const profileCandidateRows =
+    activeTab === "pick" && selectedUserIdSet.size > 0
+      ? await prisma.userGame.findMany({
+          where: {
+            userId: { in: [...selectedUserIdSet] },
+            OR: [
+              { ownership: "HAVE" },
+              { wishlist: true },
+              { favourite: true },
+              { rating: { gte: 7 } },
+              { interest: "WANT_TO_PLAY" },
+            ],
+          },
+          include: {
+            game: { include: { steamStorePrice: true, deal: true } },
+          },
+          orderBy: [
+            { favourite: "desc" },
+            { rating: "desc" },
+            { recentlyPlayedAt: "desc" },
+            { playtimeMinutes: "desc" },
+          ],
+          take: 500,
+        })
+      : [];
+  const existingSessionGameIds = new Set(sessionGames.map((sessionGame) => sessionGame.gameId));
+  const candidateGameIds = [...new Set(profileCandidateRows.map((userGame) => userGame.gameId))];
   const userGames =
     activeTab === "pick"
       ? await prisma.userGame.findMany({
           where: {
             userId: { in: playtimeUserIds },
-            gameId: { in: sessionGames.map((sessionGame) => sessionGame.gameId) },
+            gameId: {
+              in: [...new Set([...sessionGames.map((sessionGame) => sessionGame.gameId), ...candidateGameIds])],
+            },
           },
         })
       : [];
+  const participantByUserId = new Map(
+    session.participants.flatMap((participant) =>
+      participant.userId ? [[participant.userId, participant] as const] : [],
+    ),
+  );
+  const profileCandidates = [...new Set(candidateGameIds)]
+    .filter((gameId) => !existingSessionGameIds.has(gameId))
+    .map((gameId) => {
+      const rows = profileCandidateRows.filter((row) => row.gameId === gameId);
+      const game = rows[0]?.game;
+
+      if (!game) {
+        return null;
+      }
+
+      return {
+        id: `profile:${gameId}`,
+        sessionId: session.id,
+        gameId,
+        addedByParticipantId: null,
+        addedByUserId: null,
+        source: "PROFILE_MATCH",
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+        game,
+        signals: rows.flatMap((row) => {
+          const participant = participantByUserId.get(row.userId);
+
+          if (!participant || row.ownership === "UNKNOWN") {
+            return [];
+          }
+
+          return [{
+            id: `profile-signal:${row.id}`,
+            sessionGameId: `profile:${gameId}`,
+            participantId: participant.id,
+            signal: row.ownership === "HAVE" ? "OWNED" : "NOT_AVAILABLE",
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt,
+          }];
+        }),
+        interests: [],
+      };
+    })
+    .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate));
+  const scoringGames = [...sessionGames, ...profileCandidates];
   const scoredGames =
     activeTab === "pick"
       ? scoreSessionGames({
-          sessionGames,
+          sessionGames: scoringGames,
           participants: session.participants,
           userGames,
           selectedParticipantIds,
           playerCount: selectedPlayerCount,
+          sessionMinutes: selectedSessionMinutes,
+          commitment: selectedCommitment,
           mode: activeScoreMode,
         })
       : [];
@@ -442,6 +536,8 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           participants={session.participants}
           selectedParticipantIds={selectedParticipantIds}
           selectedPlayerCount={selectedPlayerCount}
+          selectedSessionMinutes={selectedSessionMinutes}
+          selectedCommitment={selectedCommitment}
           scoreMode={activeScoreMode}
           scoredGames={scoredGames}
           dealCountry={session.dealCountry}
@@ -591,6 +687,21 @@ function parseScoreMode(value?: string): ScoreMode {
   }
 
   return "balanced";
+}
+
+function parseCommitmentFilter(value?: string): CommitmentFilter {
+  const supported: CommitmentFilter[] = [
+    "any",
+    "one-session",
+    "under-10",
+    "10-30",
+    "30-100",
+    "100-1000",
+    "1000-plus",
+    "endless",
+  ];
+
+  return supported.includes(value as CommitmentFilter) ? (value as CommitmentFilter) : "any";
 }
 
 function normalizeSelectedParticipants(value: string | string[] | undefined, fallback: string[]) {

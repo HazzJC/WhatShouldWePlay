@@ -9,6 +9,9 @@ export type IgdbGameResult = {
   platforms?: Array<{ name: string }>;
   game_modes?: Array<{ name: string }>;
   multiplayer_modes?: Array<{
+    platform?: { name?: string };
+    campaigncoop?: boolean;
+    dropin?: boolean;
     onlinecoop?: boolean;
     offlinecoop?: boolean;
     onlinecoopmax?: number;
@@ -26,6 +29,14 @@ export type IgdbGameResult = {
   hypes?: number;
 };
 
+export type IgdbTimeToBeatResult = {
+  game_id: number;
+  hastily?: number;
+  normally?: number;
+  completely?: number;
+  count?: number;
+};
+
 type TokenCache = {
   token: string;
   expiresAt: number;
@@ -37,7 +48,7 @@ let trendingCache: { expiresAt: number; games: IgdbGameResult[] } | null = null;
 const discoveryCacheMs = 1000 * 60 * 30;
 
 const fields =
-  "fields id,name,summary,cover.url,genres.name,platforms.name,game_modes.name,multiplayer_modes.onlinecoop,multiplayer_modes.offlinecoop,multiplayer_modes.onlinecoopmax,multiplayer_modes.offlinecoopmax,multiplayer_modes.onlinemax,multiplayer_modes.offlinemax,multiplayer_modes.splitscreen,total_rating,total_rating_count,aggregated_rating,aggregated_rating_count,rating,rating_count,hypes;";
+  "fields id,name,summary,cover.url,genres.name,platforms.name,game_modes.name,multiplayer_modes.platform.name,multiplayer_modes.campaigncoop,multiplayer_modes.dropin,multiplayer_modes.onlinecoop,multiplayer_modes.offlinecoop,multiplayer_modes.onlinecoopmax,multiplayer_modes.offlinecoopmax,multiplayer_modes.onlinemax,multiplayer_modes.offlinemax,multiplayer_modes.splitscreen,total_rating,total_rating_count,aggregated_rating,aggregated_rating_count,rating,rating_count,hypes;";
 
 export async function getIgdbAccessToken() {
   if (tokenCache && tokenCache.expiresAt > Date.now() + 60_000) {
@@ -78,17 +89,21 @@ export async function getIgdbAccessToken() {
 }
 
 export async function queryIgdbGames(body: string) {
+  return queryIgdbEndpoint<IgdbGameResult>("games", body);
+}
+
+async function queryIgdbEndpoint<T>(endpoint: string, body: string) {
   const clientId = process.env.IGDB_CLIENT_ID;
   const token = await getIgdbAccessToken();
 
   if (!clientId || !token) {
-    return [] as IgdbGameResult[];
+    return [] as T[];
   }
 
   let response: Response;
 
   try {
-    response = await fetchWithTimeout("https://api.igdb.com/v4/games", {
+    response = await fetchWithTimeout(`https://api.igdb.com/v4/${endpoint}`, {
       method: "POST",
       body,
       headers: {
@@ -106,7 +121,7 @@ export async function queryIgdbGames(body: string) {
     return [];
   }
 
-  return (await response.json()) as IgdbGameResult[];
+  return (await response.json()) as T[];
 }
 
 export async function searchIgdbGames(query: string) {
@@ -144,6 +159,14 @@ export async function getIgdbGameById(id: number) {
   return game ?? null;
 }
 
+export async function getIgdbTimeToBeat(gameId: number) {
+  const [result] = await queryIgdbEndpoint<IgdbTimeToBeatResult>(
+    "game_time_to_beats",
+    `fields game_id,hastily,normally,completely,count; where game_id = ${gameId}; limit 1;`,
+  );
+  return result ?? null;
+}
+
 export function mapIgdbGame(result: IgdbGameResult) {
   const capability = mapIgdbCapability(result);
   const quality = mapIgdbQuality(result);
@@ -161,6 +184,9 @@ export function mapIgdbGame(result: IgdbGameResult) {
     maxPlayers: capability.maxPlayers,
     onlineCoop: capability.onlineCoop,
     localCoop: capability.localCoop,
+    onlineMultiplayer: capability.onlineMultiplayer,
+    localMultiplayer: capability.localMultiplayer,
+    campaignCoop: capability.campaignCoop,
     capabilitySource: capability.capabilitySource,
     capabilityConfidence: capability.capabilityConfidence,
     steamReviewScore: null,
@@ -178,13 +204,19 @@ export function mapIgdbCapability(result: IgdbGameResult) {
   const maxPlayers = maxNumber([onlineMax, offlineMax]);
   const onlineCoop = modes.some((mode) => mode.onlinecoop) || undefined;
   const localCoop = modes.some((mode) => mode.offlinecoop || mode.splitscreen) || undefined;
+  const onlineMultiplayer = modes.some((mode) => (mode.onlinemax ?? 0) > 1 || mode.onlinecoop) || undefined;
+  const localMultiplayer = modes.some((mode) => (mode.offlinemax ?? 0) > 1 || mode.offlinecoop || mode.splitscreen) || undefined;
+  const campaignCoop = modes.some((mode) => mode.campaigncoop) || undefined;
 
-  if (maxPlayers || onlineCoop !== undefined || localCoop !== undefined) {
+  if (maxPlayers || onlineCoop !== undefined || localCoop !== undefined || onlineMultiplayer !== undefined || localMultiplayer !== undefined) {
     return {
       minPlayers: 1,
       maxPlayers: maxPlayers ?? null,
       onlineCoop: onlineCoop ?? null,
       localCoop: localCoop ?? null,
+      onlineMultiplayer: onlineMultiplayer ?? null,
+      localMultiplayer: localMultiplayer ?? null,
+      campaignCoop: campaignCoop ?? null,
       capabilitySource: "igdb:multiplayer_modes",
       capabilityConfidence: maxPlayers ? 0.9 : 0.65,
     };
@@ -195,9 +227,32 @@ export function mapIgdbCapability(result: IgdbGameResult) {
     maxPlayers: null,
     onlineCoop: null,
     localCoop: null,
+    onlineMultiplayer: null,
+    localMultiplayer: null,
+    campaignCoop: null,
     capabilitySource: null,
     capabilityConfidence: null,
   };
+}
+
+export function mapIgdbPlatformCapabilities(result: IgdbGameResult) {
+  return (result.multiplayer_modes ?? []).map((mode) => ({
+    platform: mode.platform?.name ?? "Unknown",
+    minPlayers: 1,
+    maxPlayers: maxNumber([
+      mode.onlinecoopmax,
+      mode.offlinecoopmax,
+      mode.onlinemax,
+      mode.offlinemax,
+    ]),
+    onlineMultiplayer: (mode.onlinemax ?? 0) > 1 || Boolean(mode.onlinecoop),
+    localMultiplayer: (mode.offlinemax ?? 0) > 1 || Boolean(mode.offlinecoop || mode.splitscreen),
+    onlineCoop: Boolean(mode.onlinecoop),
+    localCoop: Boolean(mode.offlinecoop || mode.splitscreen),
+    campaignCoop: Boolean(mode.campaigncoop),
+    source: "igdb:multiplayer_modes",
+    confidence: 0.9,
+  }));
 }
 
 export function mapIgdbQuality(result: IgdbGameResult) {

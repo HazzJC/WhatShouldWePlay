@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const gameCreateMany = vi.fn(async () => ({ count: 0 }));
-const gameFindMany = vi.fn(async () => []);
+const gameFindMany = vi.fn(async (): Promise<Array<{ id: string; steamAppId: number | null }>> => []);
 const userGameCreateMany = vi.fn(async () => ({ count: 0 }));
 const userGameUpdate = vi.fn((args) => Promise.resolve(args));
 const transaction = vi.fn(async (operations: Array<Promise<unknown>>) => Promise.all(operations));

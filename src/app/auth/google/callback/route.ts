@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { createUserSession, getCurrentUser, parseOAuthState, rotateUserSession, safeInternalRedirect, setParticipantIdentity } from "@/lib/auth";
+import { onboardingUrl } from "@/lib/accounts";
+import { createAccountMergeIntent } from "@/lib/account-merge";
 import { getGoogleProfileFromCode, GoogleAuthError } from "@/lib/google-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -71,7 +73,8 @@ export async function GET(request: Request) {
   });
 
   if (currentUser && existingAccount && existingAccount.userId !== currentUser.id) {
-    redirect(withGoogleError(destinationFromState(state), "linked_elsewhere"));
+    const mergeToken = await createAccountMergeIntent(currentUser.id, existingAccount.userId, "GOOGLE");
+    redirect(`/account/merge?token=${encodeURIComponent(mergeToken)}`);
   }
 
   const user = currentUser
@@ -155,7 +158,8 @@ export async function GET(request: Request) {
     await createUserSession(user.id);
   }
 
-  redirect(destinationFromState(state, participantId));
+  const destination = destinationFromState(state, participantId);
+  redirect(user.username && user.onboardingCompletedAt ? destination : onboardingUrl(destination));
 }
 
 async function claimParticipantForUser({

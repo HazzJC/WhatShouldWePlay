@@ -18,6 +18,11 @@ export type GameInput = {
   maxPlayers?: number | null;
   onlineCoop?: boolean | null;
   localCoop?: boolean | null;
+  onlineMultiplayer?: boolean | null;
+  localMultiplayer?: boolean | null;
+  campaignCoop?: boolean | null;
+  minimumSessionMinutes?: number | null;
+  commitmentTier?: "ONE_SESSION" | "UNDER_10_HOURS" | "HOURS_10_TO_30" | "HOURS_30_TO_100" | "HOURS_100_TO_1000" | "HOURS_1000_PLUS" | "ENDLESS" | null;
   capabilitySource?: string | null;
   capabilityConfidence?: number | null;
   steamReviewScore?: number | null;
@@ -289,6 +294,7 @@ export async function importSteamGamesForUser(userId: string, games: SteamOwnedG
         userId: row.userId,
         gameId: row.gameId,
         source: row.source,
+        ownership: "HAVE",
         playtimeMinutes: row.playtimeMinutes,
         recentlyPlayedAt: row.recentlyPlayedAt,
         lastImportedAt: row.lastImportedAt,
@@ -304,6 +310,7 @@ export async function importSteamGamesForUser(userId: string, games: SteamOwnedG
           where: { userId_gameId: { userId, gameId: row.gameId } },
           data: {
             source: "STEAM",
+            ownership: "HAVE",
             playtimeMinutes: row.playtimeMinutes,
             recentlyPlayedAt: recentAppIds.has(row.steamAppId) && (recentPlaytime.get(row.steamAppId) ?? 0) > 0 ? now : undefined,
             lastImportedAt: now,
@@ -344,7 +351,7 @@ function chunks<T>(items: T[], size: number) {
 
 export function rankSessionGames<
   T extends {
-    game: Game;
+    game: { title: string; popularityScore?: number | null };
     source: string;
     signals: Array<{ signal: string }>;
   },
@@ -405,6 +412,11 @@ function gameInputToData(input: GameInput, mode: "create" | "update") {
     maxPlayers: input.maxPlayers ?? inferMaxPlayers(input) ?? absent,
     onlineCoop: input.onlineCoop ?? inferOnlineCoop(input) ?? absent,
     localCoop: input.localCoop ?? inferLocalCoop(input) ?? absent,
+    onlineMultiplayer: input.onlineMultiplayer ?? inferOnlineMultiplayer(input) ?? absent,
+    localMultiplayer: input.localMultiplayer ?? inferLocalMultiplayer(input) ?? absent,
+    campaignCoop: input.campaignCoop ?? absent,
+    minimumSessionMinutes: input.minimumSessionMinutes ?? absent,
+    commitmentTier: input.commitmentTier ?? absent,
     capabilitySource: input.capabilitySource ?? inferCapabilitySource(input) ?? absent,
     capabilityConfidence: input.capabilityConfidence ?? inferCapabilityConfidence(input) ?? absent,
   };
@@ -416,6 +428,16 @@ function inferOnlineCoop(input: GameInput) {
 }
 
 function inferLocalCoop(input: GameInput) {
+  const modes = (input.gameModes ?? []).join(" ").toLocaleLowerCase();
+  return modes.includes("split screen") || modes.includes("local");
+}
+
+function inferOnlineMultiplayer(input: GameInput) {
+  const modes = (input.gameModes ?? []).join(" ").toLocaleLowerCase();
+  return modes.includes("multiplayer") || modes.includes("co-op") || modes.includes("massively");
+}
+
+function inferLocalMultiplayer(input: GameInput) {
   const modes = (input.gameModes ?? []).join(" ").toLocaleLowerCase();
   return modes.includes("split screen") || modes.includes("local");
 }

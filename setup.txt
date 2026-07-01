@@ -476,6 +476,14 @@ Apply migrations to a production database:
 
 npx prisma migrate deploy
 
+Populate or update the sourced co-op challenge catalogue after the migration:
+
+npm run challenges:seed
+
+Pick now requires a Google- or Steam-backed account and a unique username.
+Plan remains available without signing in. Existing accounts are prompted to
+choose a username the first time they open Pick after this migration.
+
 
 WHAT TO SEND TO FRIENDS
 =======================

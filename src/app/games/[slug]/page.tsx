@@ -51,10 +51,12 @@ export default async function GameDetailPage({ params }: PageProps) {
             <span key={tag} className="rounded-md bg-teal/10 px-3 py-2 text-sm font-black text-teal">{tag}</span>
           ))}
         </div>
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Fact label="Players" value={curatedPlayerLabel(game)} />
-          <Fact label="Online" value={game.onlineCoop ? "Yes" : "No"} />
-          <Fact label="Local" value={game.localCoop ? "Yes" : "No"} />
+          <Fact label="Online" value={game.onlineCoop ? "Co-op" : game.onlineMultiplayer ? "Multiplayer" : "No"} />
+          <Fact label="Local" value={game.localCoop ? "Co-op" : game.localMultiplayer ? "Multiplayer" : "No"} />
+          <Fact label="Session" value={game.minimumSessionMinutes ? `${game.minimumSessionMinutes}+ min` : "Flexible"} />
+          <Fact label="Commitment" value={commitmentLabel(game.commitmentTier)} />
         </div>
         {game.localRequirement ? (
           <div className="mt-3 rounded-lg bg-paper p-4">
@@ -95,6 +97,18 @@ export default async function GameDetailPage({ params }: PageProps) {
       </section>
     </main>
   );
+}
+
+function commitmentLabel(tier?: string | null) {
+  return {
+    ONE_SESSION: "One session",
+    UNDER_10_HOURS: "Under 10h",
+    HOURS_10_TO_30: "10–30h",
+    HOURS_30_TO_100: "30–100h",
+    HOURS_100_TO_1000: "100–1000h",
+    HOURS_1000_PLUS: "1000+h",
+    ENDLESS: "Practically forever",
+  }[tier ?? ""] ?? "Unknown";
 }
 
 function Fact({ label, value }: { label: string; value: string }) {

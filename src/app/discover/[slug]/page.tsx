@@ -66,6 +66,13 @@ export default async function DiscoverListPage({ params, searchParams }: PagePro
                   <p className="rounded-md bg-paper px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] text-ink/60">
                     {curatedPriceLabel(game)}
                   </p>
+                  <p className="rounded-md bg-paper px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] text-ink/60">
+                    {game.commitmentTier === "ENDLESS"
+                      ? "1000+ hours / practically forever"
+                      : game.minimumSessionMinutes
+                        ? `${game.minimumSessionMinutes}+ min sessions`
+                        : "Flexible sessions"}
+                  </p>
                 </div>
                 {game.caveat ? <p className="mt-2 text-xs font-bold leading-5 text-coral">{game.caveat}</p> : null}
                 {game.moddedSupportNote ? <p className="mt-2 text-xs font-bold leading-5 text-ink/55">{game.moddedSupportNote}</p> : null}

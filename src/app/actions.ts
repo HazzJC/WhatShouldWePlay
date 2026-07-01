@@ -106,6 +106,7 @@ const createSessionSchema = z
   });
 
 export async function createSessionAction(formData: FormData) {
+  const currentUser = await getCurrentUser();
   const parsed = createSessionSchema.safeParse({
     title: formData.get("title"),
     hostName: formData.get("hostName"),
@@ -151,6 +152,7 @@ export async function createSessionAction(formData: FormData) {
       participants: {
         create: {
           name: values.hostName,
+          userId: currentUser?.id,
           isHost: true,
         },
       },
@@ -173,6 +175,12 @@ const createPickSessionSchema = z.object({
 });
 
 export async function createPickSessionAction(formData: FormData) {
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser?.username || !currentUser.onboardingCompletedAt) {
+    redirect("/account?returnTo=%2Fsessions%2Fpick");
+  }
+
   const parsed = createPickSessionSchema.safeParse({
     title: formData.get("title"),
     hostName: formData.get("hostName"),
@@ -203,7 +211,8 @@ export async function createPickSessionAction(formData: FormData) {
       reminderPreferences: [],
       participants: {
         create: {
-          name: values.hostName,
+          name: currentUser.displayName,
+          userId: currentUser.id,
           isHost: true,
         },
       },
@@ -223,6 +232,7 @@ export async function createPickSessionAction(formData: FormData) {
       sessionId: session.id,
       gameId: game.id,
       participantId: host.id,
+      userId: currentUser.id,
       source: "COMMON",
       signal: "OWNED",
     });
@@ -238,6 +248,7 @@ const submitAvailabilitySchema = z.object({
 });
 
 export async function submitAvailabilityAction(formData: FormData) {
+  const currentUser = await getCurrentUser();
   const parsed = submitAvailabilitySchema.safeParse({
     shareToken: formData.get("shareToken"),
     participantId: formData.get("participantId") || undefined,
@@ -270,12 +281,16 @@ export async function submitAvailabilityAction(formData: FormData) {
   const participant = existingParticipant
     ? await prisma.participant.update({
         where: { id: existingParticipant.id },
-        data: { name: parsed.data.participantName },
+        data: {
+          name: parsed.data.participantName,
+          userId: existingParticipant.userId ?? currentUser?.id,
+        },
       })
     : await prisma.participant.create({
         data: {
           sessionId: session.id,
           name: parsed.data.participantName,
+          userId: currentUser?.id,
         },
       });
 
@@ -461,6 +476,19 @@ export async function addSessionGameAction(formData: FormData) {
     signal: "OWNED",
   });
 
+  if (currentUser) {
+    await prisma.userGame.upsert({
+      where: { userId_gameId: { userId: currentUser.id, gameId: game.id } },
+      create: {
+        userId: currentUser.id,
+        gameId: game.id,
+        source: parsed.data.source === "IGDB_SEARCH" ? "IGDB" : "MANUAL",
+        ownership: "HAVE",
+      },
+      update: { ownership: "HAVE" },
+    });
+  }
+
   revalidatePath(`/s/${session.shareToken}`);
 }
 
@@ -553,7 +581,7 @@ export async function markGameAvailableAction(formData: FormData) {
       id: parsed.data.sessionGameId,
       session: { shareToken: parsed.data.shareToken },
     },
-    select: { id: true, sessionId: true },
+    select: { id: true, sessionId: true, gameId: true },
   });
 
   if (!sessionGame) {
@@ -567,7 +595,7 @@ export async function markGameAvailableAction(formData: FormData) {
   const participant = actingParticipantId
     ? await prisma.participant.findFirst({
         where: { id: actingParticipantId, sessionId: sessionGame.sessionId },
-        select: { id: true },
+        select: { id: true, userId: true },
       })
     : null;
 
@@ -575,20 +603,45 @@ export async function markGameAvailableAction(formData: FormData) {
     throw new Error("Participant not found.");
   }
 
-  await prisma.sessionGameSignal.upsert({
-    where: {
-      sessionGameId_participantId: {
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser || participant.userId !== currentUser.id) {
+    throw new Error("Sign in as this participant to update persistent ownership.");
+  }
+
+  await prisma.$transaction([
+    prisma.sessionGameSignal.upsert({
+      where: {
+        sessionGameId_participantId: {
+          sessionGameId: sessionGame.id,
+          participantId: participant.id,
+        },
+      },
+      create: {
         sessionGameId: sessionGame.id,
         participantId: participant.id,
+        signal: parsed.data.signal,
       },
-    },
-    create: {
-      sessionGameId: sessionGame.id,
-      participantId: participant.id,
-      signal: parsed.data.signal,
-    },
-    update: { signal: parsed.data.signal },
-  });
+      update: { signal: parsed.data.signal },
+    }),
+    prisma.userGame.upsert({
+      where: {
+        userId_gameId: {
+          userId: currentUser.id,
+          gameId: sessionGame.gameId,
+        },
+      },
+      create: {
+        userId: currentUser.id,
+        gameId: sessionGame.gameId,
+        source: "MANUAL",
+        ownership: parsed.data.signal === "OWNED" ? "HAVE" : "DONT_HAVE",
+      },
+      update: {
+        ownership: parsed.data.signal === "OWNED" ? "HAVE" : "DONT_HAVE",
+      },
+    }),
+  ]);
 
   revalidatePath(`/s/${parsed.data.shareToken}`);
 }

@@ -3,6 +3,7 @@ import { normalizeGameTitle, signalMeansHave } from "@/lib/games";
 import { formatMinorPrice } from "@/lib/itad";
 
 export type ScoreMode = "balanced" | "coop" | "backlog" | "cheap" | "familiar" | "fresh";
+export type CommitmentFilter = "any" | "one-session" | "under-10" | "10-30" | "30-100" | "100-1000" | "1000-plus" | "endless";
 export type AlignmentLevel = "High" | "Medium" | "Low";
 export type MatchCategory = "perfect" | "hiddenBacklog" | "oldFavourites" | "almostReady" | "saleOpportunity";
 export type PlayerCountStatus = "supported" | "unsupported" | "uncertain";
@@ -40,6 +41,11 @@ type GameScoreInput = {
     maxPlayers?: number | null;
     onlineCoop?: boolean | null;
     localCoop?: boolean | null;
+    onlineMultiplayer?: boolean | null;
+    localMultiplayer?: boolean | null;
+    campaignCoop?: boolean | null;
+    minimumSessionMinutes?: number | null;
+    commitmentTier?: string | null;
     genres?: unknown;
     steamReviewPercent?: number | null;
     steamReviewTotal?: number | null;
@@ -77,6 +83,11 @@ type UserGameInput = {
   gameId: string;
   playtimeMinutes?: number | null;
   recentlyPlayedAt?: Date | string | null;
+  ownership?: string | null;
+  wishlist?: boolean | null;
+  favourite?: boolean | null;
+  rating?: number | null;
+  interest?: string | null;
 };
 
 export type ScoredGame = {
@@ -101,6 +112,9 @@ export type ScoredGame = {
     price: number;
     historicalLow: number;
     popularity: number;
+    multiplayerFit: number;
+    durationFit: number;
+    personalRating: number;
   };
   factorBreakdown: Array<{
     key: FactorKey;
@@ -136,12 +150,12 @@ const defaultPreference: PreferenceProfile = {
 };
 
 const modeWeights: Record<ScoreMode, Record<keyof ScoredGame["factors"], number>> = {
-  balanced: { ownership: 0.2, playerCount: 0.12, genreFit: 0.08, availability: 0.08, onlineCoop: 0.08, localCoop: 0.04, playtime: 0.1, freshness: 0.08, interest: 0.1, price: 0.04, historicalLow: 0.03, popularity: 0.05 },
-  coop: { ownership: 0.18, playerCount: 0.16, genreFit: 0.06, availability: 0.06, onlineCoop: 0.18, localCoop: 0.1, playtime: 0.06, freshness: 0.05, interest: 0.08, price: 0.02, historicalLow: 0.01, popularity: 0.04 },
-  backlog: { ownership: 0.18, playerCount: 0.1, genreFit: 0.07, availability: 0.05, onlineCoop: 0.06, localCoop: 0.03, playtime: 0.24, freshness: 0.14, interest: 0.07, price: 0.02, historicalLow: 0.01, popularity: 0.03 },
-  cheap: { ownership: 0.14, playerCount: 0.1, genreFit: 0.05, availability: 0.05, onlineCoop: 0.06, localCoop: 0.03, playtime: 0.06, freshness: 0.05, interest: 0.07, price: 0.24, historicalLow: 0.1, popularity: 0.05 },
-  familiar: { ownership: 0.24, playerCount: 0.11, genreFit: 0.08, availability: 0.06, onlineCoop: 0.06, localCoop: 0.03, playtime: 0.22, freshness: 0.02, interest: 0.09, price: 0.02, historicalLow: 0.01, popularity: 0.06 },
-  fresh: { ownership: 0.14, playerCount: 0.1, genreFit: 0.08, availability: 0.05, onlineCoop: 0.07, localCoop: 0.03, playtime: 0.04, freshness: 0.24, interest: 0.08, price: 0.06, historicalLow: 0.04, popularity: 0.07 },
+  balanced: { ownership: 0.16, playerCount: 0.1, genreFit: 0.06, availability: 0.06, onlineCoop: 0.05, localCoop: 0.03, playtime: 0.07, freshness: 0.06, interest: 0.07, price: 0.03, historicalLow: 0.02, popularity: 0.05, multiplayerFit: 0.08, durationFit: 0.07, personalRating: 0.09 },
+  coop: { ownership: 0.14, playerCount: 0.13, genreFit: 0.05, availability: 0.05, onlineCoop: 0.14, localCoop: 0.08, playtime: 0.04, freshness: 0.04, interest: 0.06, price: 0.02, historicalLow: 0.01, popularity: 0.03, multiplayerFit: 0.11, durationFit: 0.05, personalRating: 0.05 },
+  backlog: { ownership: 0.15, playerCount: 0.08, genreFit: 0.05, availability: 0.04, onlineCoop: 0.04, localCoop: 0.02, playtime: 0.2, freshness: 0.12, interest: 0.06, price: 0.02, historicalLow: 0.01, popularity: 0.03, multiplayerFit: 0.05, durationFit: 0.06, personalRating: 0.07 },
+  cheap: { ownership: 0.12, playerCount: 0.08, genreFit: 0.04, availability: 0.04, onlineCoop: 0.04, localCoop: 0.02, playtime: 0.04, freshness: 0.04, interest: 0.06, price: 0.2, historicalLow: 0.09, popularity: 0.04, multiplayerFit: 0.06, durationFit: 0.05, personalRating: 0.08 },
+  familiar: { ownership: 0.18, playerCount: 0.09, genreFit: 0.06, availability: 0.05, onlineCoop: 0.04, localCoop: 0.02, playtime: 0.17, freshness: 0.02, interest: 0.06, price: 0.02, historicalLow: 0.01, popularity: 0.05, multiplayerFit: 0.05, durationFit: 0.05, personalRating: 0.13 },
+  fresh: { ownership: 0.11, playerCount: 0.08, genreFit: 0.06, availability: 0.04, onlineCoop: 0.05, localCoop: 0.02, playtime: 0.03, freshness: 0.18, interest: 0.07, price: 0.05, historicalLow: 0.03, popularity: 0.06, multiplayerFit: 0.06, durationFit: 0.07, personalRating: 0.09 },
 };
 
 export const scoreModeLabels: Record<ScoreMode, string> = {
@@ -159,6 +173,8 @@ export function scoreSessionGames({
   userGames,
   selectedParticipantIds,
   playerCount,
+  sessionMinutes = 120,
+  commitment = "any",
   mode = "balanced",
 }: {
   sessionGames: GameScoreInput[];
@@ -166,6 +182,8 @@ export function scoreSessionGames({
   userGames: UserGameInput[];
   selectedParticipantIds?: string[];
   playerCount: number;
+  sessionMinutes?: number;
+  commitment?: CommitmentFilter;
   mode?: ScoreMode;
 }) {
   const selectedIds = selectedParticipantIds?.length ? selectedParticipantIds : participants.map((participant) => participant.id);
@@ -203,18 +221,23 @@ export function scoreSessionGames({
       const localCoop = coOpFit(game.localCoop, preference.coOpVsCompetitive);
       const relevantUserIds = selectedUserIdsForSessionGame(sessionGame, selectedIds, selectedUserIds);
       const relevantUserGames = (userGamesByGameId.get(sessionGame.gameId) ?? []).filter((userGame) => relevantUserIds.has(userGame.userId));
+      const persistentVetoCount = relevantUserGames.filter((userGame) => userGame.interest === "NOT_INTERESTED").length;
       const totalPlaytime = totalPlaytimeMinutes(relevantUserGames);
       const recentPlayCount = recentlyPlayedCount(relevantUserGames);
       const averagePlaytime = selectedCount > 0 ? totalPlaytime / selectedCount : 0;
       const playtime = mode === "backlog" || preference.backlogImportance >= 60 ? lowPlaytimeScore(averagePlaytime) : familiarPlaytimeScore(averagePlaytime);
       const freshness = freshnessScore(relevantUserGames);
-      const interest = clampScore(60 + wantCount * 15 - notTonightCount * 45);
+      const persistentInterest = persistentInterestScore(relevantUserGames);
+      const interest = clampScore(55 + wantCount * 15 - notTonightCount * 45 + persistentInterest);
       const discountPercent = game.deal?.discountPercent ?? 0;
       const currentPrice = game.deal?.currentPrice ?? null;
       const historicalLow = game.deal?.historicalLow ?? null;
       const price = missing > 0 && discountPercent > 0 ? clampScore(45 + discountPercent) : 35;
       const historicalLowFactor = currentPrice && historicalLow ? clampScore(100 - Math.round(((currentPrice - historicalLow) / Math.max(historicalLow, 1)) * 100)) : 40;
       const popularity = qualitySignalScore(game.title, game.popularityScore, game.steamReviewPercent);
+      const multiplayerFit = multiplayerFitScore(game);
+      const durationFit = durationFitScore(game.minimumSessionMinutes, game.commitmentTier, sessionMinutes, commitment);
+      const personalRating = personalRatingScore(relevantUserGames);
       const genreFit = genreFitScore(game.genres, preference.genreImportance);
       const availability = availabilityFit(selectedCount, missing, notAvailableIds.size);
       const sparseQualityBoost = game.popularityScore === null || game.popularityScore === undefined
@@ -233,6 +256,9 @@ export function scoreSessionGames({
         price,
         historicalLow: historicalLowFactor,
         popularity,
+        multiplayerFit,
+        durationFit,
+        personalRating,
       };
       const preferenceMismatches = preferenceMismatchReasons(selectedParticipants, game, missing, discountPercent);
       const preferenceBoost = preference.priceImportance > 65 && discountPercent > 0 ? 4 : 0;
@@ -241,7 +267,7 @@ export function scoreSessionGames({
       const alignment = alignmentLevel({
         ownership,
         notAvailableCount: notAvailableIds.size,
-        notTonightCount,
+        notTonightCount: notTonightCount + persistentVetoCount,
         playerCountFit,
         playerCountStatus,
         strongMismatchCount: preferenceMismatches.length,
@@ -252,7 +278,7 @@ export function scoreSessionGames({
         missing,
         selectedCount,
         notAvailableCount: notAvailableIds.size,
-        notTonightCount,
+        notTonightCount: notTonightCount + persistentVetoCount,
         playerCountStatus,
         preferenceMismatches,
       });
@@ -266,9 +292,10 @@ export function scoreSessionGames({
         discountPercent,
         currentPrice,
         historicalLow,
-        notTonightCount,
+        notTonightCount: notTonightCount + persistentVetoCount,
         wantCount,
         onlineCoop: game.onlineCoop,
+        onlineMultiplayer: game.onlineMultiplayer,
         playerCountStatus,
         mode,
         totalPlaytime,
@@ -523,6 +550,9 @@ function factorBreakdownFor(factors: ScoredGame["factors"], weights: Record<Fact
     price: "Sale price",
     historicalLow: "Historical low",
     popularity: "Reviews",
+    multiplayerFit: "Group play",
+    durationFit: "Time fit",
+    personalRating: "Your ratings",
   };
 
   return (Object.keys(factors) as FactorKey[])
@@ -547,6 +577,76 @@ function qualitySignalScore(title: string, popularityScore?: number | null, stea
 
   const hash = Array.from(normalizeGameTitle(title)).reduce((total, char) => ((total << 5) - total + char.charCodeAt(0)) | 0, 0);
   return 25 + (Math.abs(hash) % 66);
+}
+
+function multiplayerFitScore(game: GameScoreInput["game"]) {
+  if (game.onlineMultiplayer || game.localMultiplayer || game.onlineCoop || game.localCoop || game.campaignCoop) {
+    return 92;
+  }
+
+  const known = [
+    game.onlineMultiplayer,
+    game.localMultiplayer,
+    game.onlineCoop,
+    game.localCoop,
+    game.campaignCoop,
+  ].some((value) => value !== null && value !== undefined);
+
+  return known ? 20 : 55;
+}
+
+function durationFitScore(
+  minimumSessionMinutes: number | null | undefined,
+  commitmentTier: string | null | undefined,
+  sessionMinutes: number,
+  requestedCommitment: CommitmentFilter,
+) {
+  const sessionScore = minimumSessionMinutes && minimumSessionMinutes > sessionMinutes
+    ? Math.max(20, 80 - Math.round((minimumSessionMinutes - sessionMinutes) / 5))
+    : 92;
+
+  if (requestedCommitment === "any" || !commitmentTier) {
+    return Math.round((sessionScore + 65) / 2);
+  }
+
+  const tierMap: Record<CommitmentFilter, string | null> = {
+    any: null,
+    "one-session": "ONE_SESSION",
+    "under-10": "UNDER_10_HOURS",
+    "10-30": "HOURS_10_TO_30",
+    "30-100": "HOURS_30_TO_100",
+    "100-1000": "HOURS_100_TO_1000",
+    "1000-plus": "HOURS_1000_PLUS",
+    endless: "ENDLESS",
+  };
+  const commitmentScore = commitmentTier === tierMap[requestedCommitment] ? 95 : 35;
+  return Math.round((sessionScore + commitmentScore) / 2);
+}
+
+function personalRatingScore(userGames: UserGameInput[]) {
+  const ratings = userGames
+    .map((userGame) => userGame.rating)
+    .filter((rating): rating is number => typeof rating === "number");
+
+  if (ratings.length === 0) {
+    return 55;
+  }
+
+  return clampScore(Math.round((ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length) * 10));
+}
+
+function persistentInterestScore(userGames: UserGameInput[]) {
+  return userGames.reduce((score, userGame) => {
+    if (userGame.interest === "WANT_TO_PLAY" || userGame.wishlist || userGame.favourite) {
+      return score + 10;
+    }
+
+    if (userGame.interest === "NOT_INTERESTED") {
+      return score - 20;
+    }
+
+    return score;
+  }, 0);
 }
 
 function familiarPlaytimeScore(averagePlaytime: number) {
@@ -803,6 +903,7 @@ function reasonsFor({
   notTonightCount,
   wantCount,
   onlineCoop,
+  onlineMultiplayer,
   playerCountStatus,
   mode,
   totalPlaytime,
@@ -822,6 +923,7 @@ function reasonsFor({
   notTonightCount: number;
   wantCount: number;
   onlineCoop?: boolean | null;
+  onlineMultiplayer?: boolean | null;
   playerCountStatus: PlayerCountStatus;
   mode: ScoreMode;
   currency?: string | null;
@@ -869,6 +971,8 @@ function reasonsFor({
     reasons.push("Close to its historical low");
   } else if (onlineCoop) {
     reasons.push("Online co-op friendly");
+  } else if (onlineMultiplayer) {
+    reasons.push("Online group multiplayer");
   }
 
   return reasons.slice(0, 4);
@@ -883,16 +987,6 @@ function clampScore(value: number) {
 }
 
 function withCuratedCapabilityFallback(game: GameScoreInput["game"]): GameScoreInput["game"] {
-  const hasKnownCapability =
-    Boolean(game.maxPlayers) ||
-    Boolean(game.minPlayers) ||
-    (game.onlineCoop !== null && game.onlineCoop !== undefined) ||
-    (game.localCoop !== null && game.localCoop !== undefined);
-
-  if (hasKnownCapability) {
-    return game;
-  }
-
   const curated = curatedGames.find((candidate) => normalizeGameTitle(candidate.title) === normalizeGameTitle(game.title));
 
   if (!curated) {
@@ -905,6 +999,12 @@ function withCuratedCapabilityFallback(game: GameScoreInput["game"]): GameScoreI
     maxPlayers: curated.maxPlayers ?? game.maxPlayers,
     onlineCoop: curated.onlineCoop ?? game.onlineCoop,
     localCoop: curated.localCoop ?? game.localCoop,
+    onlineMultiplayer: curated.onlineMultiplayer ?? game.onlineMultiplayer,
+    localMultiplayer: curated.localMultiplayer ?? game.localMultiplayer,
+    campaignCoop: curated.campaignCoop ?? game.campaignCoop,
+    minimumSessionMinutes: curated.minimumSessionMinutes ?? game.minimumSessionMinutes,
+    commitmentTier: curated.commitmentTier ?? game.commitmentTier,
     genres: Array.isArray(game.genres) && game.genres.length > 0 ? game.genres : curated.genres,
+    capabilitySource: "curated",
   };
 }

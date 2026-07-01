@@ -20,6 +20,38 @@ type ReleaseMonth = {
 
 const releaseNotes: ReleaseMonth[] = [
   {
+    month: "July 2026",
+    entries: [
+      {
+        date: "1 July 2026",
+        headline: "Persistent game profiles and account-first Pick",
+        details: [
+          "Pick workspaces now use Google- or Steam-backed accounts with unique usernames, while Plan remains fully available without signing in. Existing users keep their accounts and choose a username the next time they open Pick.",
+          "Personal libraries now persist ownership, wishlists, favourites, ratings, interest, played state, private notes, Steam playtime, and recency so future groups can compare saved profiles immediately.",
+          "Accounts also gained username search and friend requests, confirmed provider merging, data export, deletion controls, and recent session history.",
+        ],
+      },
+      {
+        date: "1 July 2026",
+        headline: "Better multiplayer scoring, time filters, and co-op challenges",
+        details: [
+          "Group scoring now separates competitive multiplayer from genuine co-op and includes personal ratings, Steam reviews, session time, total commitment, playtime, recency, ownership, and veto-aware alignment.",
+          "Curated metadata now overrides stale capability flags for known games, fixing campaign co-op for Baldur's Gate 3 and classifying Golf With Your Friends as group multiplayer rather than co-op.",
+          "Public discovery gained sourced cooperative challenges with player requirements, difficulty, estimated attempt times, caveats, and account progress tracking.",
+        ],
+      },
+      {
+        date: "1 July 2026",
+        headline: "Database-safe Vercel deployments",
+        details: [
+          "Vercel deployments now apply pending Prisma migrations before compiling the application, using the direct Neon connection when one is configured.",
+          "The sourced challenge catalogue is seeded immediately after migration, so new discovery features cannot deploy with missing catalogue rows.",
+          "Both operations are idempotent and fail the deployment clearly if database preparation does not complete.",
+        ],
+      },
+    ],
+  },
+  {
     month: "June 2026",
     entries: [
       {

@@ -1,7 +1,7 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { PickPanel } from "@/components/pick-panel";
+import { PickPanel, type ParticipantView, type SessionGameView } from "@/components/pick-panel";
 
 vi.mock("@/app/actions", () => ({
   addSessionParticipantsAsFriendsAction: vi.fn(),
@@ -35,6 +35,8 @@ const baseProps = {
   ],
   selectedParticipantIds: ["p1", "p2"],
   selectedPlayerCount: 2,
+  selectedSessionMinutes: 120,
+  selectedCommitment: "any" as const,
   scoreMode: "balanced" as const,
   scoredGames: [
     {
@@ -59,6 +61,9 @@ const baseProps = {
         price: 35,
         historicalLow: 40,
         popularity: 80,
+        multiplayerFit: 95,
+        durationFit: 90,
+        personalRating: 85,
       },
       factorBreakdown: [
         { key: "ownership" as const, label: "Ownership", value: 100, weight: 0.2, points: 20 },
@@ -238,7 +243,7 @@ describe("PickPanel", () => {
   });
 });
 
-function participant(id: string, name: string) {
+function participant(id: string, name: string): ParticipantView {
   return {
     id,
     sessionId: "s1",
@@ -248,17 +253,17 @@ function participant(id: string, name: string) {
     createdAt: new Date(),
     preference: null,
     user: null,
-  };
+  } as unknown as ParticipantView;
 }
 
-function sessionGame(signals: Array<{ participantId: string; signal: "OWNED" | "AVAILABLE_TO_PLAY" | "NOT_AVAILABLE" }>) {
+function sessionGame(signals: Array<{ participantId: string; signal: "OWNED" | "AVAILABLE_TO_PLAY" | "NOT_AVAILABLE" }>): SessionGameView {
   return {
     id: "sg1",
     sessionId: "s1",
     gameId: "g1",
     addedByParticipantId: "p1",
     addedByUserId: null,
-    source: "MANUAL",
+    source: "MANUAL" as const,
     createdAt: new Date(),
     updatedAt: new Date(),
     game: {
@@ -293,5 +298,5 @@ function sessionGame(signals: Array<{ participantId: string; signal: "OWNED" | "
       updatedAt: new Date(),
     })),
     interests: [],
-  };
+  } as unknown as SessionGameView;
 }

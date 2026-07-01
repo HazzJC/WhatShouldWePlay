@@ -19,6 +19,11 @@ export type CuratedGame = GameInput & {
   moddedUnrestricted?: boolean;
   moddedSourceName?: string;
   moddedSourceUrl?: string;
+  onlineMultiplayer?: boolean;
+  localMultiplayer?: boolean;
+  campaignCoop?: boolean;
+  minimumSessionMinutes?: number;
+  commitmentTier?: "ONE_SESSION" | "UNDER_10_HOURS" | "HOURS_10_TO_30" | "HOURS_30_TO_100" | "HOURS_100_TO_1000" | "HOURS_1000_PLUS" | "ENDLESS";
 };
 
 export type CuratedList = {
@@ -51,6 +56,11 @@ type CuratedGameSeed = {
   moddedUnrestricted?: boolean;
   moddedSourceName?: string;
   moddedSourceUrl?: string;
+  onlineMultiplayer?: boolean;
+  localMultiplayer?: boolean;
+  campaignCoop?: boolean;
+  minimumSessionMinutes?: number;
+  commitmentTier?: CuratedGame["commitmentTier"];
 };
 
 export const curatedLists: CuratedList[] = [
@@ -84,7 +94,7 @@ export const curatedGames: CuratedGame[] = [
   game({ slug: "warhammer-vermintide-2", title: "Warhammer: Vermintide 2", description: "Melee-focused horde co-op with a mountain of classes and progression.", listSlugs: ["online-co-op", "4-player", "cheap-co-op"], tags: ["co-op", "horde", "melee"], sessionLength: "long-term", steamAppId: 552500, minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: false }),
   game({ slug: "left-4-dead-2", title: "Left 4 Dead 2", description: "Still one of the cleanest templates for a co-op campaign night.", listSlugs: ["online-co-op", "4-player", "campaign-co-op", "cheap-co-op"], tags: ["co-op", "campaign", "zombies"], sessionLength: "one-night", steamAppId: 550, minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: true }),
   game({ slug: "risk-of-rain-2", title: "Risk of Rain 2", description: "Stack absurd builds together and turn a short run into a disaster story.", listSlugs: ["online-co-op", "4-player"], tags: ["roguelite", "co-op", "action"], sessionLength: "one-night", steamAppId: 632360, minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: false }),
-  game({ slug: "baldurs-gate-3", title: "Baldur's Gate 3", description: "A deep campaign co-op choice for committed groups.", listSlugs: ["online-co-op", "campaign-co-op", "4-player"], tags: ["rpg", "campaign", "turn-based"], sessionLength: "campaign", steamAppId: 1086940, minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: true }),
+  game({ slug: "baldurs-gate-3", title: "Baldur's Gate 3", description: "A deep campaign co-op choice for committed groups.", listSlugs: ["online-co-op", "campaign-co-op", "4-player"], tags: ["rpg", "campaign", "turn-based"], sessionLength: "campaign", steamAppId: 1086940, minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: true, onlineMultiplayer: true, localMultiplayer: true, campaignCoop: true, minimumSessionMinutes: 120, commitmentTier: "HOURS_100_TO_1000" }),
 
   game({ slug: "overcooked-2", title: "Overcooked! 2", description: "Local and online co-op stress disguised as cooking.", listSlugs: ["local-co-op", "online-co-op", "4-player", "party"], tags: ["co-op", "party", "chaos"], sessionLength: "one-night", steamAppId: 728880, minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: true, localSetup: "controllers", localRequirement: "Up to 4 controllers" }),
   game({ slug: "plateup", title: "PlateUp!", description: "Restaurant roguelite co-op with satisfying group escalation.", listSlugs: ["local-co-op", "online-co-op", "4-player", "party"], tags: ["co-op", "roguelite", "management"], sessionLength: "one-night", steamAppId: 1599600, minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: true, localSetup: "controllers", localRequirement: "Up to 4 controllers" }),
@@ -133,7 +143,8 @@ export const curatedGames: CuratedGame[] = [
   game({ slug: "enshrouded", title: "Enshrouded", description: "Voxel survival RPG with a meaningful 16-player ceiling for hosted worlds.", listSlugs: ["online-co-op", "survival-groups", "more-than-4", "more-than-4"], tags: ["survival", "rpg", "server"], sessionLength: "long-term", steamAppId: 1203620, minPlayers: 1, maxPlayers: 16, onlineCoop: true, localCoop: false, caveat: "Use a hosted or dedicated server for smooth 16-player sessions." }),
   game({ slug: "palworld", title: "Palworld", description: "Creature survival chaos that can scale up when hosted properly.", listSlugs: ["online-co-op", "survival-groups", "more-than-4", "more-than-4", "trending-multiplayer"], tags: ["survival", "crafting", "server"], sessionLength: "long-term", steamAppId: 1623730, minPlayers: 1, maxPlayers: 32, onlineCoop: true, localCoop: false, caveat: "Large groups require a dedicated server; small co-op is simpler." }),
   game({ slug: "ark-survival-ascended", title: "ARK: Survival Ascended", description: "Dinosaur survival for groups who want a persistent server project.", listSlugs: ["online-co-op", "survival-groups", "more-than-4", "more-than-4"], tags: ["survival", "dinosaurs", "server"], sessionLength: "long-term", steamAppId: 2399830, minPlayers: 1, maxPlayers: 70, onlineCoop: true, localCoop: false, caveat: "16+ is a server-hosting commitment, not a casual lobby." }),
-  game({ slug: "factorio", title: "Factorio", description: "A shared factory project that gets funnier and more terrifying with each extra engineer.", listSlugs: ["online-co-op", "survival-groups", "more-than-4", "more-than-4"], tags: ["automation", "factory", "server"], sessionLength: "long-term", steamAppId: 427520, minPlayers: 1, maxPlayers: 32, onlineCoop: true, localCoop: false, caveat: "Large groups work best with a persistent server and clear roles." }),
+  game({ slug: "factorio", title: "Factorio", description: "A shared factory project that gets funnier and more terrifying with each extra engineer.", listSlugs: ["online-co-op", "survival-groups", "more-than-4", "more-than-4"], tags: ["automation", "factory", "server"], sessionLength: "long-term", steamAppId: 427520, minPlayers: 1, maxPlayers: 32, onlineCoop: true, localCoop: false, caveat: "Large groups work best with a persistent server and clear roles.", minimumSessionMinutes: 90, commitmentTier: "HOURS_100_TO_1000" }),
+  game({ slug: "old-school-runescape", title: "Old School RuneScape", description: "An effectively endless shared MMO journey with group bosses, raids, skilling, and years of account progression.", listSlugs: ["online-co-op", "more-than-4", "campaign-co-op"], tags: ["mmo", "rpg", "endless", "co-op"], sessionLength: "campaign", steamAppId: 1343370, minPlayers: 1, maxPlayers: 100, onlineCoop: true, localCoop: false, onlineMultiplayer: true, campaignCoop: true, minimumSessionMinutes: 30, commitmentTier: "ENDLESS", caveat: "Individual activities have practical group caps, but the overall game and clan structure support very large communities." }),
   game({ slug: "satisfactory", title: "Satisfactory", description: "First-person factory building for a group that enjoys shared megaprojects.", listSlugs: ["online-co-op", "survival-groups", "more-than-4"], tags: ["factory", "building", "co-op"], sessionLength: "long-term", steamAppId: 526870, minPlayers: 1, maxPlayers: 8, onlineCoop: true, localCoop: false, caveat: "Bigger groups are possible through server setups, but 4-8 is the clean recommendation." }),
   game({ slug: "eco", title: "Eco", description: "A civilization-scale server game about building society without destroying the planet.", listSlugs: ["online-co-op", "survival-groups", "more-than-4", "more-than-4"], tags: ["server", "simulation", "society"], sessionLength: "long-term", steamAppId: 382310, minPlayers: 1, maxPlayers: 30, onlineCoop: true, localCoop: false, caveat: "Needs a persistent server and a group willing to coordinate over days." }),
   game({ slug: "barotrauma", title: "Barotrauma", description: "Submarine disaster management for groups who enjoy jobs, shouting, and betrayal.", listSlugs: ["online-co-op", "more-than-4", "more-than-4", "party"], tags: ["submarine", "roles", "chaos"], sessionLength: "one-night", steamAppId: 602960, minPlayers: 2, maxPlayers: 16, onlineCoop: true, localCoop: false }),
@@ -145,7 +156,7 @@ export const curatedGames: CuratedGame[] = [
   game({ slug: "jackbox-party-pack-10", title: "The Jackbox Party Pack 10", description: "Phone-controlled party games for mixed groups.", listSlugs: ["party", "more-than-4", "local-co-op"], tags: ["party", "quiz", "casual"], sessionLength: "one-night", steamAppId: 2216830, minPlayers: 1, maxPlayers: 10, onlineCoop: false, localCoop: true, localSetup: "phones", localRequirement: "Phones as controllers — no pads" }),
   game({ slug: "gartic-phone", title: "Gartic Phone", description: "Browser-based drawing telephone that works for huge casual groups.", listSlugs: ["party", "more-than-4", "more-than-4"], tags: ["drawing", "browser", "party"], sessionLength: "one-night", minPlayers: 4, maxPlayers: 30, onlineCoop: true, localCoop: false, platforms: ["Browser"], caveat: "Browser game; not a Steam import match, but excellent for big groups." }),
   game({ slug: "skribbl-io", title: "skribbl.io", description: "Fast browser drawing rounds for groups that need zero install friction.", listSlugs: ["party", "more-than-4", "more-than-4"], tags: ["drawing", "browser", "party"], sessionLength: "one-night", minPlayers: 3, maxPlayers: 20, onlineCoop: true, localCoop: false, platforms: ["Browser"], caveat: "Browser game; great backup when ownership is fragmented." }),
-  game({ slug: "golf-with-your-friends", title: "Golf With Your Friends", description: "Readable, casual minigolf that can carry a full Discord call.", listSlugs: ["party", "more-than-4", "cheap-co-op"], tags: ["party", "golf", "casual"], sessionLength: "one-night", steamAppId: 431240, minPlayers: 1, maxPlayers: 12, onlineCoop: true, localCoop: true }),
+  game({ slug: "golf-with-your-friends", title: "Golf With Your Friends", description: "Readable, casual online multiplayer that can carry a full Discord call.", listSlugs: ["party", "more-than-4", "cheap-co-op"], tags: ["party", "golf", "casual", "competitive"], sessionLength: "one-night", steamAppId: 431240, minPlayers: 1, maxPlayers: 12, onlineCoop: false, localCoop: false, onlineMultiplayer: true, localMultiplayer: true, minimumSessionMinutes: 30, commitmentTier: "ONE_SESSION" }),
   game({ slug: "gang-beasts", title: "Gang Beasts", description: "Local or online physics brawling that gets sillier as people rotate in.", listSlugs: ["party", "local-co-op", "online-co-op", "more-than-4"], tags: ["party", "fighting", "physics"], sessionLength: "one-night", steamAppId: 285900, minPlayers: 2, maxPlayers: 8, onlineCoop: true, localCoop: true, localSetup: "controllers", localRequirement: "Up to 8 controllers" }),
   game({ slug: "party-animals", title: "Party Animals", description: "Physics brawling made for casual group nights.", listSlugs: ["party", "local-co-op", "online-co-op", "more-than-4"], tags: ["party", "fighting", "casual"], sessionLength: "one-night", steamAppId: 1260320, minPlayers: 2, maxPlayers: 8, onlineCoop: true, localCoop: true, localSetup: "controllers", localRequirement: "Up to 8 controllers" }),
   game({ slug: "crab-game", title: "Crab Game", description: "Chaotic elimination rounds for very large, unserious groups.", listSlugs: ["party", "more-than-4", "more-than-4", "cheap-co-op"], tags: ["party", "elimination", "chaos"], sessionLength: "one-night", steamAppId: 1782210, minPlayers: 2, maxPlayers: 40, onlineCoop: true, localCoop: false }),
@@ -228,6 +239,16 @@ function game(seed: CuratedGameSeed): CuratedGame {
     moddedUnrestricted: seed.moddedUnrestricted,
     moddedSourceName: seed.moddedSourceName,
     moddedSourceUrl: seed.moddedSourceUrl,
+    onlineMultiplayer: seed.onlineMultiplayer ?? seed.onlineCoop,
+    localMultiplayer: seed.localMultiplayer ?? seed.localCoop,
+    campaignCoop: seed.campaignCoop ?? (seed.onlineCoop && seed.sessionLength === "campaign"),
+    minimumSessionMinutes: seed.minimumSessionMinutes ?? (seed.sessionLength === "one-night" ? 30 : 60),
+    commitmentTier:
+      seed.commitmentTier ??
+      (seed.sessionLength === "one-night"
+        ? "ONE_SESSION"
+        : seed.sessionLength === "campaign"
+          ? "HOURS_30_TO_100"
+          : "HOURS_10_TO_30"),
   };
 }
-

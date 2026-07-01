@@ -33,6 +33,11 @@ export function mergeCuratedMetadata(input: GameInput): GameInput {
     maxPlayers: curatedGame.maxPlayers ?? input.maxPlayers ?? null,
     onlineCoop: curatedGame.onlineCoop ?? input.onlineCoop ?? null,
     localCoop: curatedGame.localCoop ?? input.localCoop ?? null,
+    onlineMultiplayer: curatedGame.onlineMultiplayer ?? input.onlineMultiplayer ?? null,
+    localMultiplayer: curatedGame.localMultiplayer ?? input.localMultiplayer ?? null,
+    campaignCoop: curatedGame.campaignCoop ?? input.campaignCoop ?? null,
+    minimumSessionMinutes: curatedGame.minimumSessionMinutes ?? input.minimumSessionMinutes ?? null,
+    commitmentTier: curatedGame.commitmentTier ?? input.commitmentTier ?? null,
     capabilitySource: "curated",
     capabilityConfidence: curatedGame.capabilityConfidence ?? input.capabilityConfidence ?? 0.9,
   };
@@ -47,6 +52,11 @@ export function curatedCapabilityData(curatedGame: CuratedGame) {
     maxPlayers: curatedGame.maxPlayers,
     onlineCoop: curatedGame.onlineCoop,
     localCoop: curatedGame.localCoop,
+    onlineMultiplayer: curatedGame.onlineMultiplayer,
+    localMultiplayer: curatedGame.localMultiplayer,
+    campaignCoop: curatedGame.campaignCoop,
+    minimumSessionMinutes: curatedGame.minimumSessionMinutes,
+    commitmentTier: curatedGame.commitmentTier,
     capabilitySource: "curated",
     capabilityConfidence: curatedGame.capabilityConfidence ?? 0.9,
   };

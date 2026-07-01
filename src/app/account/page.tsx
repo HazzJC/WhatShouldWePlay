@@ -1,8 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Gamepad2, LogOut, Mail, ShieldCheck, UserRound } from "lucide-react";
+import { Download, Gamepad2, Library, LogOut, Mail, ShieldCheck, UserRound } from "lucide-react";
+import { deleteAccountAction, updateAccountProfileAction } from "@/app/account/actions";
 import { getCurrentUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -48,8 +50,18 @@ export default async function AccountPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const googleError = firstParam(params.google_error);
   const steamStatus = firstParam(params.steam);
+  const merged = firstParam(params.merged);
+  const returnTo = firstParam(params.returnTo) ?? "/account";
   const user = await getCurrentUser();
   const googleAccount = user?.oauthAccounts.find((account) => account.provider === "GOOGLE") ?? null;
+  const recentParticipants = user
+    ? await prisma.participant.findMany({
+        where: { userId: user.id },
+        include: { session: true },
+        orderBy: { session: { updatedAt: "desc" } },
+        take: 8,
+      })
+    : [];
 
   return (
     <main className="ui-shell">
@@ -85,6 +97,9 @@ export default async function AccountPage({ searchParams }: PageProps) {
         {steamStatus ? (
           <AuthNotice tone={steamStatus === "linked" ? "success" : "error"} title={`Steam status: ${steamStatus}`} detail={steamMessages[steamStatus] ?? "Steam connection updated."} />
         ) : null}
+        {merged === "true" ? (
+          <AuthNotice tone="success" title="Accounts merged" detail="Your providers, game library, friends, groups, preferences, and session history now use this account." />
+        ) : null}
 
         {!user ? (
           <section className="surface p-5">
@@ -95,13 +110,30 @@ export default async function AccountPage({ searchParams }: PageProps) {
                   Sign in with Google to save friend groups, preferences, and linked game libraries across devices.
                 </p>
               </div>
-              <a href={`/auth/google/start?redirectTo=${encodeURIComponent("/account")}`} className="primary-button">
-                Sign in with Google
-              </a>
+              <div className="flex flex-wrap gap-2">
+                <a href={providerStartUrl("google", returnTo)} className="primary-button">
+                  Sign in with Google
+                </a>
+                <a href={providerStartUrl("steam", returnTo)} className="secondary-button">
+                  Sign in with Steam
+                </a>
+              </div>
             </div>
           </section>
         ) : (
           <>
+            {!user.username ? (
+              <section className="rounded-lg border border-gold/35 bg-gold/10 p-4">
+                <p className="font-black text-ink">Finish creating your account</p>
+                <p className="mt-1 text-sm font-bold leading-6 text-ink/62">
+                  Choose a username before entering a Pick workspace or adding friends.
+                </p>
+                <Link href={`/account/onboarding?returnTo=${encodeURIComponent(returnTo)}`} className="primary-button mt-3">
+                  Choose username
+                </Link>
+              </section>
+            ) : null}
+
             <section className="surface p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-3">
@@ -114,7 +146,9 @@ export default async function AccountPage({ searchParams }: PageProps) {
                   )}
                   <div className="min-w-0">
                     <h2 className="truncate text-2xl font-black text-ink">{user.displayName}</h2>
-                    <p className="truncate text-sm font-bold text-ink/58">{user.email ?? "No email on this profile"}</p>
+                    <p className="truncate text-sm font-bold text-ink/58">
+                      {user.username ? `@${user.username}` : "Username not set"} · {user.email ?? "No email on this profile"}
+                    </p>
                   </div>
                 </div>
                 <form action="/auth/logout" method="post">
@@ -125,6 +159,55 @@ export default async function AccountPage({ searchParams }: PageProps) {
                   </button>
                 </form>
               </div>
+            </section>
+
+            <section className="surface p-5">
+              <h2 className="text-xl font-black text-ink">Recent sessions</h2>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {recentParticipants.length ? recentParticipants.map((participant) => (
+                  <Link
+                    key={participant.id}
+                    href={`/s/${participant.session.shareToken}?participant=${participant.id}`}
+                    className="rounded-lg border border-ink/10 bg-paper p-3 transition hover:border-teal/35"
+                  >
+                    <p className="font-black text-ink">{participant.session.title}</p>
+                    <p className="mt-1 text-xs font-bold text-ink/48">
+                      {participant.isHost ? "Host" : "Participant"} · updated {participant.session.updatedAt.toLocaleDateString("en-GB")}
+                    </p>
+                  </Link>
+                )) : (
+                  <p className="text-sm font-bold text-ink/52">Signed-in Plan and Pick sessions will appear here automatically.</p>
+                )}
+              </div>
+            </section>
+
+            <section className="surface p-5">
+              <h2 className="text-xl font-black text-ink">Gaming profile</h2>
+              <form action={updateAccountProfileAction} className="mt-4 grid gap-4 sm:grid-cols-2">
+                <label>
+                  <span className="text-sm font-bold text-ink">Display name</span>
+                  <input name="displayName" required maxLength={80} defaultValue={user.displayName} className="field" />
+                </label>
+                <label>
+                  <span className="text-sm font-bold text-ink">Favourite genres</span>
+                  <input
+                    name="favouriteGenres"
+                    defaultValue={Array.isArray(user.favouriteGenres) ? user.favouriteGenres.join(", ") : ""}
+                    placeholder="Co-op, RPG, survival"
+                    className="field"
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-sm font-bold text-ink sm:col-span-2">
+                  <input type="checkbox" name="directoryVisible" defaultChecked={user.directoryVisible} />
+                  Let signed-in users find my gaming profile by username
+                </label>
+                <button type="submit" className="primary-button w-fit">Save profile</button>
+                {user.username ? (
+                  <Link href="/account/onboarding?returnTo=%2Faccount" className="secondary-button w-fit">
+                    Change username
+                  </Link>
+                ) : null}
+              </form>
             </section>
 
             <section className="grid gap-3 md:grid-cols-2">
@@ -175,6 +258,19 @@ export default async function AccountPage({ searchParams }: PageProps) {
             </section>
 
             <section className="surface p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-black text-ink">Your games</h2>
+                  <p className="mt-1 text-sm font-bold text-ink/62">Maintain ownership, ratings, wishlists, and notes once for every future Pick.</p>
+                </div>
+                <Link href="/account/library" className="primary-button">
+                  <Library className="h-4 w-4" />
+                  Open library
+                </Link>
+              </div>
+            </section>
+
+            <section className="surface p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-xl font-black text-ink">Friend groups</h2>
@@ -185,13 +281,58 @@ export default async function AccountPage({ searchParams }: PageProps) {
                 <Link href="/groups" className="secondary-button">
                   Manage groups
                 </Link>
+                <Link href="/friends" className="secondary-button">
+                  Find friends
+                </Link>
               </div>
             </section>
+
+            <details className="surface p-5">
+              <summary className="cursor-pointer font-black text-ink">Data and account deletion</summary>
+              <div className="mt-4 grid gap-4">
+                <a href="/account/export" className="secondary-button w-fit">
+                  <Download className="h-4 w-4" />
+                  Export my data
+                </a>
+                {user.username ? (
+                  <form action={deleteAccountAction} className="rounded-lg border border-red-200 bg-red-50 p-4">
+                    <p className="font-black text-red-800">Delete account permanently</p>
+                    <p className="mt-1 text-sm font-bold leading-6 text-red-800/80">
+                      Type <strong>{user.username}</strong> to remove your profile, library, friends, and groups.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <input name="confirmation" required className="field max-w-xs" aria-label="Confirm username" />
+                      <button type="submit" className="secondary-button border-red-300 text-red-800">Delete account</button>
+                    </div>
+                  </form>
+                ) : null}
+              </div>
+            </details>
           </>
         )}
       </section>
     </main>
   );
+}
+
+function providerStartUrl(provider: "google" | "steam", returnTo: string) {
+  const target = new URL(returnTo, "https://local.invalid");
+  const sessionMatch = target.pathname.match(/^\/s\/([^/]+)$/);
+  const params = new URLSearchParams({
+    redirectTo: returnTo,
+  });
+
+  if (sessionMatch?.[1]) {
+    params.set("shareToken", sessionMatch[1]);
+  }
+
+  const participant = target.searchParams.get("participant");
+
+  if (participant) {
+    params.set("participant", participant);
+  }
+
+  return `/auth/${provider}/start?${params.toString()}`;
 }
 
 function AuthNotice({ tone, title, detail }: { tone: "error" | "success"; title: string; detail: string }) {

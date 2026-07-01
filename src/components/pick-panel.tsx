@@ -19,17 +19,17 @@ import {
 import { countDontHaveSignals, countHaveSignals, signalMeansHave, type GameInput } from "@/lib/games";
 import type { GroupBuyFilters, GroupBuyRecommendation } from "@/lib/group-buy";
 import { formatMinorPrice } from "@/lib/itad";
-import { isBarelyPlayedGroupPick, isHeavilyPlayedGroupPick, scoreModeLabels, type MatchCategory, type ScoredGame, type ScoreMode } from "@/lib/match-scoring";
+import { isBarelyPlayedGroupPick, isHeavilyPlayedGroupPick, scoreModeLabels, type CommitmentFilter, type MatchCategory, type ScoredGame, type ScoreMode } from "@/lib/match-scoring";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { SteamImportSubmitButton } from "@/components/steam-import-submit-button";
 
-type SessionGameView = SessionGame & {
+export type SessionGameView = SessionGame & {
   game: Game & { steamStorePrice?: SteamStorePrice | null; deal?: GameDeal | null };
   signals: SessionGameSignal[];
   interests: SessionGameInterest[];
 };
 
-type ParticipantView = Participant & {
+export type ParticipantView = Participant & {
   preference: ParticipantPreference | null;
   user: (User & { preference: UserPreference | null; steamAccount?: SteamAccount | null }) | null;
 };
@@ -55,6 +55,8 @@ export function PickPanel({
   participants,
   selectedParticipantIds,
   selectedPlayerCount,
+  selectedSessionMinutes,
+  selectedCommitment,
   scoreMode,
   scoredGames,
   dealCountry,
@@ -81,6 +83,8 @@ export function PickPanel({
   participants: ParticipantView[];
   selectedParticipantIds: string[];
   selectedPlayerCount: number;
+  selectedSessionMinutes: number;
+  selectedCommitment: CommitmentFilter;
   scoreMode: ScoreMode;
   scoredGames: ScoredGame[];
   dealCountry: string;
@@ -196,6 +200,8 @@ export function PickPanel({
           participants={participants}
           selectedParticipantIds={selectedParticipantIds}
           selectedPlayerCount={selectedPlayerCount}
+          selectedSessionMinutes={selectedSessionMinutes}
+          selectedCommitment={selectedCommitment}
           scoreMode={scoreMode}
           scoredGames={scoredGames}
         />
@@ -397,6 +403,8 @@ function MatchDashboard({
   participants,
   selectedParticipantIds,
   selectedPlayerCount,
+  selectedSessionMinutes,
+  selectedCommitment,
   scoreMode,
   scoredGames,
 }: {
@@ -406,6 +414,8 @@ function MatchDashboard({
   participants: ParticipantView[];
   selectedParticipantIds: string[];
   selectedPlayerCount: number;
+  selectedSessionMinutes: number;
+  selectedCommitment: CommitmentFilter;
   scoreMode: ScoreMode;
   scoredGames: ScoredGame[];
 }) {
@@ -447,7 +457,7 @@ function MatchDashboard({
       <form className="mt-4 grid gap-4 rounded-lg border border-ink/10 bg-paper p-4" action={`/s/${shareToken}`}>
         <input type="hidden" name="tab" value="pick" />
         {participantId ? <input type="hidden" name="participant" value={participantId} /> : null}
-        <div className="grid gap-3 md:grid-cols-[1fr_11rem_12rem_auto] md:items-end">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(16rem,1fr)_8rem_10rem_11rem_12rem_auto] xl:items-end">
           <fieldset>
             <legend className="text-sm font-black text-ink">Players</legend>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -475,6 +485,30 @@ function MatchDashboard({
               {Object.entries(scoreModeLabels).map(([value, label]) => (
                 <option key={value} value={value}>{label}</option>
               ))}
+            </select>
+          </label>
+          <label>
+            <span className="text-sm font-black text-ink">Time tonight</span>
+            <select name="sessionMinutes" defaultValue={selectedSessionMinutes} className="field">
+              <option value="30">30 minutes</option>
+              <option value="60">1 hour</option>
+              <option value="120">2 hours</option>
+              <option value="180">3 hours</option>
+              <option value="240">4 hours</option>
+              <option value="480">All day</option>
+            </select>
+          </label>
+          <label>
+            <span className="text-sm font-black text-ink">Total commitment</span>
+            <select name="commitment" defaultValue={selectedCommitment} className="field">
+              <option value="any">Any length</option>
+              <option value="one-session">One session</option>
+              <option value="under-10">Under 10 hours</option>
+              <option value="10-30">10–30 hours</option>
+              <option value="30-100">30–100 hours</option>
+              <option value="100-1000">100–1000 hours</option>
+              <option value="1000-plus">1000+ hours</option>
+              <option value="endless">Practically forever</option>
             </select>
           </label>
           <button className="secondary-button h-11" type="submit">Update match</button>

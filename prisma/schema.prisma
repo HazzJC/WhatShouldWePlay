@@ -65,6 +65,50 @@ enum FriendGroupMemberStatus {
   PENDING
 }
 
+enum UserGameOwnership {
+  UNKNOWN
+  HAVE
+  DONT_HAVE
+}
+
+enum UserGameInterest {
+  WANT_TO_PLAY
+  NEUTRAL
+  NOT_INTERESTED
+}
+
+enum UserGamePlayedStatus {
+  UNPLAYED
+  PLAYING
+  PLAYED
+  COMPLETED
+  DROPPED
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+enum CommitmentTier {
+  ONE_SESSION
+  UNDER_10_HOURS
+  HOURS_10_TO_30
+  HOURS_30_TO_100
+  HOURS_100_TO_1000
+  HOURS_1000_PLUS
+  ENDLESS
+}
+
+enum ChallengeProgressStatus {
+  SAVED
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
 model Session {
   id                  String        @id @default(cuid())
   shareToken          String        @unique
@@ -188,9 +232,15 @@ model AvailabilityResponse {
 model User {
   id            String         @id @default(cuid())
   displayName   String
+  username      String?        @unique
+  normalizedUsername String?   @unique
+  usernameChangedAt DateTime?
+  onboardingCompletedAt DateTime?
   email         String?
   emailVerified Boolean        @default(false)
   avatarUrl     String?
+  favouriteGenres Json         @default("[]")
+  directoryVisible Boolean     @default(true)
   lastSignedInAt DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -207,8 +257,31 @@ model User {
   ownedFriendGroups FriendGroup[] @relation("FriendGroupOwner")
   friendGroupMemberships FriendGroupMember[]
   sentFriendGroupInvites FriendGroupInvite[]
+  usernameHistory UsernameHistory[]
+  sentFriendRequests FriendRequest[] @relation("FriendRequestSender")
+  receivedFriendRequests FriendRequest[] @relation("FriendRequestRecipient")
+  blocksCreated UserBlock[] @relation("UserBlocker")
+  blocksReceived UserBlock[] @relation("UserBlocked")
+  challengeProgress UserChallenge[]
+  mergeIntentsCurrent AccountMergeIntent[] @relation("MergeCurrentUser")
+  mergeIntentsOther AccountMergeIntent[] @relation("MergeOtherUser")
 
   @@index([email])
+  @@index([normalizedUsername])
+  @@index([directoryVisible, normalizedUsername])
+}
+
+model UsernameHistory {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  normalizedUsername String
+  reservedUntil      DateTime
+  createdAt          DateTime @default(now())
+
+  @@unique([normalizedUsername])
+  @@index([userId])
+  @@index([reservedUntil])
 }
 
 model OAuthAccount {
@@ -308,17 +381,52 @@ model Game {
   maxPlayers      Int?
   onlineCoop      Boolean?
   localCoop       Boolean?
+  onlineMultiplayer Boolean?
+  localMultiplayer Boolean?
+  campaignCoop    Boolean?
   capabilitySource String?
   capabilityConfidence Float?
+  timeToBeatHastilyMinutes Int?
+  timeToBeatNormallyMinutes Int?
+  timeToBeatCompletelyMinutes Int?
+  timeToBeatCount Int?
+  timeToBeatSource String?
+  timeToBeatFetchedAt DateTime?
+  minimumSessionMinutes Int?
+  commitmentTier CommitmentTier?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   userGames       UserGame[]
   sessionGames    SessionGame[]
   steamStorePrice SteamStorePrice?
   deal            GameDeal?
+  capabilities    GameCapability[]
+  challenges      GameChallenge[]
 
   @@index([normalizedTitle])
   @@index([normalizedTitle(ops: raw("gin_trgm_ops"))], type: Gin, map: "Game_normalizedTitle_trgm_idx")
+}
+
+model GameCapability {
+  id                String   @id @default(cuid())
+  gameId            String
+  game              Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  platform          String
+  minPlayers        Int?
+  maxPlayers        Int?
+  onlineMultiplayer Boolean?
+  localMultiplayer  Boolean?
+  onlineCoop        Boolean?
+  localCoop         Boolean?
+  campaignCoop      Boolean?
+  source            String
+  confidence        Float?
+  fetchedAt         DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([gameId, platform, source])
+  @@index([gameId, platform])
 }
 
 model GameDeal {
@@ -371,6 +479,49 @@ model UserFriend {
 
   @@unique([userId, friendId])
   @@index([friendId])
+}
+
+model FriendRequest {
+  id          String              @id @default(cuid())
+  senderId    String
+  sender      User                @relation("FriendRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipientId String
+  recipient   User                @relation("FriendRequestRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  status      FriendRequestStatus @default(PENDING)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@unique([senderId, recipientId])
+  @@index([recipientId, status])
+  @@index([senderId, status])
+}
+
+model UserBlock {
+  id        String   @id @default(cuid())
+  blockerId String
+  blocker   User     @relation("UserBlocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String
+  blocked   User     @relation("UserBlocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+model AccountMergeIntent {
+  id            String   @id @default(cuid())
+  tokenHash     String   @unique
+  currentUserId String
+  currentUser   User     @relation("MergeCurrentUser", fields: [currentUserId], references: [id], onDelete: Cascade)
+  otherUserId   String
+  otherUser     User     @relation("MergeOtherUser", fields: [otherUserId], references: [id], onDelete: Cascade)
+  provider      String
+  expiresAt     DateTime
+  confirmedAt   DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([currentUserId, expiresAt])
+  @@index([otherUserId])
 }
 
 model FriendGroup {
@@ -444,6 +595,13 @@ model UserGame {
   gameId           String
   game             Game           @relation(fields: [gameId], references: [id], onDelete: Cascade)
   source           UserGameSource
+  ownership        UserGameOwnership @default(HAVE)
+  wishlist         Boolean        @default(false)
+  favourite        Boolean        @default(false)
+  rating           Int?
+  interest         UserGameInterest @default(NEUTRAL)
+  playedStatus     UserGamePlayedStatus @default(UNPLAYED)
+  notes            String?
   playtimeMinutes  Int?
   recentlyPlayedAt DateTime?
   lastImportedAt   DateTime?
@@ -453,6 +611,46 @@ model UserGame {
   @@unique([userId, gameId])
   @@index([gameId])
   @@index([userId, recentlyPlayedAt, playtimeMinutes])
+}
+
+model GameChallenge {
+  id                  String   @id
+  gameId              String
+  game                Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  title               String
+  description         String
+  difficulty          Int
+  minPlayers          Int
+  maxPlayers          Int
+  platform            String
+  estimatedMinMinutes Int?
+  estimatedMaxMinutes Int?
+  caveat              String?
+  sourceName          String
+  sourceUrl           String
+  verifiedAt          DateTime
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  progress            UserChallenge[]
+
+  @@index([gameId])
+  @@index([difficulty, minPlayers, maxPlayers])
+}
+
+model UserChallenge {
+  id          String                  @id @default(cuid())
+  userId      String
+  user        User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challengeId String
+  challenge   GameChallenge           @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  status      ChallengeProgressStatus @default(SAVED)
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  @@unique([userId, challengeId])
+  @@index([challengeId, status])
 }
 
 model SessionGame {

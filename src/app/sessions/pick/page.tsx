@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, Gamepad2, ListChecks, UsersRound } from "lucide-react";
 import { createPickSessionAction, startPickSessionFromFriendGroupAction } from "@/app/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
-import { getCurrentUser } from "@/lib/auth";
+import { requireActivePickUser } from "@/lib/accounts";
 import { getCuratedGame } from "@/lib/curated-games";
 import { prisma } from "@/lib/prisma";
 
@@ -15,15 +15,14 @@ type PageProps = {
 export default async function NewPickSessionPage({ searchParams }: PageProps) {
   const query = await searchParams;
   const initialGame = query?.game ? getCuratedGame(query.game) : null;
-  const currentUser = await getCurrentUser();
-  const friendGroups = currentUser
-    ? await prisma.friendGroup.findMany({
-        where: { ownerId: currentUser.id },
-        include: { members: { select: { id: true } } },
-        orderBy: { updatedAt: "desc" },
-        take: 4,
-      })
-    : [];
+  const returnTo = `/sessions/pick${query?.game ? `?game=${encodeURIComponent(query.game)}` : ""}`;
+  const currentUser = await requireActivePickUser(returnTo);
+  const friendGroups = await prisma.friendGroup.findMany({
+    where: { ownerId: currentUser.id },
+    include: { members: { select: { id: true } } },
+    orderBy: { updatedAt: "desc" },
+    take: 4,
+  });
 
   return (
     <main className="ui-shell pb-24 sm:pb-8">
@@ -56,7 +55,7 @@ export default async function NewPickSessionPage({ searchParams }: PageProps) {
             </label>
             <label>
               <span className="text-sm font-bold text-ink">Your name</span>
-              <input name="hostName" required maxLength={80} placeholder="Alex" className="field" />
+              <input name="hostName" required maxLength={80} defaultValue={currentUser.displayName} className="field" />
             </label>
             <input type="hidden" name="timezone" value={defaultTimezone} />
             {initialGame ? <input type="hidden" name="initialGameSlug" value={initialGame.slug} /> : null}
@@ -78,8 +77,7 @@ export default async function NewPickSessionPage({ searchParams }: PageProps) {
           </div>
         </form>
 
-        {currentUser ? (
-          <section className="surface rounded-xl p-5 sm:p-6">
+        <section className="surface rounded-xl p-5 sm:p-6">
             <p className="text-xs font-black uppercase tracking-[0.16em] text-moss">Saved crews</p>
             <h2 className="mt-1 text-2xl font-black text-ink">Start with a saved group</h2>
             <div className="mt-4 grid gap-3">
@@ -105,19 +103,7 @@ export default async function NewPickSessionPage({ searchParams }: PageProps) {
                 </p>
               )}
             </div>
-          </section>
-        ) : (
-          <section className="surface rounded-xl p-5 sm:p-6">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-moss">Across devices</p>
-            <h2 className="mt-1 text-2xl font-black text-ink">Save friends with Google</h2>
-            <p className="mt-2 text-sm leading-6 text-ink/62">
-              Sign in to reuse friend groups and bring your saved crew into future Pick sessions.
-            </p>
-            <a href={`/auth/google/start?redirectTo=${encodeURIComponent("/sessions/pick")}`} className="primary-button mt-4">
-              Sign in with Google
-            </a>
-          </section>
-        )}
+        </section>
       </section>
     </main>
   );

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mapIgdbGame } from "@/lib/igdb";
+import { mapIgdbGame, mapIgdbPlatformCapabilities } from "@/lib/igdb";
 
 describe("igdb helpers", () => {
   afterEach(() => {
@@ -46,5 +46,32 @@ describe("igdb helpers", () => {
     await expect(getPopularIgdbGames()).resolves.toEqual([{ id: 1, name: "Deep Rock Galactic" }]);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps competitive multiplayer separate from cooperative modes", () => {
+    const result = {
+      id: 43,
+      name: "Group Golf",
+      multiplayer_modes: [
+        {
+          platform: { name: "PC" },
+          onlinemax: 12,
+          onlinecoop: false,
+          campaigncoop: false,
+        },
+      ],
+    };
+
+    expect(mapIgdbGame(result)).toMatchObject({
+      onlineMultiplayer: true,
+      onlineCoop: null,
+      maxPlayers: 12,
+    });
+    expect(mapIgdbPlatformCapabilities(result)[0]).toMatchObject({
+      platform: "PC",
+      maxPlayers: 12,
+      onlineMultiplayer: true,
+      onlineCoop: false,
+    });
   });
 });

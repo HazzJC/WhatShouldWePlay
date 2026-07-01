@@ -64,7 +64,7 @@ describe("match scoring", () => {
     const [game] = scoreSessionGames({
       participants: [{ id: "p1", userId: "u1", preference: null, user: { preference: null } }],
       selectedParticipantIds: ["p1"],
-      playerCount: 1,
+      playerCount: 2,
       userGames: [{ userId: "u1", gameId: "g-cs", playtimeMinutes: 60_000 }],
       sessionGames: [sessionGame("sg-cs", "Counter-Strike 2", [{ participantId: "p1", signal: "OWNED" }], 20, "g-cs")],
     });
@@ -78,7 +78,7 @@ describe("match scoring", () => {
     const [game] = scoreSessionGames({
       participants: [{ id: "p1", userId: null, preference: null, user: { preference: null } }],
       selectedParticipantIds: ["p1"],
-      playerCount: 1,
+      playerCount: 2,
       userGames: [{ userId: "u-steam", gameId: "g-cs", playtimeMinutes: 60_000 }],
       sessionGames: [
         {
@@ -226,6 +226,48 @@ describe("match scoring", () => {
     expect(game.alignment).toBe("Low");
     expect(game.alignmentReasons).toEqual(expect.arrayContaining(["A selected player strongly prefers chill games, but this looks intense"]));
     expect(game.factorBreakdown[0]).toHaveProperty("points");
+  });
+
+  it("uses persistent ratings and time commitment to separate otherwise similar games", () => {
+    const short = sessionGame("sg-short", "Short Favourite", [{ participantId: "p1", signal: "OWNED" }], 4, "g-short");
+    const endless = sessionGame("sg-endless", "Endless Grind", [{ participantId: "p1", signal: "OWNED" }], 4, "g-endless");
+    const scored = scoreSessionGames({
+      participants: [{ id: "p1", userId: "u1", preference: null, user: { preference: null } }],
+      selectedParticipantIds: ["p1"],
+      playerCount: 2,
+      sessionMinutes: 90,
+      commitment: "one-session",
+      userGames: [
+        { userId: "u1", gameId: "g-short", rating: 10, interest: "WANT_TO_PLAY" },
+        { userId: "u1", gameId: "g-endless", rating: 2, interest: "NOT_INTERESTED" },
+      ],
+      sessionGames: [
+        {
+          ...short,
+          game: {
+            ...short.game,
+            onlineMultiplayer: true,
+            minimumSessionMinutes: 60,
+            commitmentTier: "ONE_SESSION",
+          },
+        },
+        {
+          ...endless,
+          game: {
+            ...endless.game,
+            onlineMultiplayer: true,
+            minimumSessionMinutes: 180,
+            commitmentTier: "ENDLESS",
+          },
+        },
+      ],
+    });
+
+    expect(scored[0].title).toBe("Short Favourite");
+    expect(scored[0].factors.personalRating).toBe(100);
+    expect(scored[0].factors.durationFit).toBeGreaterThan(
+      scored.find((game) => game.title === "Endless Grind")!.factors.durationFit,
+    );
   });
 });
 
