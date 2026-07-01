@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
-import { ChevronLeft, ChevronRight, Gamepad2, Search, ShieldCheck } from "lucide-react";
-import { saveGamePlayerCountAction } from "@/app/admin/games/actions";
+import { ChevronLeft, ChevronRight, Download, Gamepad2, Search, ShieldCheck, Upload } from "lucide-react";
+import { importGamePlayerCountsAction, saveGamePlayerCountAction } from "@/app/admin/games/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { requireMetadataAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
@@ -13,6 +13,8 @@ type PageProps = {
     q?: string;
     page?: string;
     saved?: string;
+    imported?: string;
+    skipped?: string;
     error?: string;
   }>;
 };
@@ -87,6 +89,35 @@ export default async function GameMetadataAdminPage({ searchParams }: PageProps)
 
         {params?.error ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">{params.error}</p> : null}
         {params?.saved ? <p role="status" className="rounded-lg border border-moss/20 bg-moss/10 p-3 text-sm font-bold text-moss">Player metadata saved. The game has left the missing-data queue.</p> : null}
+        {params?.imported ? (
+          <p role="status" className="rounded-lg border border-moss/20 bg-moss/10 p-3 text-sm font-bold text-moss">
+            Imported {params.imported} game {params.imported === "1" ? "update" : "updates"}.
+            {Number(params.skipped) > 0 ? ` Skipped ${params.skipped} incomplete or unknown rows.` : ""}
+          </p>
+        ) : null}
+
+        <section className="surface grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,1fr)]">
+          <div>
+            <h2 className="text-lg font-black text-ink">Edit in a spreadsheet</h2>
+            <p className="mt-1 text-sm font-bold leading-6 text-ink/55">
+              Export every missing game, fill in the min_players and max_players columns, then upload the same file. Leave rows untouched to skip them.
+            </p>
+            <a href="/admin/games/export" className="secondary-button mt-3 w-fit">
+              <Download className="h-4 w-4" />
+              Export missing games
+            </a>
+          </div>
+          <form action={importGamePlayerCountsAction} className="grid content-start gap-3 rounded-lg border border-ink/10 bg-paper p-3">
+            <label>
+              <span className="text-sm font-black text-ink">Completed CSV</span>
+              <input name="metadata" type="file" required accept=".csv,text/csv" className="mt-2 block w-full text-sm font-bold text-ink" />
+            </label>
+            <PendingSubmitButton className="primary-button w-fit" pendingLabel="Importing metadata...">
+              <Upload className="h-4 w-4" />
+              Upload and save
+            </PendingSubmitButton>
+          </form>
+        </section>
 
         <form className="surface flex flex-col gap-2 p-3 sm:flex-row" action="/admin/games">
           <label className="min-w-0 flex-1">
