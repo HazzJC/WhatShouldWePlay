@@ -40,15 +40,6 @@ const releaseNotes: ReleaseMonth[] = [
           "Public discovery gained sourced cooperative challenges with player requirements, difficulty, estimated attempt times, caveats, and account progress tracking.",
         ],
       },
-      {
-        date: "1 July 2026",
-        headline: "Database-safe Vercel deployments",
-        details: [
-          "Vercel deployments now apply pending Prisma migrations before compiling the application, using the direct Neon connection when one is configured.",
-          "The sourced challenge catalogue is seeded immediately after migration, so new discovery features cannot deploy with missing catalogue rows.",
-          "Both operations are idempotent and fail the deployment clearly if database preparation does not complete.",
-        ],
-      },
     ],
   },
   {

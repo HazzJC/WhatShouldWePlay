@@ -6,3 +6,6 @@ coverage
 dist
 *.tsbuildinfo
 .next-dev*.log
+
+.vercel
+.env*
