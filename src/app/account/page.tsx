@@ -9,6 +9,7 @@ import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { ProfileAvatarEditor } from "@/components/profile-avatar-editor";
 import { RecentSessionAction } from "@/components/recent-session-action";
 import { getCurrentUser } from "@/lib/auth";
+import { isMetadataAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 
 type PageProps = {
@@ -80,6 +81,11 @@ export default async function AccountPage({ searchParams }: PageProps) {
           Let&apos;s Play Games
         </Link>
         <div className="flex gap-2">
+          {isMetadataAdmin(user) ? (
+            <Link href="/admin/games" className="secondary-button">
+              Game metadata
+            </Link>
+          ) : null}
           <Link href="/groups" className="secondary-button">
             Groups
           </Link>
