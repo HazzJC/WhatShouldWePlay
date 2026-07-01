@@ -282,7 +282,15 @@ export function scoreSessionGames({
         playerCountStatus,
         preferenceMismatches,
       });
-      const categories = categoriesFor({ ownership, missing, selectedCount, playerCountFit, totalPlaytime, discountPercent });
+      const categories = categoriesFor({
+        ownership,
+        missing,
+        selectedCount,
+        requestedPlayerCount: playerCount,
+        playerCountFit,
+        totalPlaytime,
+        discountPercent,
+      });
       const reasons = reasonsFor({
         have,
         selectedCount,
@@ -859,6 +867,7 @@ function categoriesFor({
   ownership,
   missing,
   selectedCount,
+  requestedPlayerCount,
   playerCountFit,
   totalPlaytime,
   discountPercent,
@@ -866,13 +875,15 @@ function categoriesFor({
   ownership: number;
   missing: number;
   selectedCount: number;
+  requestedPlayerCount: number;
   playerCountFit: number;
   totalPlaytime: number;
   discountPercent: number;
 }) {
   const categories: MatchCategory[] = [];
+  const groupIsFilled = selectedCount >= requestedPlayerCount;
 
-  if (ownership === 1 && playerCountFit >= 70) {
+  if (groupIsFilled && ownership === 1 && playerCountFit >= 70) {
     categories.push("perfect");
   }
   if (ownership === 1 && isBarelyPlayedGroupPick(totalPlaytime)) {

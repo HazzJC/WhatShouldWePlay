@@ -172,6 +172,28 @@ describe("PickPanel", () => {
     expect(screen.getByRole("combobox", { name: "Score mode" })).toBeInTheDocument();
   });
 
+  it("marks matches as provisional while fewer profiles are selected than requested players", () => {
+    render(
+      <PickPanel
+        {...baseProps}
+        participants={[participant("p1", "Alex")]}
+        selectedParticipantIds={["p1"]}
+        selectedPlayerCount={2}
+        scoredGames={[{
+          ...baseProps.scoredGames[0],
+          categories: [],
+          ownership: { have: 1, missing: 0, selected: 1 },
+        }]}
+        sessionGames={[sessionGame([{ participantId: "p1", signal: "OWNED" }])]}
+        currentParticipantHasPickSignals
+      />,
+    );
+
+    expect(screen.getByText("Best matches so far")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Matching 1 of the requested 2 players");
+    expect(screen.queryByText("Perfect matches")).not.toBeInTheDocument();
+  });
+
   it("shows Steam library coverage guidance", () => {
     render(
       <PickPanel

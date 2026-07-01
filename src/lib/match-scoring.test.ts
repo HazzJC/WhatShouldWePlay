@@ -22,6 +22,20 @@ describe("match scoring", () => {
     expect(best.title).toBe("Two Player Co-op");
   });
 
+  it("does not call a one-person result perfect when the requested group has two players", () => {
+    const [game] = scoreSessionGames({
+      participants: [participants[0]],
+      selectedParticipantIds: ["p1"],
+      playerCount: 2,
+      userGames: [],
+      sessionGames: [
+        sessionGame("sg1", "Two Player Co-op", [{ participantId: "p1", signal: "OWNED" }], 2),
+      ],
+    });
+
+    expect(game.categories).not.toContain("perfect");
+  });
+
   it("drops alignment to low when a player marks not tonight", () => {
     const [game] = scoreSessionGames({
       participants,

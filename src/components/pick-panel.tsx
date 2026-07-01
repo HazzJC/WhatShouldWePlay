@@ -106,7 +106,7 @@ export function PickPanel({
   const reviewEyebrow = showFullGroupList ? "Group match" : "Start here";
 
   return (
-    <section className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+    <section className="mt-4 grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_300px]">
       <div className="grid gap-4">
         <section className="surface rounded-xl p-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -301,7 +301,7 @@ export function PickPanel({
         </section>
       </div>
 
-      <aside className="grid content-start gap-4">
+      <aside className="grid min-w-0 content-start gap-4 md:grid-cols-3 2xl:grid-cols-1">
         <DiscoveryPanel title="Trending" icon={<TrendingUp className="h-5 w-5" />} shareToken={shareToken} participantId={participantId} games={trendingGames} source="TRENDING" />
         <DiscoveryPanel title="Popular" icon={<Sparkles className="h-5 w-5" />} shareToken={shareToken} participantId={participantId} games={popularGames} source="POPULAR" />
         <DiscoveryPanel title="Common multiplayer" icon={<Gamepad2 className="h-5 w-5" />} shareToken={shareToken} participantId={participantId} games={commonGames} source="COMMON" />
@@ -421,12 +421,21 @@ function MatchDashboard({
 }) {
   const compatibleGames = scoredGames.filter((game) => game.playerCountStatus === "supported");
   const uncertainGames = scoredGames.filter((game) => game.playerCountStatus === "uncertain");
+  const selectedProfileCount = selectedParticipantIds.length;
+  const waitingForPlayers = selectedProfileCount < selectedPlayerCount;
+  const playersNeeded = Math.max(0, selectedPlayerCount - selectedProfileCount);
   const closeGames = compatibleGames
     .filter((game) => !game.categories.includes("perfect"))
     .sort((a, b) => b.ownership.have - a.ownership.have || a.ownership.missing - b.ownership.missing || b.score - a.score)
     .slice(0, 3);
   const categorySections: Array<{ id: MatchCategory; title: string; empty: string }> = [
-    { id: "perfect", title: "Perfect matches", empty: "No game is owned by everyone, but these are close." },
+    {
+      id: "perfect",
+      title: waitingForPlayers ? "Best matches so far" : "Perfect matches",
+      empty: waitingForPlayers
+        ? `Add or select ${playersNeeded} more ${playersNeeded === 1 ? "player" : "players"} to confirm a perfect match.`
+        : "No game is owned by everyone, but these are close.",
+    },
     { id: "hiddenBacklog", title: "Hidden backlog", empty: "No shared low-playtime backlog picks yet." },
     { id: "oldFavourites", title: "Old favourites", empty: "No heavily played group favourites yet." },
     { id: "almostReady", title: "Almost ready", empty: "No one-missing games yet." },
@@ -515,6 +524,12 @@ function MatchDashboard({
         </div>
       </form>
 
+      {waitingForPlayers ? (
+        <div role="status" className="mt-4 rounded-lg border border-gold/35 bg-gold/10 p-3 text-sm font-bold leading-6 text-ink">
+          Matching {selectedProfileCount} of the requested {selectedPlayerCount} players. Results are provisional until {playersNeeded} more {playersNeeded === 1 ? "player joins" : "players join"}.
+        </div>
+      ) : null}
+
       <div className="mt-4 flex flex-wrap gap-2" aria-label="Match summary counts">
         {filters.map(([label, count]) => (
           <span key={label} className="rounded-md bg-linen px-3 py-2 text-xs font-black text-ink/65">
@@ -533,7 +548,7 @@ function MatchDashboard({
               {section.id === "perfect" && games.length === 0 && closeGames.length > 0 ? (
                 <p className="mt-2 text-sm font-bold leading-6 text-ink/60">{section.empty}</p>
               ) : null}
-              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              <div className="mt-3 grid gap-3 xl:grid-cols-2">
                 {games.length > 0 ? (
                   games.map((game) => <ScoredGameCard key={`${section.id}-${game.sessionGameId}`} game={game} />)
                 ) : section.id === "perfect" && closeGames.length > 0 ? (
