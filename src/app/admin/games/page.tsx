@@ -148,11 +148,11 @@ export default async function GameMetadataAdminPage({ searchParams }: PageProps)
               </div>
               <label>
                 <span className="text-xs font-black text-ink/60">Minimum</span>
-                <input name="minPlayers" type="number" min={1} max={1000} required defaultValue={game.minPlayers ?? 1} className="field" />
+                <input name="minPlayers" type="number" min={1} max={2000} required defaultValue={game.minPlayers ?? 1} className="field" />
               </label>
               <label>
                 <span className="text-xs font-black text-ink/60">Maximum</span>
-                <input name="maxPlayers" type="number" min={1} max={1000} required defaultValue={game.maxPlayers ?? 4} className="field" />
+                <input name="maxPlayers" type="number" min={1} max={2000} required defaultValue={game.maxPlayers ?? 4} className="field" />
               </label>
               <PendingSubmitButton className="primary-button h-11 justify-center" pendingLabel="Saving...">
                 Save

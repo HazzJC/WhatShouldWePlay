@@ -12,8 +12,8 @@ export const playerMetadataCsvHeaders = [
 
 const rowSchema = z.object({
   game_id: z.string().trim().min(1),
-  min_players: z.coerce.number().int().min(1).max(1000),
-  max_players: z.coerce.number().int().min(1).max(1000),
+  min_players: z.coerce.number().int().min(1).max(2000),
+  max_players: z.coerce.number().int().min(1).max(2000),
 }).refine((row) => row.max_players >= row.min_players, {
   message: "max_players must be at least min_players",
 });

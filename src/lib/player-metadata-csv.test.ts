@@ -33,4 +33,16 @@ describe("player metadata CSV", () => {
     expect(result.updates).toEqual([]);
     expect(result.errors[0]).toContain("max_players");
   });
+
+  it("accepts capacities up to 2,000 players", () => {
+    const valid = parsePlayerMetadataCsv(
+      "game_id,steam_app_id,title,min_players,max_players\nosrs,1343370,Old School RuneScape,1,2000\n",
+    );
+    const invalid = parsePlayerMetadataCsv(
+      "game_id,steam_app_id,title,min_players,max_players\nhuge,1,Huge Game,1,2001\n",
+    );
+
+    expect(valid.updates[0]?.maxPlayers).toBe(2000);
+    expect(invalid.errors[0]).toContain("2000");
+  });
 });

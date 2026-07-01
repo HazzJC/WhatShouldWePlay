@@ -9,8 +9,8 @@ import { prisma } from "@/lib/prisma";
 
 const playerCountSchema = z.object({
   gameId: z.string().min(1),
-  minPlayers: z.coerce.number().int().min(1).max(1000),
-  maxPlayers: z.coerce.number().int().min(1).max(1000),
+  minPlayers: z.coerce.number().int().min(1).max(2000),
+  maxPlayers: z.coerce.number().int().min(1).max(2000),
   returnTo: z.string().startsWith("/admin/games").default("/admin/games"),
 }).refine((value) => value.maxPlayers >= value.minPlayers, {
   message: "Maximum players must be at least the minimum.",
