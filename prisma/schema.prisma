@@ -265,10 +265,24 @@ model User {
   challengeProgress UserChallenge[]
   mergeIntentsCurrent AccountMergeIntent[] @relation("MergeCurrentUser")
   mergeIntentsOther AccountMergeIntent[] @relation("MergeOtherUser")
+  avatarImage UserAvatar?
 
   @@index([email])
   @@index([normalizedUsername])
   @@index([directoryVisible, normalizedUsername])
+}
+
+model UserAvatar {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  data      Bytes
+  mimeType  String
+  sizeBytes Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([updatedAt])
 }
 
 model UsernameHistory {

@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Gamepad2, ShieldCheck } from "lucide-react";
+import { Gamepad2 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { saveUsernameAction } from "@/app/account/actions";
+import { UsernameSubmitProgress } from "@/components/username-submit-progress";
 import { getCurrentUser, safeInternalRedirect } from "@/lib/auth";
 
 type PageProps = {
@@ -68,10 +69,7 @@ export default async function AccountOnboardingPage({ searchParams }: PageProps)
               </span>
             </label>
 
-            <button type="submit" className="primary-button justify-center py-3">
-              <ShieldCheck className="h-5 w-5" />
-              Save and continue
-            </button>
+            <UsernameSubmitProgress />
           </form>
         </div>
       </section>

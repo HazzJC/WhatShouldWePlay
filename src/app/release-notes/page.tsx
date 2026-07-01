@@ -49,6 +49,15 @@ const releaseNotes: ReleaseMonth[] = [
           "Both operations are idempotent and fail the deployment clearly if database preparation does not complete.",
         ],
       },
+      {
+        date: "1 July 2026",
+        headline: "Clearer account controls and profile pictures",
+        details: [
+          "Username setup now shows a live status and progress indicator while availability is checked and the profile is saved.",
+          "Accounts can upload a validated profile picture through the new pencil control, with JPEG, PNG, and WebP support capped at 512 KB.",
+          "Recent sessions now have explicit remove controls, hosts can permanently delete their sessions, and account deletion is a visible action in the data section.",
+        ],
+      },
     ],
   },
   {

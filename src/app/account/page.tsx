@@ -1,8 +1,15 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Download, Gamepad2, Library, LogOut, Mail, ShieldCheck, UserRound } from "lucide-react";
-import { deleteAccountAction, updateAccountProfileAction } from "@/app/account/actions";
+import { Download, Gamepad2, Library, LogOut, Mail, Pencil, ShieldCheck, Trash2, UserRound, X } from "lucide-react";
+import {
+  deleteAccountAction,
+  removeProfileAvatarAction,
+  removeRecentSessionAction,
+  updateAccountProfileAction,
+  uploadProfileAvatarAction,
+} from "@/app/account/actions";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -51,6 +58,8 @@ export default async function AccountPage({ searchParams }: PageProps) {
   const googleError = firstParam(params.google_error);
   const steamStatus = firstParam(params.steam);
   const merged = firstParam(params.merged);
+  const avatarStatus = firstParam(params.avatar);
+  const avatarError = firstParam(params.avatar_error);
   const returnTo = firstParam(params.returnTo) ?? "/account";
   const user = await getCurrentUser();
   const googleAccount = user?.oauthAccounts.find((account) => account.provider === "GOOGLE") ?? null;
@@ -100,6 +109,12 @@ export default async function AccountPage({ searchParams }: PageProps) {
         {merged === "true" ? (
           <AuthNotice tone="success" title="Accounts merged" detail="Your providers, game library, friends, groups, preferences, and session history now use this account." />
         ) : null}
+        {avatarStatus ? (
+          <AuthNotice tone="success" title="Profile picture updated" detail={avatarStatus === "removed" ? "Your uploaded picture was removed." : "Your new profile picture is now visible across your account."} />
+        ) : null}
+        {avatarError ? (
+          <AuthNotice tone="error" title="Profile picture not changed" detail={avatarError} />
+        ) : null}
 
         {!user ? (
           <section className="surface p-5">
@@ -137,13 +152,42 @@ export default async function AccountPage({ searchParams }: PageProps) {
             <section className="surface p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-3">
-                  {user.avatarUrl ? (
-                    <Image src={user.avatarUrl} alt="" width={56} height={56} className="h-14 w-14 rounded-lg object-cover" />
-                  ) : (
-                    <span className="grid h-14 w-14 place-items-center rounded-lg bg-teal/12 text-teal">
-                      <UserRound className="h-7 w-7" />
-                    </span>
-                  )}
+                  <div className="relative shrink-0">
+                    {user.avatarUrl ? (
+                      <Image src={user.avatarUrl} alt="" width={56} height={56} className="h-14 w-14 rounded-lg object-cover" />
+                    ) : (
+                      <span className="grid h-14 w-14 place-items-center rounded-lg bg-teal/12 text-teal">
+                        <UserRound className="h-7 w-7" />
+                      </span>
+                    )}
+                    <details className="group absolute -bottom-2 -right-2 z-20">
+                      <summary
+                        className="focus-ring grid h-7 w-7 cursor-pointer list-none place-items-center rounded-full border-2 border-white bg-teal text-white shadow-card transition hover:bg-ink"
+                        aria-label="Edit profile picture"
+                        title="Edit profile picture"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </summary>
+                      <div className="absolute left-0 top-full mt-2 w-72 rounded-lg border border-ink/10 bg-white p-3 shadow-soft sm:left-auto sm:right-0">
+                        <p className="font-black text-ink">Profile picture</p>
+                        <p className="mt-1 text-xs font-bold leading-5 text-ink/52">JPEG, PNG, or WebP. Maximum 512 KB.</p>
+                        <form action={uploadProfileAvatarAction} className="mt-3 grid gap-2">
+                          <input name="avatar" type="file" required accept="image/jpeg,image/png,image/webp" className="block w-full text-xs font-bold text-ink" />
+                          <PendingSubmitButton className="primary-button justify-center px-3 py-2" pendingLabel="Uploading...">
+                            Upload picture
+                          </PendingSubmitButton>
+                        </form>
+                        {user.avatarUrl ? (
+                          <form action={removeProfileAvatarAction} className="mt-2">
+                            <button type="submit" className="secondary-button w-full justify-center px-3 py-2">
+                              <X className="h-4 w-4" />
+                              Remove picture
+                            </button>
+                          </form>
+                        ) : null}
+                      </div>
+                    </details>
+                  </div>
                   <div className="min-w-0">
                     <h2 className="truncate text-2xl font-black text-ink">{user.displayName}</h2>
                     <p className="truncate text-sm font-bold text-ink/58">
@@ -165,16 +209,40 @@ export default async function AccountPage({ searchParams }: PageProps) {
               <h2 className="text-xl font-black text-ink">Recent sessions</h2>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {recentParticipants.length ? recentParticipants.map((participant) => (
-                  <Link
-                    key={participant.id}
-                    href={`/s/${participant.session.shareToken}?participant=${participant.id}`}
-                    className="rounded-lg border border-ink/10 bg-paper p-3 transition hover:border-teal/35"
-                  >
-                    <p className="font-black text-ink">{participant.session.title}</p>
-                    <p className="mt-1 text-xs font-bold text-ink/48">
-                      {participant.isHost ? "Host" : "Participant"} · updated {participant.session.updatedAt.toLocaleDateString("en-GB")}
-                    </p>
-                  </Link>
+                  <article key={participant.id} className="rounded-lg border border-ink/10 bg-paper p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <Link
+                        href={`/s/${participant.session.shareToken}?participant=${participant.id}`}
+                        className="min-w-0 flex-1 transition hover:text-teal"
+                      >
+                        <p className="truncate font-black text-ink">{participant.session.title}</p>
+                        <p className="mt-1 text-xs font-bold text-ink/48">
+                          {participant.isHost ? "Host" : "Participant"} · updated {participant.session.updatedAt.toLocaleDateString("en-GB")}
+                        </p>
+                      </Link>
+                      <details className="relative">
+                        <summary className="focus-ring grid h-8 w-8 cursor-pointer list-none place-items-center rounded-md text-ink/45 hover:bg-red-50 hover:text-red-800" aria-label={`${participant.isHost ? "Delete" : "Remove"} ${participant.session.title}`}>
+                          <Trash2 className="h-4 w-4" />
+                        </summary>
+                        <div className="absolute right-0 top-full z-20 mt-1 w-64 rounded-lg border border-red-200 bg-white p-3 shadow-card">
+                          <p className="text-sm font-black text-red-800">
+                            {participant.isHost ? "Delete this session?" : "Remove from recent sessions?"}
+                          </p>
+                          <p className="mt-1 text-xs font-bold leading-5 text-ink/55">
+                            {participant.isHost
+                              ? "This permanently deletes the shared session for everyone."
+                              : "The shared session remains available, but it will no longer be linked to your account."}
+                          </p>
+                          <form action={removeRecentSessionAction} className="mt-3">
+                            <input type="hidden" name="participantId" value={participant.id} />
+                            <PendingSubmitButton className="secondary-button w-full justify-center border-red-300 px-3 py-2 text-red-800" pendingLabel="Removing...">
+                              {participant.isHost ? "Delete session" : "Remove from recents"}
+                            </PendingSubmitButton>
+                          </form>
+                        </div>
+                      </details>
+                    </div>
+                  </article>
                 )) : (
                   <p className="text-sm font-bold text-ink/52">Signed-in Plan and Pick sessions will appear here automatically.</p>
                 )}
@@ -287,27 +355,36 @@ export default async function AccountPage({ searchParams }: PageProps) {
               </div>
             </section>
 
-            <details className="surface p-5">
-              <summary className="cursor-pointer font-black text-ink">Data and account deletion</summary>
-              <div className="mt-4 grid gap-4">
+            <section className="surface p-5">
+              <h2 className="text-xl font-black text-ink">Data and account deletion</h2>
+              <p className="mt-1 text-sm font-bold leading-6 text-ink/55">Export your data or permanently remove this account.</p>
+              <div className="mt-4 flex flex-wrap gap-3">
                 <a href="/account/export" className="secondary-button w-fit">
                   <Download className="h-4 w-4" />
                   Export my data
                 </a>
                 {user.username ? (
-                  <form action={deleteAccountAction} className="rounded-lg border border-red-200 bg-red-50 p-4">
-                    <p className="font-black text-red-800">Delete account permanently</p>
-                    <p className="mt-1 text-sm font-bold leading-6 text-red-800/80">
-                      Type <strong>{user.username}</strong> to remove your profile, library, friends, and groups.
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <input name="confirmation" required className="field max-w-xs" aria-label="Confirm username" />
-                      <button type="submit" className="secondary-button border-red-300 text-red-800">Delete account</button>
-                    </div>
-                  </form>
+                  <details>
+                    <summary className="secondary-button cursor-pointer list-none border-red-300 text-red-800">
+                      <Trash2 className="h-4 w-4" />
+                      Delete account
+                    </summary>
+                    <form action={deleteAccountAction} className="mt-3 rounded-lg border border-red-200 bg-red-50 p-4">
+                      <p className="font-black text-red-800">Delete account permanently</p>
+                      <p className="mt-1 text-sm font-bold leading-6 text-red-800/80">
+                        Type <strong>{user.username}</strong> to remove your profile, library, friends, and groups.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <input name="confirmation" required className="field max-w-xs" aria-label="Confirm username" />
+                        <PendingSubmitButton className="secondary-button border-red-300 text-red-800" pendingLabel="Deleting account...">
+                          Delete account permanently
+                        </PendingSubmitButton>
+                      </div>
+                    </form>
+                  </details>
                 ) : null}
               </div>
-            </details>
+            </section>
           </>
         )}
       </section>

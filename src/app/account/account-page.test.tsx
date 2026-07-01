@@ -69,5 +69,7 @@ describe("account page", () => {
     expect(screen.getByRole("heading", { name: "Google" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Steam" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Connect Steam" })).toHaveAttribute("href", expect.stringContaining("/auth/steam/start"));
+    expect(screen.getByLabelText("Edit profile picture")).toBeInTheDocument();
+    expect(screen.getByText("Delete account")).toBeInTheDocument();
   });
 });

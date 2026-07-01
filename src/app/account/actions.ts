@@ -14,6 +14,7 @@ import { importSteamGamesForUser, normalizeGameTitle } from "@/lib/games";
 import { prisma } from "@/lib/prisma";
 import { getOwnedSteamGames, getRecentlyPlayedSteamGames } from "@/lib/steam";
 import { mergeAccounts } from "@/lib/account-merge";
+import { validateAvatarFile } from "@/lib/avatar";
 
 const profileSchema = z.object({
   displayName: z.string().trim().min(1).max(80),
@@ -126,6 +127,111 @@ export async function updateAccountProfileAction(formData: FormData) {
       directoryVisible: parsed.data.directoryVisible === "true",
     },
   });
+
+  revalidatePath("/account");
+}
+
+export async function uploadProfileAvatarAction(formData: FormData) {
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect("/account");
+  }
+
+  const file = formData.get("avatar");
+
+  if (!(file instanceof File)) {
+    redirect("/account?avatar_error=Choose+an+image+to+upload.");
+  }
+
+  const validation = await validateAvatarFile(file);
+
+  if (!validation.success) {
+    redirect(`/account?avatar_error=${encodeURIComponent(validation.error)}`);
+  }
+
+  const version = Date.now();
+  await prisma.$transaction([
+    prisma.userAvatar.upsert({
+      where: { userId: currentUser.id },
+      create: {
+        userId: currentUser.id,
+        data: validation.data,
+        mimeType: validation.mimeType,
+        sizeBytes: validation.sizeBytes,
+      },
+      update: {
+        data: validation.data,
+        mimeType: validation.mimeType,
+        sizeBytes: validation.sizeBytes,
+      },
+    }),
+    prisma.user.update({
+      where: { id: currentUser.id },
+      data: { avatarUrl: `/api/users/${currentUser.id}/avatar?v=${version}` },
+    }),
+  ]);
+
+  revalidatePath("/account");
+  redirect("/account?avatar=updated");
+}
+
+export async function removeProfileAvatarAction() {
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect("/account");
+  }
+
+  const providerAvatar =
+    currentUser.oauthAccounts.find((account) => account.avatarUrl)?.avatarUrl ??
+    currentUser.steamAccount?.avatarUrl ??
+    null;
+
+  await prisma.$transaction([
+    prisma.userAvatar.deleteMany({ where: { userId: currentUser.id } }),
+    prisma.user.update({
+      where: { id: currentUser.id },
+      data: { avatarUrl: providerAvatar },
+    }),
+  ]);
+
+  revalidatePath("/account");
+  redirect("/account?avatar=removed");
+}
+
+export async function removeRecentSessionAction(formData: FormData) {
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect("/account");
+  }
+
+  const participantId = String(formData.get("participantId") ?? "");
+  const participant = await prisma.participant.findFirst({
+    where: {
+      id: participantId,
+      userId: currentUser.id,
+    },
+    select: {
+      id: true,
+      sessionId: true,
+      isHost: true,
+    },
+  });
+
+  if (!participant) {
+    throw new Error("Session membership not found.");
+  }
+
+  if (participant.isHost) {
+    await prisma.session.delete({ where: { id: participant.sessionId } });
+  } else {
+    await prisma.participant.update({
+      where: { id: participant.id },
+      data: { userId: null },
+    });
+  }
 
   revalidatePath("/account");
 }

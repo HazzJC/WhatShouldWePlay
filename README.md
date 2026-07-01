@@ -92,6 +92,8 @@ devices; public discovery remains open to everyone.
   full libraries friends-only.
 - Export account data or permanently delete an account while leaving anonymous
   Plan sessions intact.
+- Upload a validated profile picture, remove sessions from account history, and
+  let hosts permanently delete sessions they created.
 - Saved friend groups can be created from Pick sessions, invited by link, and
   reused to start future Pick sessions quickly.
 
