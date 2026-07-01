@@ -10,6 +10,7 @@ describe("ReleaseNotesPage", () => {
     expect(screen.getByRole("heading", { name: "Release notes" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "July 2026" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Persistent game profiles and account-first Pick" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Database-safe Vercel deployments" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "June 2026" })).toBeInTheDocument();
     expect(screen.getByText("22 June 2026")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Google accounts and reusable friend groups" })).toBeInTheDocument();

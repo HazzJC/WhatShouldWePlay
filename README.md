@@ -160,11 +160,11 @@ npm run dev
 
 ## Production setup notes
 
-Migrations are applied automatically on deploy: the `build` script runs
-`prisma migrate deploy` (via `scripts/migrate-deploy.mjs`) before `next build`,
-so adding a feature + migration no longer leaves production drifting with
-`P2022 column does not exist` errors. The step is idempotent and skips when no
-database is configured (e.g. a local build with no DB).
+Database preparation is automatic on deploy: the `build` script runs
+`prisma migrate deploy` and the idempotent challenge catalogue seed through
+`scripts/migrate-deploy.mjs` before `next build`. The deployment fails instead
+of publishing incompatible application code if either database step fails.
+When no database is configured, such as an offline local build, both steps skip.
 
 For Neon free tier, use the pooled connection string for `DATABASE_URL` in
 production. The host usually contains `-pooler`, and the URL should include:
@@ -177,7 +177,14 @@ Migrations can't run over pgbouncer, so when `DATABASE_URL` is pooled, also set
 `DIRECT_URL` to the Neon *direct* endpoint (host without `-pooler`). The migrate
 step uses `DIRECT_URL` when present and falls back to `DATABASE_URL` otherwise.
 
-To apply pending migrations manually (e.g. to fix the current database now):
+The automatic order used by Vercel is:
+
+1. Generate Prisma Client.
+2. Apply pending migrations using `DIRECT_URL` when configured.
+3. Seed/update challenge catalogue data using `DATABASE_URL`.
+4. Build the Next.js application.
+
+To run the same database preparation manually:
 
 ```bash
 npm run prisma:deploy        # uses DATABASE_URL from your environment
