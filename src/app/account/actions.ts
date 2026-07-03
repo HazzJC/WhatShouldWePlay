@@ -217,6 +217,12 @@ export async function removeRecentSessionAction(formData: FormData) {
       id: true,
       sessionId: true,
       isHost: true,
+      session: {
+        select: {
+          gameNightId: true,
+          gameNight: { select: { _count: { select: { workspaces: true } } } },
+        },
+      },
     },
   });
 
@@ -225,7 +231,11 @@ export async function removeRecentSessionAction(formData: FormData) {
   }
 
   if (participant.isHost) {
-    await prisma.session.delete({ where: { id: participant.sessionId } });
+    if (participant.session.gameNightId && participant.session.gameNight?._count.workspaces === 1) {
+      await prisma.gameNight.delete({ where: { id: participant.session.gameNightId } });
+    } else {
+      await prisma.session.delete({ where: { id: participant.sessionId } });
+    }
   } else {
     await prisma.participant.update({
       where: { id: participant.id },

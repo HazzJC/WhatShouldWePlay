@@ -1,5 +1,5 @@
-import type { FriendGroup, Game, GameDeal, GameInterestSignal, Participant, ParticipantPreference, PriceAlertEvent, SessionGame, SessionGameInterest, SessionGameSignal, SteamAccount, SteamStorePrice, User, UserPreference } from "@prisma/client";
-import { Bell, Check, Gamepad2, Heart, Link as LinkIcon, LogOut, Plus, Search, Sparkles, TrendingUp, UsersRound, X } from "lucide-react";
+import type { FriendGroup, Game, GameDeal, Participant, ParticipantPreference, PriceAlertEvent, SessionGame, SessionGameInterest, SessionGameSignal, SteamAccount, SteamStorePrice, User, UserPreference } from "@prisma/client";
+import { Bell, Gamepad2, Link as LinkIcon, LogOut, Plus, Search, Sparkles, TrendingUp, UsersRound } from "lucide-react";
 import {
   addSessionParticipantsAsFriendsAction,
   addSessionGameAction,
@@ -8,20 +8,20 @@ import {
   createFriendGroupInviteAction,
   createPriceAlertRuleAction,
   importSteamLibraryAction,
-  markGameInterestAction,
-  markGameAvailableAction,
   removeSessionGameAction,
   updateDealSettingsAction,
   updatePreferenceAction,
   startPickSessionFromFriendGroupAction,
   updateQuickPreferenceAction,
 } from "@/app/actions";
-import { countDontHaveSignals, countHaveSignals, signalMeansHave, type GameInput } from "@/lib/games";
+import { countDontHaveSignals, countHaveSignals, type GameInput } from "@/lib/games";
 import type { GroupBuyFilters, GroupBuyRecommendation } from "@/lib/group-buy";
 import { formatMinorPrice } from "@/lib/itad";
-import { isBarelyPlayedGroupPick, isHeavilyPlayedGroupPick, scoreModeLabels, type CommitmentFilter, type MatchCategory, type ScoredGame, type ScoreMode } from "@/lib/match-scoring";
+import { isBarelyPlayedGroupPick, isHeavilyPlayedGroupPick, scoreModeLabels, type CommitmentFilter, type ScoredGame, type ScoreMode } from "@/lib/match-scoring";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { SteamImportSubmitButton } from "@/components/steam-import-submit-button";
+import { RankedMatchList } from "@/components/ranked-match-list";
+import { GameSignalControls } from "@/components/game-signal-controls";
 
 export type SessionGameView = SessionGame & {
   game: Game & { steamStorePrice?: SteamStorePrice | null; deal?: GameDeal | null };
@@ -102,6 +102,10 @@ export function PickPanel({
   const importStatus = steamAccount?.lastImportStatus ?? null;
   const importMessage = importStatus ? steamImportMessage(importStatus) : null;
   const showFullGroupList = Boolean(participantId && currentParticipantHasPickSignals);
+  const ownershipProfileCount = new Set(
+    sessionGames.flatMap((sessionGame) => sessionGame.signals.map((signal) => signal.participantId)),
+  ).size;
+  const guidedSetup = ownershipProfileCount < 2;
   const reviewTitle = showFullGroupList ? "Best shared options" : "Review games already added";
   const reviewEyebrow = showFullGroupList ? "Group match" : "Start here";
 
@@ -177,6 +181,13 @@ export function PickPanel({
             )}
           </div>
           <LibraryConnectionNotice summary={libraryConnectionSummary} />
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-teal/20 bg-teal/8 p-3">
+            <div>
+              <p className="text-sm font-semibold text-ink">{guidedSetup ? "Step 1 · Build the group" : "Group data ready"}</p>
+              <p className="mt-1 text-xs text-ink/55">{ownershipProfileCount} of 2 profiles have ownership data. Import or review games to improve matching.</p>
+            </div>
+            <span className="rounded bg-white px-2 py-1 text-xs font-semibold text-teal">{Math.min(ownershipProfileCount, 2)}/2 ready</span>
+          </div>
         </section>
 
         <nav aria-label="Pick workspace" className="grid gap-2 rounded-xl border border-ink/10 bg-white/75 p-2 shadow-sm sm:grid-cols-4">
@@ -204,9 +215,10 @@ export function PickPanel({
           selectedCommitment={selectedCommitment}
           scoreMode={scoreMode}
           scoredGames={scoredGames}
+          ownershipProfileCount={ownershipProfileCount}
         />
 
-        <section id="pick-tools" className="surface rounded-xl p-4">
+        <section id="pick-tools" className="surface order-5 rounded-xl p-4">
           <p className="text-sm font-black uppercase tracking-[0.14em] text-coral">Tools</p>
           <h2 className="mt-1 text-2xl font-black text-ink">Deals, friends, and preferences</h2>
           <div className="mt-4 grid gap-3">
@@ -250,7 +262,7 @@ export function PickPanel({
           </div>
         </section>
 
-        <section id="review-games" className="surface rounded-xl p-4 scroll-mt-4">
+        <section id="review-games" className="surface order-3 rounded-xl p-4 scroll-mt-4">
           {!showFullGroupList && participantId ? (
             <div className="mb-4 rounded-lg border border-teal/20 bg-teal/10 p-4">
               <p className="font-black text-ink">Import or mark what you have</p>
@@ -284,7 +296,7 @@ export function PickPanel({
           </details>
         </section>
 
-        <section id="add-games" className="surface rounded-xl p-4 scroll-mt-4">
+        <section id="add-games" className="surface order-4 rounded-xl p-4 scroll-mt-4">
           <p className="text-sm font-black uppercase tracking-[0.14em] text-coral">Add games</p>
           <h2 className="mt-1 text-2xl font-black text-ink">Search by title</h2>
           <form className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]" action={`/s/${shareToken}`}>
@@ -407,6 +419,7 @@ function MatchDashboard({
   selectedCommitment,
   scoreMode,
   scoredGames,
+  ownershipProfileCount,
 }: {
   id?: string;
   shareToken: string;
@@ -418,29 +431,14 @@ function MatchDashboard({
   selectedCommitment: CommitmentFilter;
   scoreMode: ScoreMode;
   scoredGames: ScoredGame[];
+  ownershipProfileCount: number;
 }) {
   const compatibleGames = scoredGames.filter((game) => game.playerCountStatus === "supported");
   const uncertainGames = scoredGames.filter((game) => game.playerCountStatus === "uncertain");
   const selectedProfileCount = selectedParticipantIds.length;
   const waitingForPlayers = selectedProfileCount < selectedPlayerCount;
+  const provisional = ownershipProfileCount < 2 || waitingForPlayers;
   const playersNeeded = Math.max(0, selectedPlayerCount - selectedProfileCount);
-  const closeGames = compatibleGames
-    .filter((game) => !game.categories.includes("perfect"))
-    .sort((a, b) => b.ownership.have - a.ownership.have || a.ownership.missing - b.ownership.missing || b.score - a.score)
-    .slice(0, 3);
-  const categorySections: Array<{ id: MatchCategory; title: string; empty: string }> = [
-    {
-      id: "perfect",
-      title: waitingForPlayers ? "Best matches so far" : "Perfect matches",
-      empty: waitingForPlayers
-        ? `Add or select ${playersNeeded} more ${playersNeeded === 1 ? "player" : "players"} to confirm a perfect match.`
-        : "No game is owned by everyone, but these are close.",
-    },
-    { id: "hiddenBacklog", title: "Hidden backlog", empty: "No shared low-playtime backlog picks yet." },
-    { id: "oldFavourites", title: "Old favourites", empty: "No heavily played group favourites yet." },
-    { id: "almostReady", title: "Almost ready", empty: "No one-missing games yet." },
-    { id: "saleOpportunity", title: "Sale opportunity", empty: "No discounted missing-player games found yet." },
-  ];
   const filters = [
     ["Everyone owns", compatibleGames.filter((game) => game.ownership.have === game.ownership.selected).length],
     ["Most people own", compatibleGames.filter((game) => game.ownership.have >= Math.max(1, game.ownership.selected - 1)).length],
@@ -455,7 +453,7 @@ function MatchDashboard({
     <section id={id} className="surface rounded-xl p-4 scroll-mt-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-black uppercase tracking-[0.14em] text-teal">Group matching</p>
+          <p className="text-sm font-semibold text-teal">{provisional ? "Step 2 · Set tonight’s constraints" : "Group matching"}</p>
           <h2 className="mt-1 text-2xl font-black text-ink">Best fit for this crew</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/62">
             Scores combine ownership, player count, playtime, interest, preferences, and best-effort sale data.
@@ -538,28 +536,20 @@ function MatchDashboard({
         ))}
       </div>
 
-      <div className="mt-4 grid gap-3">
-        {categorySections.map((section) => {
-          const games = compatibleGames.filter((game) => game.categories.includes(section.id)).slice(0, 4);
-
-          return (
-            <section key={section.id} id={`category-${section.id}`} className="rounded-lg border border-ink/10 bg-paper p-3 scroll-mt-4">
-              <h3 className="text-lg font-black text-ink">{section.title}</h3>
-              {section.id === "perfect" && games.length === 0 && closeGames.length > 0 ? (
-                <p className="mt-2 text-sm font-bold leading-6 text-ink/60">{section.empty}</p>
-              ) : null}
-              <div className="mt-3 grid gap-3 xl:grid-cols-2">
-                {games.length > 0 ? (
-                  games.map((game) => <ScoredGameCard key={`${section.id}-${game.sessionGameId}`} game={game} />)
-                ) : section.id === "perfect" && closeGames.length > 0 ? (
-                  closeGames.map((game) => <ScoredGameCard key={`close-${game.sessionGameId}`} game={game} />)
-                ) : (
-                  <p className="rounded-md border border-dashed border-ink/15 bg-white p-3 text-sm leading-6 text-ink/55">{section.empty}</p>
-                )}
-              </div>
-            </section>
-          );
-        })}
+      <div className="mt-4">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-coral">Step 3 · Choose</p>
+            <h3 className="mt-1 text-xl font-bold text-ink">{provisional ? "Your early matches" : "Ranked for this group"}</h3>
+          </div>
+          <p className="text-xs text-ink/45">{compatibleGames.length} compatible games</p>
+        </div>
+        <RankedMatchList
+          games={compatibleGames}
+          provisional={provisional}
+          selectedProfiles={selectedProfileCount}
+          requestedPlayers={selectedPlayerCount}
+        />
         {uncertainGames.length > 0 ? (
           <section className="rounded-lg border border-gold/35 bg-gold/10 p-4">
             <h3 className="text-lg font-black text-ink">Needs player-count metadata</h3>
@@ -1018,8 +1008,6 @@ function SessionGameCard({
   const haveCount = countHaveSignals(sessionGame);
   const dontHaveCount = countDontHaveSignals(sessionGame);
   const currentSignal = participantId ? sessionGame.signals.find((signal) => signal.participantId === participantId)?.signal : null;
-  const currentHas = signalMeansHave(currentSignal);
-  const currentDoesNotHave = currentSignal === "NOT_AVAILABLE";
   const playerMetadata = formatGamePlayerMetadata(sessionGame.game);
 
   return (
@@ -1037,37 +1025,13 @@ function SessionGameCard({
         </div>
       </div>
       {participantId ? (
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {[
-            { signal: "OWNED", label: "Have", selected: currentHas },
-            { signal: "NOT_AVAILABLE", label: "Don't have", selected: currentDoesNotHave },
-          ].map((option) => (
-            <form key={option.signal} action={markGameAvailableAction}>
-              <input type="hidden" name="shareToken" value={shareToken} />
-              <input type="hidden" name="sessionGameId" value={sessionGame.id} />
-              <input type="hidden" name="participantId" value={participantId} />
-              <input type="hidden" name="signal" value={option.signal} />
-              <PendingSubmitButton
-                className={`focus-ring inline-flex w-full items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-black transition ${
-                  option.signal === "OWNED"
-                    ? option.selected
-                      ? "border-moss bg-moss text-white"
-                      : "border-moss/25 bg-moss/10 text-moss hover:bg-moss/15"
-                    : option.selected
-                      ? "border-red-700 bg-red-700 text-white"
-                      : "border-red-200 bg-red-50 text-red-800 hover:bg-red-100"
-                }`}
-                pendingLabel="Saving..."
-              >
-                {option.signal === "OWNED" ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
-                {option.label}
-              </PendingSubmitButton>
-            </form>
-          ))}
-        </div>
-      ) : null}
-      {participantId && currentSignal ? (
-        <InterestControls shareToken={shareToken} participantId={participantId} sessionGame={sessionGame} />
+        <GameSignalControls
+          shareToken={shareToken}
+          participantId={participantId}
+          sessionGameId={sessionGame.id}
+          initialSignal={currentSignal ?? null}
+          initialInterest={sessionGame.interests.find((item) => item.participantId === participantId)?.interest ?? "NEUTRAL"}
+        />
       ) : null}
       <details className="mt-3">
         <summary className="cursor-pointer list-none text-xs font-black uppercase tracking-[0.12em] text-ink/45">Manage game</summary>
@@ -1079,45 +1043,6 @@ function SessionGameCard({
           </PendingSubmitButton>
         </form>
       </details>
-    </div>
-  );
-}
-
-function InterestControls({
-  shareToken,
-  participantId,
-  sessionGame,
-}: {
-  shareToken: string;
-  participantId: string;
-  sessionGame: SessionGameView;
-}) {
-  const currentInterest = sessionGame.interests.find((interest) => interest.participantId === participantId)?.interest ?? "NEUTRAL";
-  const options: Array<{ interest: GameInterestSignal; label: string }> = [
-    { interest: "WANT_TO_PLAY", label: "Want to play" },
-    { interest: "NEUTRAL", label: "Neutral" },
-    { interest: "NOT_TONIGHT", label: "Not tonight" },
-  ];
-
-  return (
-    <div className="mt-3 grid gap-2 sm:grid-cols-3">
-      {options.map((option) => (
-        <form key={option.interest} action={markGameInterestAction}>
-          <input type="hidden" name="shareToken" value={shareToken} />
-          <input type="hidden" name="sessionGameId" value={sessionGame.id} />
-          <input type="hidden" name="participantId" value={participantId} />
-          <input type="hidden" name="interest" value={option.interest} />
-          <PendingSubmitButton
-            className={`focus-ring inline-flex w-full items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-black transition ${
-              currentInterest === option.interest ? "border-teal bg-teal text-white" : "border-ink/10 bg-white text-ink hover:bg-paper"
-            }`}
-            pendingLabel="Saving..."
-          >
-            <Heart className="h-4 w-4" />
-            {option.label}
-          </PendingSubmitButton>
-        </form>
-      ))}
     </div>
   );
 }
@@ -1158,7 +1083,7 @@ function DiscoveryPanel({
         {icon}
         <h2 className="text-xl font-black text-ink">{title}</h2>
       </div>
-      <GameGrid shareToken={shareToken} participantId={participantId} games={games} source={source} empty="Add a manual game or configure IGDB credentials for live suggestions." compact />
+      <GameGrid shareToken={shareToken} participantId={participantId} games={games} source={source} empty="Suggestions are temporarily unavailable. Search for a title or browse curated games instead." compact />
     </section>
   );
 }

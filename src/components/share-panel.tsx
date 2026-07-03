@@ -23,6 +23,15 @@ export function SharePanel({ url, title }: { url: string; title: string }) {
       .catch(() => setQrDataUrl(null));
   }, [open, qrDataUrl, url]);
 
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [open]);
+
   async function copy(value = url) {
     try {
       await navigator.clipboard.writeText(value);
@@ -39,15 +48,31 @@ export function SharePanel({ url, title }: { url: string; title: string }) {
     window.open("https://discord.com/channels/@me", "_blank", "noopener,noreferrer");
   }
 
+  async function openShare() {
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title, text, url });
+        return;
+      } catch {
+        // Cancellation and unsupported share targets fall back to the sheet.
+      }
+    }
+    setOpen(true);
+  }
+
   return (
     <div className="relative">
-      <button type="button" className="secondary-button px-3 py-2" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
+      <button type="button" className="secondary-button px-3 py-2" onClick={openShare} aria-expanded={open}>
         <Share2 className="h-4 w-4" />
         Share
       </button>
       {open ? (
-        <div className="absolute right-0 top-full z-40 mt-2 w-[min(22rem,calc(100vw-1rem))] rounded-xl border border-ink/10 bg-white p-3 shadow-card sm:p-4">
+        <div className="fixed inset-0 z-[100] grid place-items-end bg-ink/55 p-0 sm:place-items-center sm:p-4" onMouseDown={() => setOpen(false)}>
+        <div role="dialog" aria-modal="true" aria-label="Share this Game Night" className="max-h-[90vh] w-full overflow-y-auto rounded-t-xl border border-ink/10 bg-white p-4 shadow-card sm:max-w-md sm:rounded-xl" onMouseDown={(event) => event.stopPropagation()}>
+          <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-black text-ink">Share this session</p>
+          <button type="button" onClick={() => setOpen(false)} className="rounded px-2 py-1 text-sm font-semibold text-ink/55">Close</button>
+          </div>
           <p className="mt-1 break-all text-xs font-bold leading-5 text-ink/50">{url}</p>
           <div className="mt-3 grid gap-1.5">
             <button type="button" className="secondary-button justify-start px-3 py-2" onClick={() => copy()}>
@@ -83,6 +108,7 @@ export function SharePanel({ url, title }: { url: string; title: string }) {
               Could not copy automatically. Select the link above and copy it manually.
             </p>
           ) : null}
+        </div>
         </div>
       ) : null}
     </div>

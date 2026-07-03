@@ -14,6 +14,11 @@ enum SessionMode {
   IN_PERSON
 }
 
+enum WorkspaceType {
+  PLAN
+  PICK
+}
+
 enum AvailabilityStatus {
   AVAILABLE
   MAYBE
@@ -109,6 +114,19 @@ enum ChallengeProgressStatus {
   ABANDONED
 }
 
+model GameNight {
+  id          String    @id @default(cuid())
+  shareToken  String    @unique
+  title       String
+  ownerUserId String?
+  owner       User?     @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspaces  Session[]
+
+  @@index([ownerUserId, updatedAt])
+}
+
 model Session {
   id                  String        @id @default(cuid())
   shareToken          String        @unique
@@ -131,6 +149,9 @@ model Session {
   lockedEndTime       DateTime?
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
+  gameNightId         String?
+  gameNight           GameNight?    @relation(fields: [gameNightId], references: [id], onDelete: Cascade)
+  workspaceType       WorkspaceType @default(PLAN)
   participants        Participant[]
   games               SessionGame[]
   priceAlertRules     PriceAlertRule[]
@@ -138,6 +159,9 @@ model Session {
   discordIntegrations DiscordIntegration[]
   discordNotifications DiscordNotificationLog[]
   discordAttendance   DiscordAttendance[]
+
+  @@unique([gameNightId, workspaceType])
+  @@index([gameNightId])
 }
 
 model Participant {
@@ -266,6 +290,7 @@ model User {
   mergeIntentsCurrent AccountMergeIntent[] @relation("MergeCurrentUser")
   mergeIntentsOther AccountMergeIntent[] @relation("MergeOtherUser")
   avatarImage UserAvatar?
+  gameNights GameNight[]
 
   @@index([email])
   @@index([normalizedUsername])

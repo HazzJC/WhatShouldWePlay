@@ -82,13 +82,6 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     commitment,
   } = await searchParams;
   const justImportedCount = imported ? Math.max(0, Number(imported) || 0) : null;
-  const activeTab = tab === "pick" ? "pick" : "plan";
-  const activeScoreMode = parseScoreMode(scoreMode);
-  const pickReturnTo = `/s/${shareToken}?tab=pick${participantId ? `&participant=${participantId}` : ""}`;
-  const currentUser =
-    activeTab === "pick"
-      ? await requireActivePickUser(pickReturnTo)
-      : await getCurrentUser();
   const session = await prisma.session.findUnique({
     where: { shareToken },
     include: {
@@ -100,6 +93,13 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           user: { include: { preference: true, steamAccount: true } },
         },
       },
+      gameNight: {
+        include: {
+          workspaces: {
+            select: { shareToken: true, workspaceType: true },
+          },
+        },
+      },
     },
   });
 
@@ -107,8 +107,22 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     notFound();
   }
 
+  const activeTab =
+    tab === "pick" || (!tab && session.workspaceType === "PICK")
+      ? "pick"
+      : "plan";
+  const activeScoreMode = parseScoreMode(scoreMode);
+  const pickReturnTo = `/s/${shareToken}?tab=pick${participantId ? `&participant=${participantId}` : ""}`;
+  const currentUser =
+    activeTab === "pick"
+      ? await requireActivePickUser(pickReturnTo)
+      : await getCurrentUser();
   const appUrl = await getAppUrl();
-  const shareUrl = `${appUrl}/s/${session.shareToken}${activeTab === "pick" ? "?tab=pick" : ""}`;
+  const shareUrl = session.gameNight
+    ? `${appUrl}/n/${session.gameNight.shareToken}`
+    : `${appUrl}/s/${session.shareToken}${activeTab === "pick" ? "?tab=pick" : ""}`;
+  const planWorkspace = session.gameNight?.workspaces.find((workspace) => workspace.workspaceType === "PLAN");
+  const pickWorkspace = session.gameNight?.workspaces.find((workspace) => workspace.workspaceType === "PICK");
   const slots = generateHourlySlots(session);
   const participantAvailability = session.participants.map((participant) => ({
     participantId: participant.id,
@@ -469,6 +483,22 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
         </div>
       </nav>
 
+      {activeTab === "pick" ? (
+        <section className="mt-4 flex flex-col gap-3 border-b border-ink/10 py-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-teal">Pick workspace</p>
+            <h1 className="mt-1 text-3xl font-black text-ink sm:text-4xl">{session.title}</h1>
+            <p className="mt-2 text-sm text-ink/60">
+              {session.participants.length} {session.participants.length === 1 ? "player" : "players"} joined · {session.participants.filter((participant) => participant.user?.steamAccount).length} libraries connected
+            </p>
+          </div>
+          <p className="rounded-md bg-gold/15 px-3 py-2 text-sm font-semibold text-ink">
+            {session.participants.length < session.minimumPlayerCount
+              ? `Early matching · ${session.participants.length} of ${session.minimumPlayerCount} players`
+              : "Ready to compare"}
+          </p>
+        </section>
+      ) : (
       <section className="relative mt-4 overflow-hidden rounded-xl border border-ink/10 bg-ink text-white shadow-soft">
         <Image src="/assets/game-night-hero.webp" alt="" fill priority sizes="100vw" className="object-cover opacity-35" />
         <div className="absolute inset-0 bg-gradient-to-r from-ink via-ink/85 to-ink/35" />
@@ -514,8 +544,25 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           </div>
         </div>
       </section>
+      )}
 
-      <SessionTabs shareToken={session.shareToken} participantId={participantId} activeTab={activeTab} />
+      <SessionTabs
+        shareToken={session.shareToken}
+        participantId={participantId}
+        activeTab={activeTab}
+        planHref={planWorkspace ? `/s/${planWorkspace.shareToken}` : undefined}
+        pickHref={pickWorkspace ? `/s/${pickWorkspace.shareToken}?tab=pick` : undefined}
+      />
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-ink/10 bg-white px-3 py-2 text-sm">
+        <p className="font-medium text-ink/65">
+          {currentParticipant ? (
+            <>Responding as <strong className="text-ink">{currentParticipant.name}</strong> · Saved to this Game Night</>
+          ) : (
+            <>Choose your name when you make your first response.</>
+          )}
+        </p>
+        {currentParticipant ? <Link href={`/s/${session.shareToken}${activeTab === "pick" ? "?tab=pick" : ""}`} className="font-semibold text-teal">Switch participant</Link> : null}
+      </div>
 
       {activeTab === "pick" && justImportedCount !== null ? (
         <PostImportStatus importedCount={justImportedCount} />

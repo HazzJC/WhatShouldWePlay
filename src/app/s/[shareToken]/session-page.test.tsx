@@ -24,7 +24,7 @@ describe("planner entry", () => {
     render(<Home />);
 
     expect(screen.getAllByText("Plan a game night").length).toBeGreaterThan(0);
-    expect(screen.getByText("No login needed")).toBeInTheDocument();
+    expect(screen.getByText("Plan without an account")).toBeInTheDocument();
     expect(screen.getByText("Best time to play")).toBeInTheDocument();
   });
 });

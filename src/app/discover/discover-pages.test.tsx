@@ -44,6 +44,13 @@ vi.mock("@/lib/curated-deals", () => ({
 }));
 
 describe("curated discovery pages", () => {
+  it("asks for group size before showing the catalogue", async () => {
+    render(await DiscoverPage({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByText("How many people need to play?")).toBeInTheDocument();
+    expect(screen.queryByText("Best online co-op games")).not.toBeInTheDocument();
+  });
+
   it("renders public curated categories", async () => {
     render(await DiscoverPage({ searchParams: Promise.resolve({ minPlayers: "50" }) }));
 

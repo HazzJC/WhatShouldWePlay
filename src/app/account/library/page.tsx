@@ -15,6 +15,8 @@ type PageProps = {
     q?: string;
     ownership?: string;
     imported?: string;
+    page?: string;
+    view?: string;
   }>;
 };
 
@@ -22,23 +24,33 @@ export default async function AccountLibraryPage({ searchParams }: PageProps) {
   const query = await searchParams;
   const user = await requireActivePickUser("/account/library");
   const search = query?.q?.trim() ?? "";
+  const page = Math.max(1, Number(query?.page) || 1);
+  const pageSize = 50;
+  const view = ["recent", "unrated", "wishlist", "unknown"].includes(query?.view ?? "") ? query?.view : undefined;
   const ownership = ["HAVE", "DONT_HAVE", "UNKNOWN"].includes(query?.ownership ?? "")
     ? query!.ownership
     : undefined;
-  const games = await prisma.userGame.findMany({
-    where: {
-      userId: user.id,
-      ...(ownership ? { ownership: ownership as "HAVE" | "DONT_HAVE" | "UNKNOWN" } : {}),
-      ...(search
-        ? {
-            game: {
-              title: {
-                contains: search,
-                mode: "insensitive",
-              },
+  const gameWhere = {
+    userId: user.id,
+    ...(ownership ? { ownership: ownership as "HAVE" | "DONT_HAVE" | "UNKNOWN" } : {}),
+    ...(view === "recent" ? { recentlyPlayedAt: { not: null } } : {}),
+    ...(view === "unrated" ? { favourite: true, rating: null } : {}),
+    ...(view === "wishlist" ? { wishlist: true } : {}),
+    ...(view === "unknown" ? { ownership: "UNKNOWN" as const } : {}),
+    ...(search
+      ? {
+          game: {
+            title: {
+              contains: search,
+              mode: "insensitive" as const,
             },
-          }
-        : {}),
+          },
+        }
+      : {}),
+  };
+  const [games, totalGames] = await Promise.all([prisma.userGame.findMany({
+    where: {
+      ...gameWhere,
     },
     include: {
       game: true,
@@ -49,8 +61,9 @@ export default async function AccountLibraryPage({ searchParams }: PageProps) {
       { playtimeMinutes: "desc" },
       { game: { title: "asc" } },
     ],
-    take: 100,
-  });
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+  }), prisma.userGame.count({ where: gameWhere })]);
   const counts = await prisma.userGame.groupBy({
     by: ["ownership"],
     where: { userId: user.id },
@@ -121,6 +134,20 @@ export default async function AccountLibraryPage({ searchParams }: PageProps) {
           <span>{countByOwnership.get("UNKNOWN") ?? 0} unknown</span>
         </div>
       </section>
+
+      <nav className="mt-3 flex gap-2 overflow-x-auto pb-1" aria-label="Library review queues">
+        {[
+          ["", "All games"],
+          ["recent", "Recently played"],
+          ["unrated", "Unrated favourites"],
+          ["wishlist", "Wishlist"],
+          ["unknown", "Needs review"],
+        ].map(([value, label]) => (
+          <Link key={value || "all"} href={libraryHref({ q: search, ownership, view: value || undefined, page: 1 })} className={`shrink-0 rounded-md px-3 py-2 text-sm font-semibold ${view === (value || undefined) ? "bg-teal text-white" : "border border-ink/10 bg-white text-ink/65"}`}>
+            {label}
+          </Link>
+        ))}
+      </nav>
 
       <details className="surface mt-3 p-4">
         <summary className="cursor-pointer font-black text-ink">Add a non-Steam game</summary>
@@ -203,8 +230,25 @@ export default async function AccountLibraryPage({ searchParams }: PageProps) {
           </div>
         )}
       </section>
+
+      {totalGames > pageSize ? (
+        <nav className="mt-5 flex items-center justify-between gap-3" aria-label="Library pages">
+          {page > 1 ? <Link href={libraryHref({ q: search, ownership, view, page: page - 1 })} className="secondary-button">Previous</Link> : <span />}
+          <p className="text-sm font-medium text-ink/50">Page {page} of {Math.ceil(totalGames / pageSize)}</p>
+          {page * pageSize < totalGames ? <Link href={libraryHref({ q: search, ownership, view, page: page + 1 })} className="secondary-button">Next</Link> : null}
+        </nav>
+      ) : null}
     </main>
   );
+}
+
+function libraryHref({ q, ownership, view, page }: { q?: string; ownership?: string; view?: string; page: number }) {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (ownership) params.set("ownership", ownership);
+  if (view) params.set("view", view);
+  if (page > 1) params.set("page", String(page));
+  return `/account/library?${params.toString()}`;
 }
 
 function formatPlaytime(minutes?: number | null) {

@@ -32,10 +32,10 @@ export default function Home() {
         </div>
       </nav>
 
-      <section className="grid flex-1 items-center gap-5 py-5 lg:grid-cols-[0.9fr_1.1fr] lg:py-7">
+      <section className="grid flex-1 items-start gap-6 py-8 lg:grid-cols-[0.9fr_1.1fr] lg:py-12">
         <div className="max-w-2xl">
           <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">
-            No login needed
+            Plan without an account
           </p>
           <h1 className="mt-3 text-4xl font-black leading-[1.02] text-ink sm:text-5xl lg:text-6xl">
             Let&apos;s Play Games
@@ -55,8 +55,9 @@ export default function Home() {
             <Link href="/sessions/pick" className="focus-ring rounded-lg border border-ink/10 bg-white p-4 text-ink shadow-card transition hover:-translate-y-0.5 hover:border-teal/40 hover:bg-paper">
               <ListChecks className="h-6 w-6 text-teal" />
               <span className="mt-3 block text-xl font-black">Pick a game</span>
+              <span className="mt-2 inline-flex rounded bg-teal/10 px-2 py-1 text-xs font-semibold text-teal">Free account required</span>
               <span className="mt-2 block text-sm font-bold leading-6 text-ink/62">
-                Import libraries, compare ownership, and shortlist what the group can play.
+                Save libraries and friends once, then compare every future group instantly.
               </span>
             </Link>
           </div>

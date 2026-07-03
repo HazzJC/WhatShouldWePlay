@@ -204,6 +204,13 @@ export async function createDiscordSessionFromInteraction(interaction: DiscordIn
       timezone,
       discordChannel: interaction.channel_id ? `<#${interaction.channel_id}>` : null,
       reminderPreferences: normalizeReminderPreferences([reminder]),
+      workspaceType: "PLAN",
+      gameNight: {
+        create: {
+          title,
+          shareToken: createShareToken(),
+        },
+      },
       participants: {
         create: {
           name: discordDisplayName(discordUser),

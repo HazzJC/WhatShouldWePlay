@@ -6,6 +6,10 @@ Plan remains fully usable without an account. Pick workspaces use persistent
 Google- or Steam-backed accounts so library matching works across sessions and
 devices; public discovery remains open to everyone.
 
+Plan and Pick are organised beneath a shared **Game Night**. A Game Night can
+contain either workspace or both, has one shareable overview link, and appears
+in the signed-in Game nights archive as Active, Upcoming, or Past.
+
 ## What is built
 
 **Plan a game night**
@@ -19,6 +23,8 @@ devices; public discovery remains open to everyone.
   availability.
 - Keep `Times worth locking` expanded for hosts and collapsed for invitees.
 - Lock a time as host and download an `.ics` calendar invite.
+- Choose preset or custom date ranges, with weekend windows and Discord
+  reminders shown only when enabled.
 
 **Pick games**
 - Sign in with Google or Steam and choose a unique username before entering a
@@ -35,6 +41,10 @@ devices; public discovery remains open to everyone.
   copying whole libraries into each session shortlist.
 - Keep session-specific signals such as `Not tonight` separate from permanent
   ownership and ratings.
+- Follow an adaptive Build group, Set constraints, and Choose flow, switching
+  to the full dashboard after two profiles have ownership data.
+- Browse one ranked list with category filters and expandable scoring detail
+  instead of repeated game cards across multiple sections.
 
 **Group matching and scoring**
 - Select participants and a target player count for the recommendation run.
@@ -62,7 +72,8 @@ devices; public discovery remains open to everyone.
   platform, session length, owned-game exclusion, and sale-only preference.
 
 **Curated discovery**
-- Browse public discovery lists without signing in.
+- Choose the required group size, then browse public discovery without signing
+  in; categories with no compatible games are hidden.
 - Includes online co-op, local co-op, more-than-4-player games, party games,
   campaign co-op, survival groups, cheap co-op, trending multiplayer, recent
   releases, upcoming friend-slop, and games with multiplayer mods.
@@ -74,8 +85,8 @@ devices; public discovery remains open to everyone.
   estimated attempt times, caveats, and persistent account progress.
 
 **Sharing and Discord**
-- Share sessions with a compact panel: copy link, Discord, WhatsApp, Messenger,
-  email, and QR code.
+- Share Game Nights through the native mobile share sheet or a responsive
+  fallback with copy, Discord, WhatsApp, Messenger, email, and QR code.
 - Preserve the active tab in shared URLs, so Pick sessions share directly into
   Pick.
 - Add a Discord HTTP interactions MVP with `/letsplay create`, `/letsplay

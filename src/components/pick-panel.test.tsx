@@ -167,8 +167,8 @@ describe("PickPanel", () => {
     );
 
     expect(screen.getByText("Group matching")).toBeInTheDocument();
-    expect(screen.getByText("Perfect matches")).toBeInTheDocument();
-    expect(screen.getByText("Alignment: High")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Best overall/ })).toBeInTheDocument();
+    expect(screen.getByText("High alignment")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Score mode" })).toBeInTheDocument();
   });
 
@@ -189,7 +189,7 @@ describe("PickPanel", () => {
       />,
     );
 
-    expect(screen.getByText("Best matches so far")).toBeInTheDocument();
+    expect(screen.getByText("Your early matches")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Matching 1 of the requested 2 players");
     expect(screen.queryByText("Perfect matches")).not.toBeInTheDocument();
   });
@@ -239,7 +239,7 @@ describe("PickPanel", () => {
     );
 
     expect(screen.getAllByText("Almost Shared")[0]).toBeInTheDocument();
-    expect(screen.getByText("No game is owned by everyone, but these are close.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Almost ready/ })).toBeInTheDocument();
   });
 
   it("separates games with uncertain player-count metadata from compatible recommendations", () => {

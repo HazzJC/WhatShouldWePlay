@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { AppNavigation } from "@/components/app-navigation";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -27,8 +27,8 @@ try {
             `.trim(),
           }}
         />
+        <AppNavigation />
         {children}
-        <ThemeToggle />
       </body>
     </html>
   );

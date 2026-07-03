@@ -9,13 +9,16 @@ import { prisma } from "@/lib/prisma";
 const defaultTimezone = "Europe/London";
 
 type PageProps = {
-  searchParams?: Promise<{ game?: string }>;
+  searchParams?: Promise<{ game?: string; gameNight?: string }>;
 };
 
 export default async function NewPickSessionPage({ searchParams }: PageProps) {
   const query = await searchParams;
   const initialGame = query?.game ? getCuratedGame(query.game) : null;
-  const returnTo = `/sessions/pick${query?.game ? `?game=${encodeURIComponent(query.game)}` : ""}`;
+  const returnParams = new URLSearchParams();
+  if (query?.game) returnParams.set("game", query.game);
+  if (query?.gameNight) returnParams.set("gameNight", query.gameNight);
+  const returnTo = `/sessions/pick${returnParams.size ? `?${returnParams.toString()}` : ""}`;
   const currentUser = await requireActivePickUser(returnTo);
   const friendGroups = await prisma.friendGroup.findMany({
     where: { ownerId: currentUser.id },
@@ -58,6 +61,7 @@ export default async function NewPickSessionPage({ searchParams }: PageProps) {
               <input name="hostName" required maxLength={80} defaultValue={currentUser.displayName} className="field" />
             </label>
             <input type="hidden" name="timezone" value={defaultTimezone} />
+            {query?.gameNight ? <input type="hidden" name="gameNightId" value={query.gameNight} /> : null}
             {initialGame ? <input type="hidden" name="initialGameSlug" value={initialGame.slug} /> : null}
             {initialGame ? (
               <div className="rounded-lg border border-teal/20 bg-teal/10 p-4">

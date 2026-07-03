@@ -23,6 +23,24 @@ const releaseNotes: ReleaseMonth[] = [
     month: "July 2026",
     entries: [
       {
+        date: "4 July 2026",
+        headline: "Game Nights, clearer navigation, and a calmer Pick flow",
+        details: [
+          "Plan and Pick now live as distinct workspaces beneath a shared Game Night, with one overview link showing availability, library, participant, and shortlist progress.",
+          "A persistent responsive navigation shell adds Plan, Pick, Discover, Game nights, and Account throughout the product, while theme settings have moved out of the floating overlay and into the account menu.",
+          "Pick now uses an adaptive Build group, Set constraints, and Choose flow with one filterable ranking, honest early-match sample labels, concise result cards, and expandable score details.",
+        ],
+      },
+      {
+        date: "4 July 2026",
+        headline: "More dependable mobile planning and discovery",
+        details: [
+          "The Plan form now exposes its first fields immediately on mobile, supports custom date ranges, hides weekend controls until enabled, and uses coherent optional Discord reminder controls.",
+          "Discovery now asks for group size before presenting games and removes categories with no valid matches instead of showing dead-end zero-result cards.",
+          "Sharing uses the native mobile share sheet where available, with a responsive modal fallback, while shared workspaces make the active participant identity and save state explicit.",
+        ],
+      },
+      {
         date: "1 July 2026",
         headline: "Persistent game profiles and account-first Pick",
         details: [

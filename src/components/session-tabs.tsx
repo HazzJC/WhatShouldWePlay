@@ -4,20 +4,25 @@ export function SessionTabs({
   shareToken,
   participantId,
   activeTab,
+  planHref,
+  pickHref,
 }: {
   shareToken: string;
   participantId?: string;
   activeTab: "plan" | "pick";
+  planHref?: string;
+  pickHref?: string;
 }) {
   const tabs = [
-    ["plan", "Plan time", "Collect availability"],
-    ["pick", "Pick game", "Compare libraries"],
+    ["plan", "Plan", "Collect availability"],
+    ["pick", "Pick", "Compare libraries"],
   ] as const;
 
   return (
     <div className="mt-3 flex rounded-lg border border-ink/10 bg-white/75 p-1 shadow-sm">
       {tabs.map(([tab, label, description]) => {
-        const href = `/s/${shareToken}?tab=${tab}${participantId ? `&participant=${participantId}` : ""}`;
+        const linkedHref = tab === "plan" ? planHref : pickHref;
+        const href = linkedHref ?? `/s/${shareToken}?tab=${tab}${participantId ? `&participant=${participantId}` : ""}`;
         const active = activeTab === tab;
 
         return (

@@ -64,7 +64,9 @@ const createSessionSchema = z
     mode: z.enum(["ONLINE", "IN_PERSON"]),
     requiredDuration: z.coerce.number().int().min(1).max(8),
     minimumPlayerCount: z.coerce.number().int().min(2).max(30),
-    datePreset: z.enum(["tonight", "this_week", "this_month"]),
+    datePreset: z.enum(["tonight", "this_week", "this_month", "custom"]),
+    customStartDate: z.string().date().optional(),
+    customEndDate: z.string().date().optional(),
     dailyStartHour: z.coerce.number().int().min(0).max(23),
     dailyEndHour: z.coerce.number().int().min(1).max(24),
     separateWeekendTimes: z.boolean().default(false),
@@ -73,6 +75,8 @@ const createSessionSchema = z
     timezone: timezoneSchema,
     discordChannel: z.string().trim().max(120).optional(),
     reminders: z.array(z.string()).default([]),
+    remindersEnabled: z.boolean().default(false),
+    gameNightId: z.string().min(1).optional(),
   })
   .superRefine((value, ctx) => {
     if (value.dailyEndHour - value.dailyStartHour < value.requiredDuration) {
@@ -81,6 +85,16 @@ const createSessionSchema = z
         message: "Daily window must fit the session duration.",
         path: ["dailyEndHour"],
       });
+    }
+
+    if (value.datePreset === "custom") {
+      if (!value.customStartDate || !value.customEndDate || value.customEndDate < value.customStartDate) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Choose a valid custom date range.",
+          path: ["customEndDate"],
+        });
+      }
     }
 
     if (!value.separateWeekendTimes) {
@@ -114,6 +128,8 @@ export async function createSessionAction(formData: FormData) {
     requiredDuration: formData.get("requiredDuration"),
     minimumPlayerCount: formData.get("minimumPlayerCount"),
     datePreset: formData.get("datePreset"),
+    customStartDate: formData.get("customStartDate") || undefined,
+    customEndDate: formData.get("customEndDate") || undefined,
     dailyStartHour: formData.get("dailyStartHour"),
     dailyEndHour: formData.get("dailyEndHour"),
     separateWeekendTimes: formData.get("separateWeekendTimes") === "on",
@@ -121,10 +137,12 @@ export async function createSessionAction(formData: FormData) {
     weekendEndHour: formData.get("weekendEndHour") || undefined,
     timezone: formData.get("timezone"),
     discordChannel: formData.get("discordChannel") || undefined,
+    remindersEnabled: formData.get("remindersEnabled") === "on",
     reminders: [
       ...formData.getAll("reminders").map(String),
       formData.get("customReminderMinutes") ? `Custom:${formData.get("customReminderMinutes")}` : "",
     ].filter(Boolean),
+    gameNightId: formData.get("gameNightId") || undefined,
   });
 
   if (!parsed.success) {
@@ -132,7 +150,18 @@ export async function createSessionAction(formData: FormData) {
   }
 
   const values = parsed.data;
-  const dateRange = dateRangeFromPreset(values.datePreset as DatePreset, values.timezone);
+  if (values.gameNightId) {
+    if (!currentUser) throw new Error("Sign in as the Game Night host to add Plan.");
+    const target = await prisma.gameNight.findFirst({
+      where: { id: values.gameNightId, ownerUserId: currentUser.id, workspaces: { none: { workspaceType: "PLAN" } } },
+      select: { id: true },
+    });
+    if (!target) throw new Error("This Game Night cannot accept another Plan workspace.");
+  }
+  const dateRange = values.datePreset === "custom"
+    ? { startsOn: values.customStartDate!, endsOn: values.customEndDate! }
+    : dateRangeFromPreset(values.datePreset as DatePreset, values.timezone);
+  const gameNightShareToken = createShareToken();
   const session = await prisma.session.create({
     data: {
       title: values.title,
@@ -148,7 +177,17 @@ export async function createSessionAction(formData: FormData) {
       weekendEndHour: values.separateWeekendTimes ? values.weekendEndHour : null,
       timezone: values.timezone,
       discordChannel: values.discordChannel || null,
-      reminderPreferences: normalizeReminderPreferences(values.reminders),
+      reminderPreferences: normalizeReminderPreferences(values.remindersEnabled ? values.reminders : []),
+      workspaceType: "PLAN",
+      gameNight: values.gameNightId
+        ? { connect: { id: values.gameNightId } }
+        : {
+            create: {
+              title: values.title,
+              shareToken: gameNightShareToken,
+              ownerUserId: currentUser?.id,
+            },
+          },
       participants: {
         create: {
           name: values.hostName,
@@ -172,6 +211,7 @@ const createPickSessionSchema = z.object({
   hostName: z.string().trim().min(1).max(80),
   timezone: timezoneSchema.default("Europe/London"),
   initialGameSlug: z.string().trim().max(120).optional(),
+  gameNightId: z.string().min(1).optional(),
 });
 
 export async function createPickSessionAction(formData: FormData) {
@@ -186,6 +226,7 @@ export async function createPickSessionAction(formData: FormData) {
     hostName: formData.get("hostName"),
     timezone: formData.get("timezone") || "Europe/London",
     initialGameSlug: formData.get("initialGameSlug") || undefined,
+    gameNightId: formData.get("gameNightId") || undefined,
   });
 
   if (!parsed.success) {
@@ -193,7 +234,15 @@ export async function createPickSessionAction(formData: FormData) {
   }
 
   const values = parsed.data;
+  if (values.gameNightId) {
+    const target = await prisma.gameNight.findFirst({
+      where: { id: values.gameNightId, ownerUserId: currentUser.id, workspaces: { none: { workspaceType: "PICK" } } },
+      select: { id: true },
+    });
+    if (!target) throw new Error("This Game Night cannot accept another Pick workspace.");
+  }
   const dateRange = dateRangeFromPreset("this_week", values.timezone);
+  const gameNightShareToken = createShareToken();
   const session = await prisma.session.create({
     data: {
       title: values.title,
@@ -209,6 +258,16 @@ export async function createPickSessionAction(formData: FormData) {
       dealCountry: "GB",
       dealCurrency: "GBP",
       reminderPreferences: [],
+      workspaceType: "PICK",
+      gameNight: values.gameNightId
+        ? { connect: { id: values.gameNightId } }
+        : {
+            create: {
+              title: values.title,
+              shareToken: gameNightShareToken,
+              ownerUserId: currentUser.id,
+            },
+          },
       participants: {
         create: {
           name: currentUser.displayName,
@@ -1141,6 +1200,7 @@ export async function startPickSessionFromFriendGroupAction(formData: FormData) 
 
   const dateRange = dateRangeFromPreset("this_week", parsed.data.timezone);
   const acceptedMembers = group.members.filter((member) => member.status === "ACCEPTED" && member.userId && member.userId !== currentUser.id);
+  const gameNightShareToken = createShareToken();
   const session = await prisma.session.create({
     data: {
       title: `${group.name} picks`,
@@ -1156,6 +1216,14 @@ export async function startPickSessionFromFriendGroupAction(formData: FormData) 
       dealCountry: "GB",
       dealCurrency: "GBP",
       reminderPreferences: [],
+      workspaceType: "PICK",
+      gameNight: {
+        create: {
+          title: `${group.name} picks`,
+          shareToken: gameNightShareToken,
+          ownerUserId: currentUser.id,
+        },
+      },
       participants: {
         create: [
           {
@@ -1176,6 +1244,78 @@ export async function startPickSessionFromFriendGroupAction(formData: FormData) 
 
   await setParticipantIdentity(session.id, host.id, { isHost: true });
   redirect(`/s/${session.shareToken}?tab=pick&participant=${host.id}`);
+}
+
+const createCombinedGameNightSchema = z.object({
+  title: z.string().trim().min(2).max(120),
+  hostName: z.string().trim().min(1).max(80),
+  timezone: timezoneSchema.default("Europe/London"),
+});
+
+export async function createCombinedGameNightAction(formData: FormData) {
+  const currentUser = await getCurrentUser();
+  if (!currentUser?.username || !currentUser.onboardingCompletedAt) {
+    redirect("/account?returnTo=%2Fgame-nights%2Fnew");
+  }
+
+  const parsed = createCombinedGameNightSchema.safeParse({
+    title: formData.get("title"),
+    hostName: formData.get("hostName"),
+    timezone: formData.get("timezone") || "Europe/London",
+  });
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Could not create the Game Night.");
+
+  const values = parsed.data;
+  const dateRange = dateRangeFromPreset("this_week", values.timezone);
+  const gameNight = await prisma.gameNight.create({
+    data: {
+      title: values.title,
+      shareToken: createShareToken(),
+      ownerUserId: currentUser.id,
+      workspaces: {
+        create: [
+          {
+            title: values.title,
+            shareToken: createShareToken(),
+            workspaceType: "PLAN",
+            mode: "ONLINE",
+            requiredDuration: 2,
+            minimumPlayerCount: 2,
+            dateRangeStart: fromZonedTime(`${dateRange.startsOn}T00:00:00`, values.timezone),
+            dateRangeEnd: fromZonedTime(`${dateRange.endsOn}T00:00:00`, values.timezone),
+            dailyStartHour: 18,
+            dailyEndHour: 23,
+            timezone: values.timezone,
+            reminderPreferences: [],
+            participants: { create: { name: values.hostName, userId: currentUser.id, isHost: true } },
+          },
+          {
+            title: values.title,
+            shareToken: createShareToken(),
+            workspaceType: "PICK",
+            mode: "ONLINE",
+            requiredDuration: 2,
+            minimumPlayerCount: 2,
+            dateRangeStart: fromZonedTime(`${dateRange.startsOn}T00:00:00`, values.timezone),
+            dateRangeEnd: fromZonedTime(`${dateRange.endsOn}T00:00:00`, values.timezone),
+            dailyStartHour: 18,
+            dailyEndHour: 23,
+            timezone: values.timezone,
+            reminderPreferences: [],
+            participants: { create: { name: values.hostName, userId: currentUser.id, isHost: true } },
+          },
+        ],
+      },
+    },
+    include: { workspaces: { include: { participants: true } } },
+  });
+
+  for (const workspace of gameNight.workspaces) {
+    const host = workspace.participants[0];
+    if (host) await setParticipantIdentity(workspace.id, host.id, { isHost: true });
+  }
+
+  redirect(`/n/${gameNight.shareToken}`);
 }
 
 const addSessionParticipantsAsFriendsSchema = z.object({
