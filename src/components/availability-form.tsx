@@ -96,7 +96,8 @@ export function AvailabilityForm({
   const filledCount = allSlotKeys.filter((slotKey) => responses[slotKey]).length;
   const completionPercent = allSlotKeys.length > 0 ? Math.round((filledCount / allSlotKeys.length) * 100) : 0;
   const remainingCount = allSlotKeys.length - filledCount;
-  const activeDay = groupedSlots[activeDayIndex] ?? groupedSlots[0];
+  const safeActiveDayIndex = Math.min(activeDayIndex, Math.max(groupedSlots.length - 1, 0));
+  const activeDay = groupedSlots[safeActiveDayIndex] ?? groupedSlots[0];
   const activeDaySlotKeys = activeDay?.slots.map((slot) => slot.key) ?? [];
   const activeDayAnswered = activeDaySlotKeys.filter((slotKey) => responses[slotKey]).length;
   const desktopDayGridClass = compact
@@ -113,12 +114,6 @@ export function AvailabilityForm({
     window.addEventListener("pointerup", clearPaint);
     return () => window.removeEventListener("pointerup", clearPaint);
   }, []);
-
-  useEffect(() => {
-    if (activeDayIndex > groupedSlots.length - 1) {
-      setActiveDayIndex(Math.max(groupedSlots.length - 1, 0));
-    }
-  }, [activeDayIndex, groupedSlots.length]);
 
   function setSlots(slotKeys: string[], status: AvailabilityStatus) {
     setResponses((current) => {
@@ -211,7 +206,7 @@ export function AvailabilityForm({
                 <button
                   type="button"
                   onClick={() => setActiveDayIndex((index) => Math.max(index - 1, 0))}
-                  disabled={activeDayIndex === 0}
+                  disabled={safeActiveDayIndex === 0}
                   className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-ink/10 bg-white text-ink disabled:opacity-35"
                   aria-label="Previous day"
                 >
@@ -219,7 +214,7 @@ export function AvailabilityForm({
                 </button>
                 <div className="min-w-0 text-center">
                   <p className="text-xs font-black uppercase tracking-[0.14em] text-teal">
-                    Day {activeDayIndex + 1} of {groupedSlots.length}
+                    Day {safeActiveDayIndex + 1} of {groupedSlots.length}
                   </p>
                   <h2 className="truncate text-xl font-black text-ink">{activeDay.day}</h2>
                   <p className="text-sm font-bold text-ink/60">
@@ -229,7 +224,7 @@ export function AvailabilityForm({
                 <button
                   type="button"
                   onClick={() => setActiveDayIndex((index) => Math.min(index + 1, groupedSlots.length - 1))}
-                  disabled={activeDayIndex === groupedSlots.length - 1}
+                  disabled={safeActiveDayIndex === groupedSlots.length - 1}
                   className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-ink/10 bg-white text-ink disabled:opacity-35"
                   aria-label="Next day"
                 >

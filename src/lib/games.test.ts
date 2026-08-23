@@ -4,6 +4,7 @@ import { countHaveSignals, defaultAddedGameSignal, excludeExistingGames, normali
 describe("game helpers", () => {
   it("normalizes titles for manual game matching", () => {
     expect(normalizeGameTitle("  Deep Rock: Galactic! ")).toBe("deep rock galactic");
+    expect(normalizeGameTitle("Pokémon 伝説")).toBe("pokémon 伝説");
   });
 
   it("ranks shared ownership above popularity", () => {

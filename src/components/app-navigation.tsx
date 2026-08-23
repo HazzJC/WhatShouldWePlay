@@ -1,6 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { CalendarDays, Compass, Gamepad2, History, LogOut, UserRound } from "lucide-react";
-import { getCurrentUser } from "@/lib/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const primaryLinks = [
@@ -10,8 +12,15 @@ const primaryLinks = [
   { href: "/game-nights", label: "Game nights", icon: History },
 ] as const;
 
-export async function AppNavigation() {
-  const user = await getCurrentUser();
+export function AppNavigation() {
+  const [user, setUser] = useState<{ username: string | null; displayName: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/me", { credentials: "same-origin" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((value) => setUser(value?.user ?? null))
+      .catch(() => setUser(null));
+  }, []);
 
   return (
     <>
@@ -39,7 +48,7 @@ export async function AppNavigation() {
             <div className="absolute right-0 top-full z-[80] mt-2 grid w-64 gap-1 rounded-lg border border-ink/10 bg-white p-2 shadow-card">
               {user ? (
                 <>
-                  <p className="truncate px-2 py-2 text-xs font-medium text-ink/50">{user.email ?? user.displayName}</p>
+                  <p className="truncate px-2 py-2 text-xs font-medium text-ink/50">{user.displayName}</p>
                   <MenuLink href="/account" label="Account" />
                   <MenuLink href="/account/library" label="Library" />
                   <MenuLink href="/friends" label="Friends" />

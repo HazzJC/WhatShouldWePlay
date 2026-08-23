@@ -1,7 +1,7 @@
 import type { GameDeal } from "@prisma/client";
 import { curatedGames, type CuratedGame } from "@/lib/curated-games";
 import { normalizeGameTitle } from "@/lib/games";
-import { formatMinorPrice, refreshGameDealsWithin } from "@/lib/itad";
+import { formatMinorPrice } from "@/lib/itad";
 import { prisma } from "@/lib/prisma";
 
 export type CuratedGameWithDeal = CuratedGame & {
@@ -9,6 +9,7 @@ export type CuratedGameWithDeal = CuratedGame & {
 };
 
 export async function enrichCuratedGamesWithDeals(games: CuratedGame[], country = "GB", currency = "GBP") {
+  void currency;
   if (games.length === 0) {
     return [] as CuratedGameWithDeal[];
   }
@@ -22,25 +23,14 @@ export async function enrichCuratedGamesWithDeals(games: CuratedGame[], country 
         { normalizedTitle: { in: normalizedTitles } },
       ],
     },
-    include: { deal: true },
+    include: { deals: { where: { country }, take: 1 } },
   });
-
-  await refreshGameDealsWithin({
-    gameIds: dbGames.map((game) => game.id),
-    country,
-    currency,
-  });
-
-  const refreshedGames = await prisma.game.findMany({
-    where: { id: { in: dbGames.map((game) => game.id) } },
-    include: { deal: true },
-  });
-  const bySteamAppId = new Map(refreshedGames.filter((game) => game.steamAppId).map((game) => [game.steamAppId, game]));
-  const byTitle = new Map(refreshedGames.map((game) => [normalizeGameTitle(game.title), game]));
+  const bySteamAppId = new Map(dbGames.filter((game) => game.steamAppId).map((game) => [game.steamAppId, game]));
+  const byTitle = new Map(dbGames.map((game) => [normalizeGameTitle(game.title), game]));
 
   return games.map((game) => ({
     ...game,
-    deal: (game.steamAppId ? bySteamAppId.get(game.steamAppId)?.deal : null) ?? byTitle.get(normalizeGameTitle(game.title))?.deal ?? null,
+    deal: (game.steamAppId ? bySteamAppId.get(game.steamAppId)?.deals[0] : null) ?? byTitle.get(normalizeGameTitle(game.title))?.deals[0] ?? null,
   }));
 }
 

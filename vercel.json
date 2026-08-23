@@ -2,11 +2,15 @@
   "crons": [
     {
       "path": "/api/cron/discord-reminders",
-      "schedule": "0 17 * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron/refresh-game-data",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup",
+      "schedule": "30 4 * * *"
     }
   ]
 }

@@ -43,14 +43,13 @@ export default async function GameNightsPage() {
         },
       },
     },
-    orderBy: { updatedAt: "desc" },
+    orderBy: { lastActivityAt: "desc" },
   });
-  gameNights.sort((a, b) => latestActivity(b).getTime() - latestActivity(a).getTime());
 
   const grouped = {
-    Active: gameNights.filter((night) => statusFor(night.workspaces) === "Active"),
-    Upcoming: gameNights.filter((night) => statusFor(night.workspaces) === "Upcoming"),
-    Past: gameNights.filter((night) => statusFor(night.workspaces) === "Past"),
+    Active: gameNights.filter((night) => statusFor(night) === "Active"),
+    Upcoming: gameNights.filter((night) => statusFor(night) === "Upcoming"),
+    Past: gameNights.filter((night) => statusFor(night) === "Past"),
   };
 
   return (
@@ -88,7 +87,7 @@ export default async function GameNightsPage() {
                         </span>
                       ))}
                     </div>
-                    <p className="mt-4 text-xs text-ink/45">Updated {latestActivity(night).toLocaleDateString("en-GB")}</p>
+                    <p className="mt-4 text-xs text-ink/45">Updated {night.lastActivityAt.toLocaleDateString("en-GB")}</p>
                   </Link>
                 ))}
               </div>
@@ -106,16 +105,9 @@ export default async function GameNightsPage() {
   );
 }
 
-function statusFor(workspaces: Array<{ lockedStartTime: Date | null; lockedEndTime: Date | null; dateRangeEnd: Date }>) {
+function statusFor(night: { status: string; workspaces: Array<{ lockedStartTime: Date | null; lockedEndTime: Date | null }> }) {
   const now = new Date();
-  if (workspaces.some((workspace) => workspace.lockedStartTime && workspace.lockedStartTime > now)) return "Upcoming";
-  if (workspaces.every((workspace) => (workspace.lockedEndTime ?? workspace.dateRangeEnd) < now)) return "Past";
+  if (night.status === "COMPLETED" || night.status === "CANCELLED") return "Past";
+  if (night.workspaces.some((workspace) => workspace.lockedStartTime && workspace.lockedStartTime > now)) return "Upcoming";
   return "Active";
-}
-
-function latestActivity(night: { updatedAt: Date; workspaces: Array<{ updatedAt: Date }> }) {
-  return night.workspaces.reduce(
-    (latest, workspace) => workspace.updatedAt > latest ? workspace.updatedAt : latest,
-    night.updatedAt,
-  );
 }

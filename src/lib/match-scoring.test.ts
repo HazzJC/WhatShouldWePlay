@@ -173,7 +173,7 @@ describe("match scoring", () => {
     expect(scored.map((game) => game.title)).toEqual(["Four Player"]);
   });
 
-  it("does not collapse sparse games to identical scores", () => {
+  it("treats equally sparse games neutrally instead of inventing title-based quality", () => {
     const scored = scoreSessionGames({
       participants: [{ id: "p1", userId: "u1", preference: null, user: { preference: null } }],
       selectedParticipantIds: ["p1"],
@@ -186,7 +186,8 @@ describe("match scoring", () => {
       ],
     });
 
-    expect(new Set(scored.map((game) => game.score)).size).toBeGreaterThan(1);
+    expect(new Set(scored.map((game) => game.score)).size).toBe(1);
+    expect(scored.every((game) => game.factors.popularity === 50)).toBe(true);
     expect(scored.every((game) => game.playerCountStatus === "uncertain")).toBe(true);
   });
 

@@ -24,7 +24,7 @@ type ParticipantInput = {
   id: string;
   userId?: string | null;
   preference?: Partial<PreferenceProfile> | null;
-  user?: { preference?: Partial<PreferenceProfile> | null } | null;
+  user?: { preference?: Partial<PreferenceProfile> | null; favouriteGenres?: unknown } | null;
 };
 
 type GameScoreInput = {
@@ -193,6 +193,11 @@ export function scoreSessionGames({
   const selectedCount = Math.max(selectedParticipants.length, 1);
   const baseWeights = modeWeights[mode];
   const preference = averagePreference(selectedParticipants);
+  const favouriteGenres = selectedParticipants.flatMap((participant) =>
+    Array.isArray(participant.user?.favouriteGenres)
+      ? participant.user.favouriteGenres.map(String)
+      : [],
+  );
   const weights = preferenceAdjustedWeights(baseWeights, preference);
   const userGamesByGameId = groupUserGamesByGameId(userGames);
 
@@ -232,13 +237,13 @@ export function scoreSessionGames({
       const discountPercent = game.deal?.discountPercent ?? 0;
       const currentPrice = game.deal?.currentPrice ?? null;
       const historicalLow = game.deal?.historicalLow ?? null;
-      const price = missing > 0 && discountPercent > 0 ? clampScore(45 + discountPercent) : 35;
+      const price = affordabilityScore(currentPrice, missing, discountPercent);
       const historicalLowFactor = currentPrice && historicalLow ? clampScore(100 - Math.round(((currentPrice - historicalLow) / Math.max(historicalLow, 1)) * 100)) : 40;
-      const popularity = qualitySignalScore(game.title, game.popularityScore, game.steamReviewPercent);
+      const popularity = qualitySignalScore(game.popularityScore, game.steamReviewPercent);
       const multiplayerFit = multiplayerFitScore(game);
       const durationFit = durationFitScore(game.minimumSessionMinutes, game.commitmentTier, sessionMinutes, commitment);
       const personalRating = personalRatingScore(relevantUserGames);
-      const genreFit = genreFitScore(game.genres, preference.genreImportance);
+      const genreFit = genreFitScore(game.genres, favouriteGenres, preference.genreImportance);
       const availability = availabilityFit(selectedCount, missing, notAvailableIds.size);
       const sparseQualityBoost = game.popularityScore === null || game.popularityScore === undefined
         ? (popularity - 50) * 0.08
@@ -489,18 +494,23 @@ function coOpFit(supportsCoop: boolean | null | undefined, coOpPreference: numbe
   return 60;
 }
 
-function genreFitScore(genres: unknown, genreImportance: number) {
-  const genreList = Array.isArray(genres) ? genres.map(String) : [];
+function genreFitScore(genres: unknown, favouriteGenres: string[], genreImportance: number) {
+  const genreList = Array.isArray(genres) ? genres.map((genre) => String(genre).toLocaleLowerCase()) : [];
+  const favourites = new Set(favouriteGenres.map((genre) => genre.toLocaleLowerCase()));
 
-  if (genreImportance < 45) {
+  if (genreImportance < 45 || favourites.size === 0) {
     return 65;
   }
 
-  if (genreList.some((genre) => /co-op|survival|party|rpg|shooter|campaign|chill/i.test(genre))) {
-    return 82;
-  }
+  const matches = genreList.filter((genre) => favourites.has(genre)).length;
+  return matches > 0 ? clampScore(70 + matches * 10) : 40;
+}
 
-  return 60;
+function affordabilityScore(currentPrice: number | null, missing: number, discountPercent: number) {
+  if (missing === 0) return 100;
+  if (currentPrice === null) return 35;
+  const priceScore = currentPrice <= 500 ? 95 : currentPrice <= 1000 ? 80 : currentPrice <= 2000 ? 60 : currentPrice <= 4000 ? 40 : 20;
+  return clampScore(priceScore + Math.round(discountPercent * 0.25));
 }
 
 function availabilityFit(selectedCount: number, missing: number, notAvailableCount: number) {
@@ -574,7 +584,7 @@ function factorBreakdownFor(factors: ScoredGame["factors"], weights: Record<Fact
     .sort((a, b) => b.points - a.points);
 }
 
-function qualitySignalScore(title: string, popularityScore?: number | null, steamReviewPercent?: number | null) {
+function qualitySignalScore(popularityScore?: number | null, steamReviewPercent?: number | null) {
   if (steamReviewPercent !== null && steamReviewPercent !== undefined) {
     return clampScore(steamReviewPercent);
   }
@@ -583,8 +593,7 @@ function qualitySignalScore(title: string, popularityScore?: number | null, stea
     return clampScore(popularityScore);
   }
 
-  const hash = Array.from(normalizeGameTitle(title)).reduce((total, char) => ((total << 5) - total + char.charCodeAt(0)) | 0, 0);
-  return 25 + (Math.abs(hash) % 66);
+  return 50;
 }
 
 function multiplayerFitScore(game: GameScoreInput["game"]) {

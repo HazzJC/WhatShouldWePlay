@@ -1,10 +1,11 @@
 "use client";
 
 import { Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { removeRecentSessionAction } from "@/app/account/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { useHydrated } from "@/lib/use-hydrated";
 
 export function RecentSessionAction({
   participantId,
@@ -16,9 +17,7 @@ export function RecentSessionAction({
   isHost: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
+  const mounted = useHydrated();
 
   return (
     <>

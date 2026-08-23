@@ -12,16 +12,12 @@ import { SessionTabs } from "@/components/session-tabs";
 import { SharePanel } from "@/components/share-panel";
 import { getAppUrl } from "@/lib/app-url";
 import { requireActivePickUser } from "@/lib/accounts";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, getParticipantId } from "@/lib/auth";
 import { curatedGames } from "@/lib/curated-games";
-import { announceDiscordPriceAlerts } from "@/lib/discord";
-import { refreshGameMetadata } from "@/lib/game-metadata";
 import { commonMultiplayerGames, excludeExistingGames, rankSessionGames, searchGamesCatalog } from "@/lib/games";
 import { defaultGroupBuyFilters, scoreGroupBuyCandidates } from "@/lib/group-buy";
 import { getPopularIgdbGames, getTrendingIgdbGames, mapIgdbGame } from "@/lib/igdb";
-import { refreshGameDealsWithin } from "@/lib/itad";
 import { scoreSessionGames, type CommitmentFilter, type ScoreMode } from "@/lib/match-scoring";
-import { evaluatePriceAlerts } from "@/lib/price-alerts";
 import { prisma } from "@/lib/prisma";
 import {
   type BestTime,
@@ -34,6 +30,8 @@ import {
   rankMaybeTimes,
   responseMap,
 } from "@/lib/scheduling";
+
+export const metadata = { robots: { index: false, follow: false } };
 
 type PageProps = {
   params: Promise<{ shareToken: string }>;
@@ -64,8 +62,6 @@ type RecommendationTime = BestTime & {
 export default async function SessionPage({ params, searchParams }: PageProps) {
   const { shareToken } = await params;
   const {
-    participant: participantId,
-    tab,
     gameSearch,
     scoreMode,
     playerCount,
@@ -107,16 +103,17 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     notFound();
   }
 
-  const activeTab =
-    tab === "pick" || (!tab && session.workspaceType === "PICK")
-      ? "pick"
-      : "plan";
+  const activeTab = session.workspaceType === "PICK" ? "pick" : "plan";
   const activeScoreMode = parseScoreMode(scoreMode);
-  const pickReturnTo = `/s/${shareToken}?tab=pick${participantId ? `&participant=${participantId}` : ""}`;
+  const pickReturnTo = `/s/${shareToken}?tab=pick`;
   const currentUser =
     activeTab === "pick"
       ? await requireActivePickUser(pickReturnTo)
       : await getCurrentUser();
+  const cookieParticipantId = await getParticipantId(session.id);
+  const participantId =
+    session.participants.find((participant) => participant.userId === currentUser?.id)?.id ??
+    session.participants.find((participant) => participant.id === cookieParticipantId)?.id;
   const appUrl = await getAppUrl();
   const shareUrl = session.gameNight
     ? `${appUrl}/n/${session.gameNight.shareToken}`
@@ -212,13 +209,13 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const selectedPlayerCount = Math.max(1, Number(playerCount ?? session.minimumPlayerCount) || session.minimumPlayerCount);
   const selectedSessionMinutes = Math.max(30, Math.min(480, Number(sessionMinutes ?? session.requiredDuration * 60) || session.requiredDuration * 60));
   const selectedCommitment = parseCommitmentFilter(commitment);
-  const [initialSessionGames, searchResults, popularGames, trendingGames] =
+  const [initialSessionGameRows, searchResults, popularGames, trendingGames] =
     activeTab === "pick"
       ? await Promise.all([
           prisma.sessionGame.findMany({
             where: { sessionId: session.id },
             include: {
-              game: { include: { steamStorePrice: true, deal: true } },
+              game: { include: { steamStorePrice: true, deals: { where: { country: session.dealCountry }, take: 1 } } },
               signals: true,
               interests: true,
             },
@@ -228,18 +225,13 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           getTrendingIgdbGames().then((games) => games.map(mapIgdbGame)),
         ])
       : [[], [], [], []];
-  if (activeTab === "pick") {
-    const gameIds = initialSessionGames.map((sessionGame) => sessionGame.gameId);
-
-    await Promise.all([
-      withTimeout(refreshGameMetadata(gameIds), 700),
-      refreshGameDealsWithin({
-        gameIds,
-        country: session.dealCountry,
-        currency: session.dealCurrency,
-      }),
-    ]);
-  }
+  const initialSessionGames = initialSessionGameRows.map((sessionGame) => ({
+    ...sessionGame,
+    game: {
+      ...sessionGame.game,
+      deal: sessionGame.game.deals[0] ?? null,
+    },
+  }));
   const sessionGames =
     activeTab === "pick"
       ? rankSessionGames(initialSessionGames)
@@ -257,7 +249,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     .map((sessionGame) => sessionGame.addedByUserId)
     .filter((userId): userId is string => Boolean(userId));
   const playtimeUserIds = [...new Set([...participantUserIds, ...sessionGameUserIds])];
-  const profileCandidateRows =
+  const profileCandidateDbRows =
     activeTab === "pick" && selectedUserIdSet.size > 0
       ? await prisma.userGame.findMany({
           where: {
@@ -271,7 +263,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
             ],
           },
           include: {
-            game: { include: { steamStorePrice: true, deal: true } },
+            game: { include: { steamStorePrice: true, deals: { where: { country: session.dealCountry }, take: 1 } } },
           },
           orderBy: [
             { favourite: "desc" },
@@ -282,6 +274,10 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           take: 500,
         })
       : [];
+  const profileCandidateRows = profileCandidateDbRows.map((row) => ({
+    ...row,
+    game: { ...row.game, deal: row.game.deals[0] ?? null },
+  }));
   const existingSessionGameIds = new Set(sessionGames.map((sessionGame) => sessionGame.gameId));
   const candidateGameIds = [...new Set(profileCandidateRows.map((userGame) => userGame.gameId))];
   const userGames =
@@ -354,15 +350,6 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           mode: activeScoreMode,
         })
       : [];
-  if (activeTab === "pick") {
-    await evaluatePriceAlerts({
-      sessionId: session.id,
-      sessionGames,
-      selectedCount: selectedParticipantIds.length,
-      currency: session.dealCurrency,
-    });
-    await announceDiscordPriceAlerts(session.id);
-  }
   const [priceAlertEvents, latestFriendInvite, savedFriends, friendGroups] =
     activeTab === "pick"
       ? await Promise.all([
@@ -421,18 +408,18 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     activeTab === "pick"
       ? await prisma.game.findMany({
           where: { steamAppId: { in: curatedSteamAppIds } },
-          include: { deal: true },
+          include: { deals: { where: { country: session.dealCountry }, take: 1 } },
         })
       : [];
   const groupBuyDeals = new Map(
     curatedDbGames
-      .filter((game) => game.deal)
+      .filter((game) => game.deals[0])
       .map((game) => [
         game.title,
         {
-          currentPrice: game.deal!.currentPrice,
-          currency: game.deal!.currency,
-          discountPercent: game.deal!.discountPercent,
+          currentPrice: game.deals[0]!.currentPrice,
+          currency: game.deals[0]!.currency,
+          discountPercent: game.deals[0]!.discountPercent,
         },
       ]),
   );
@@ -597,6 +584,8 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           savedFriends={savedFriends.map((friend) => friend.friend)}
           friendGroups={friendGroups}
           libraryConnectionSummary={libraryConnectionSummary}
+          isHost={isCurrentHost}
+          selectedSessionGameId={session.gameNight?.selectedSessionGameId}
         />
       ) : (
       <section className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
@@ -760,13 +749,6 @@ function normalizeSelectedParticipants(value: string | string[] | undefined, fal
   const selected = values.flatMap((candidate) => candidate.split(",")).filter(Boolean);
 
   return selected.length > 0 ? selected : fallback;
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
-  await Promise.race([
-    promise.then(() => undefined).catch(() => undefined),
-    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
-  ]);
 }
 
 function RecommendationList({

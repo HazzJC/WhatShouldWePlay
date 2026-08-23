@@ -1,4 +1,5 @@
-import { refreshActiveGameData } from "@/lib/game-data-refresh";
+import { refreshActiveGameDataForMarkets } from "@/lib/game-data-refresh";
+import { processActivePriceAlerts } from "@/lib/price-alert-jobs";
 
 // Daily refresh of the shared game dataset (metadata + prices/sales) for games
 // that are in use. See src/lib/game-data-refresh.ts for the rationale.
@@ -18,6 +19,7 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const result = await refreshActiveGameData();
-  return Response.json(result);
+  const result = await refreshActiveGameDataForMarkets();
+  const alerts = await processActivePriceAlerts();
+  return Response.json({ ...result, alertsEvaluated: alerts.evaluated, alertErrors: alerts.errors });
 }

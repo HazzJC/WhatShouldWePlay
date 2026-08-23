@@ -21,10 +21,10 @@ export default async function UserGamingProfilePage({ params }: PageProps) {
   }
 
   const isSelf = profile.id === currentUser.id;
-  const friendship = isSelf
-    ? true
-    : Boolean(
-        await prisma.userFriend.findUnique({
+  const [friendshipRecord, block] = isSelf
+    ? [true, null]
+    : await Promise.all([
+        prisma.userFriend.findUnique({
           where: {
             userId_friendId: {
               userId: currentUser.id,
@@ -32,7 +32,18 @@ export default async function UserGamingProfilePage({ params }: PageProps) {
             },
           },
         }),
-      );
+        prisma.userBlock.findFirst({
+          where: {
+            OR: [
+              { blockerId: currentUser.id, blockedId: profile.id },
+              { blockerId: profile.id, blockedId: currentUser.id },
+            ],
+          },
+          select: { id: true },
+        }),
+      ]);
+  if (block) notFound();
+  const friendship = isSelf || Boolean(friendshipRecord);
 
   if (!profile.directoryVisible && !friendship) {
     notFound();

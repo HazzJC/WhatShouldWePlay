@@ -18,13 +18,12 @@ export function SteamImportSubmitButton() {
 
   useEffect(() => {
     if (!pending) {
-      setStepIndex(0);
       return;
     }
 
-    const timeouts = importSteps.slice(1).map((_, index) =>
+    const timeouts = [window.setTimeout(() => setStepIndex(0), 0), ...importSteps.slice(1).map((_, index) =>
       window.setTimeout(() => setStepIndex(index + 1), 1500 + index * 2200),
-    );
+    )];
 
     return () => {
       timeouts.forEach(window.clearTimeout);

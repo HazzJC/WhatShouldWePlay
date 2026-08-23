@@ -67,18 +67,15 @@ export async function refreshGameDeals({
 
   const games = await prisma.game.findMany({
     where: { id: { in: uniqueGameIds } },
-    include: { deal: true },
+    include: { deals: { where: { country }, take: 1 } },
   });
   const staleGames = games.filter((game) => {
-    if (!game.deal) {
+    const deal = game.deals[0];
+    if (!deal) {
       return true;
     }
 
-    if (game.deal.status === "not_found") {
-      return true;
-    }
-
-    return game.deal.country !== country || Date.now() - game.deal.fetchedAt.getTime() > cacheMs;
+    return Date.now() - deal.fetchedAt.getTime() > cacheMs;
   });
 
   if (staleGames.length === 0) {
@@ -119,7 +116,7 @@ export async function refreshGameDeals({
       const historyLow = price?.historyLow?.all ?? overviewPrice?.lowest?.price;
 
       await prisma.gameDeal.upsert({
-        where: { gameId },
+        where: { gameId_country: { gameId, country } },
         create: {
           gameId,
           itadId,
@@ -255,7 +252,7 @@ async function fetchJson(url: URL, body?: unknown) {
 
 async function upsertDealFailure(gameId: string, country: string, currency: string, status: string) {
   await prisma.gameDeal.upsert({
-    where: { gameId },
+    where: { gameId_country: { gameId, country } },
     create: {
       gameId,
       country,

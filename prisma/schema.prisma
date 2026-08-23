@@ -114,79 +114,112 @@ enum ChallengeProgressStatus {
   ABANDONED
 }
 
-model GameNight {
-  id          String    @id @default(cuid())
-  shareToken  String    @unique
-  title       String
-  ownerUserId String?
-  owner       User?     @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  workspaces  Session[]
+enum UserRole {
+  USER
+  METADATA_ADMIN
+}
 
-  @@index([ownerUserId, updatedAt])
+enum GameNightStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model GameNight {
+  id                    String          @id @default(cuid())
+  shareToken            String          @unique
+  title                 String
+  ownerUserId           String?
+  owner                 User?           @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  status                GameNightStatus @default(ACTIVE)
+  lastActivityAt        DateTime        @default(now())
+  selectedSessionGameId String?         @unique
+  selectedSessionGame   SessionGame?    @relation("SelectedGameNight", fields: [selectedSessionGameId], references: [id], onDelete: SetNull)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  workspaces            Session[]
+
+  @@index([ownerUserId, lastActivityAt])
+  @@index([status, lastActivityAt])
 }
 
 model Session {
-  id                  String        @id @default(cuid())
-  shareToken          String        @unique
-  title               String
-  mode                SessionMode
-  requiredDuration    Int
-  minimumPlayerCount  Int           @map("requiredPlayerCount")
-  dateRangeStart      DateTime
-  dateRangeEnd        DateTime
-  dailyStartHour      Int
-  dailyEndHour        Int
-  weekendStartHour    Int?
-  weekendEndHour      Int?
-  timezone            String
-  discordChannel      String?
-  dealCountry         String        @default("GB")
-  dealCurrency        String        @default("GBP")
-  reminderPreferences Json
-  lockedStartTime     DateTime?
-  lockedEndTime       DateTime?
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-  gameNightId         String?
-  gameNight           GameNight?    @relation(fields: [gameNightId], references: [id], onDelete: Cascade)
-  workspaceType       WorkspaceType @default(PLAN)
-  participants        Participant[]
-  games               SessionGame[]
-  priceAlertRules     PriceAlertRule[]
-  priceAlertEvents    PriceAlertEvent[]
-  discordIntegrations DiscordIntegration[]
+  id                   String                   @id @default(cuid())
+  shareToken           String                   @unique
+  title                String
+  mode                 SessionMode
+  requiredDuration     Int
+  minimumPlayerCount   Int                      @map("requiredPlayerCount")
+  dateRangeStart       DateTime
+  dateRangeEnd         DateTime
+  dailyStartHour       Int
+  dailyEndHour         Int
+  weekendStartHour     Int?
+  weekendEndHour       Int?
+  timezone             String
+  discordChannel       String?
+  dealCountry          String                   @default("GB")
+  dealCurrency         String                   @default("GBP")
+  priceAlertsCheckedAt DateTime?
+  reminderPreferences  Json
+  lockedStartTime      DateTime?
+  lockedEndTime        DateTime?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  gameNightId          String?
+  gameNight            GameNight?               @relation(fields: [gameNightId], references: [id], onDelete: Cascade)
+  workspaceType        WorkspaceType            @default(PLAN)
+  participants         Participant[]
+  games                SessionGame[]
+  priceAlertRules      PriceAlertRule[]
+  priceAlertEvents     PriceAlertEvent[]
+  discordIntegrations  DiscordIntegration[]
   discordNotifications DiscordNotificationLog[]
-  discordAttendance   DiscordAttendance[]
+  discordAttendance    DiscordAttendance[]
 
   @@unique([gameNightId, workspaceType])
   @@index([gameNightId])
+  @@index([workspaceType, priceAlertsCheckedAt])
 }
 
 model Participant {
-  id        String                 @id @default(cuid())
-  sessionId String
-  session   Session                @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  userId    String?
-  user      User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
-  name      String
-  discordUserId String?
-  discordUsername String?
-  isHost    Boolean                @default(false)
-  createdAt DateTime               @default(now())
-  responses AvailabilityResponse[]
-  addedGames SessionGame[]
-  gameSignals SessionGameSignal[]
-  gameInterests SessionGameInterest[]
-  preference ParticipantPreference?
+  id                         String                 @id @default(cuid())
+  sessionId                  String
+  session                    Session                @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId                     String?
+  user                       User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name                       String
+  discordUserId              String?
+  discordUsername            String?
+  isHost                     Boolean                @default(false)
+  createdAt                  DateTime               @default(now())
+  responses                  AvailabilityResponse[]
+  addedGames                 SessionGame[]
+  gameSignals                SessionGameSignal[]
+  gameInterests              SessionGameInterest[]
+  preference                 ParticipantPreference?
   preferenceNudgeDismissedAt DateTime?
-  discordAttendance DiscordAttendance[]
+  discordAttendance          DiscordAttendance[]
 
+  @@unique([sessionId, userId])
+  @@unique([sessionId, discordUserId])
   @@index([sessionId])
   @@index([userId])
+}
+
+/// Immutable migration audit used to inspect or manually restore participant
+/// rows that were consolidated before the membership uniqueness constraint.
+model ParticipantMergeAudit {
+  oldParticipantId  String   @id
+  keptParticipantId String
+  sessionId         String
+  userId            String
+  snapshot          Json
+  mergedAt          DateTime @default(now())
+
   @@index([sessionId, userId])
-  @@unique([sessionId, discordUserId])
+  @@index([keptParticipantId])
 }
 
 model DiscordIntegration {
@@ -206,34 +239,37 @@ model DiscordIntegration {
 }
 
 model DiscordNotificationLog {
-  id          String   @id @default(cuid())
-  sessionId   String
-  session     Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  guildId     String?
-  channelId   String?
-  type        String
-  scheduledFor DateTime?
-  messageId   String?
-  status      String
-  error       String?
-  createdAt   DateTime @default(now())
+  id              String    @id @default(cuid())
+  sessionId       String
+  session         Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  guildId         String?
+  channelId       String?
+  notificationKey String    @unique
+  type            String
+  scheduledFor    DateTime?
+  messageId       String?
+  status          String
+  error           String?
+  attemptCount    Int       @default(0)
+  nextAttemptAt   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  @@unique([sessionId, type, scheduledFor])
   @@index([sessionId, type])
-  @@index([scheduledFor, status])
+  @@index([nextAttemptAt, status])
 }
 
 model DiscordAttendance {
-  id            String      @id @default(cuid())
-  sessionId     String
-  session       Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  participantId String?
-  participant   Participant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
-  discordUserId String
+  id              String       @id @default(cuid())
+  sessionId       String
+  session         Session      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  participantId   String?
+  participant     Participant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
+  discordUserId   String
   discordUsername String?
-  status        String
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  status          String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   @@unique([sessionId, discordUserId])
   @@index([participantId])
@@ -254,43 +290,45 @@ model AvailabilityResponse {
 }
 
 model User {
-  id            String         @id @default(cuid())
-  displayName   String
-  username      String?        @unique
-  normalizedUsername String?   @unique
-  usernameChangedAt DateTime?
-  onboardingCompletedAt DateTime?
-  email         String?
-  emailVerified Boolean        @default(false)
-  avatarUrl     String?
-  favouriteGenres Json         @default("[]")
-  directoryVisible Boolean     @default(true)
-  lastSignedInAt DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  sessions      UserSession[]
-  oauthAccounts OAuthAccount[]
-  steamAccount  SteamAccount?
-  games         UserGame[]
-  sessionGames  SessionGame[]
-  participants  Participant[]
-  preference    UserPreference?
-  sentFriendInvites FriendInvite[]
-  friendsSent       UserFriend[] @relation("FriendUser")
-  friendsReceived   UserFriend[] @relation("FriendFriend")
-  ownedFriendGroups FriendGroup[] @relation("FriendGroupOwner")
+  id                     String               @id @default(cuid())
+  displayName            String
+  username               String?              @unique
+  normalizedUsername     String?              @unique
+  usernameChangedAt      DateTime?
+  onboardingCompletedAt  DateTime?
+  email                  String?
+  emailVerified          Boolean              @default(false)
+  avatarUrl              String?
+  timezone               String?
+  role                   UserRole             @default(USER)
+  favouriteGenres        Json                 @default("[]")
+  directoryVisible       Boolean              @default(true)
+  lastSignedInAt         DateTime?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  sessions               UserSession[]
+  oauthAccounts          OAuthAccount[]
+  steamAccount           SteamAccount?
+  games                  UserGame[]
+  sessionGames           SessionGame[]
+  participants           Participant[]
+  preference             UserPreference?
+  sentFriendInvites      FriendInvite[]
+  friendsSent            UserFriend[]         @relation("FriendUser")
+  friendsReceived        UserFriend[]         @relation("FriendFriend")
+  ownedFriendGroups      FriendGroup[]        @relation("FriendGroupOwner")
   friendGroupMemberships FriendGroupMember[]
   sentFriendGroupInvites FriendGroupInvite[]
-  usernameHistory UsernameHistory[]
-  sentFriendRequests FriendRequest[] @relation("FriendRequestSender")
-  receivedFriendRequests FriendRequest[] @relation("FriendRequestRecipient")
-  blocksCreated UserBlock[] @relation("UserBlocker")
-  blocksReceived UserBlock[] @relation("UserBlocked")
-  challengeProgress UserChallenge[]
-  mergeIntentsCurrent AccountMergeIntent[] @relation("MergeCurrentUser")
-  mergeIntentsOther AccountMergeIntent[] @relation("MergeOtherUser")
-  avatarImage UserAvatar?
-  gameNights GameNight[]
+  usernameHistory        UsernameHistory[]
+  sentFriendRequests     FriendRequest[]      @relation("FriendRequestSender")
+  receivedFriendRequests FriendRequest[]      @relation("FriendRequestRecipient")
+  blocksCreated          UserBlock[]          @relation("UserBlocker")
+  blocksReceived         UserBlock[]          @relation("UserBlocked")
+  challengeProgress      UserChallenge[]
+  mergeIntentsCurrent    AccountMergeIntent[] @relation("MergeCurrentUser")
+  mergeIntentsOther      AccountMergeIntent[] @relation("MergeOtherUser")
+  avatarImage            UserAvatar?
+  gameNights             GameNight[]
 
   @@index([email])
   @@index([normalizedUsername])
@@ -340,35 +378,35 @@ model OAuthAccount {
 }
 
 model UserPreference {
-  id                    String   @id @default(cuid())
-  userId                String   @unique
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  familiarVsNew         Int      @default(50)
-  coOpVsCompetitive     Int      @default(75)
-  priceImportance       Int      @default(50)
-  genreImportance       Int      @default(50)
-  ownershipImportance   Int      @default(75)
-  backlogImportance     Int      @default(50)
-  shortVsLong           Int      @default(50)
-  chillVsIntense        Int      @default(50)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familiarVsNew       Int      @default(50)
+  coOpVsCompetitive   Int      @default(75)
+  priceImportance     Int      @default(50)
+  genreImportance     Int      @default(50)
+  ownershipImportance Int      @default(75)
+  backlogImportance   Int      @default(50)
+  shortVsLong         Int      @default(50)
+  chillVsIntense      Int      @default(50)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 model ParticipantPreference {
-  id                    String      @id @default(cuid())
-  participantId         String      @unique
-  participant           Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
-  familiarVsNew         Int         @default(50)
-  coOpVsCompetitive     Int         @default(75)
-  priceImportance       Int         @default(50)
-  genreImportance       Int         @default(50)
-  ownershipImportance   Int         @default(75)
-  backlogImportance     Int         @default(50)
-  shortVsLong           Int         @default(50)
-  chillVsIntense        Int         @default(50)
-  createdAt             DateTime    @default(now())
-  updatedAt             DateTime    @updatedAt
+  id                  String      @id @default(cuid())
+  participantId       String      @unique
+  participant         Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  familiarVsNew       Int         @default(50)
+  coOpVsCompetitive   Int         @default(75)
+  priceImportance     Int         @default(50)
+  genreImportance     Int         @default(50)
+  ownershipImportance Int         @default(75)
+  backlogImportance   Int         @default(50)
+  shortVsLong         Int         @default(50)
+  chillVsIntense      Int         @default(50)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
 }
 
 model UserSession {
@@ -397,50 +435,50 @@ model SteamAccount {
 }
 
 model Game {
-  id              String        @id @default(cuid())
-  title           String
-  normalizedTitle String
-  slug            String?        @unique
-  steamAppId      Int?          @unique
-  igdbId          Int?          @unique
-  itadId          String?        @unique
-  coverUrl        String?
-  summary         String?
-  genres          Json          @default("[]")
-  platforms       Json          @default("[]")
-  gameModes       Json          @default("[]")
-  popularityScore Float?
-  steamReviewScore Int?
-  steamReviewPercent Int?
-  steamReviewTotal Int?
-  steamReviewSummary String?
-  qualitySource   String?
-  qualityFetchedAt DateTime?
-  minPlayers      Int?
-  maxPlayers      Int?
-  onlineCoop      Boolean?
-  localCoop       Boolean?
-  onlineMultiplayer Boolean?
-  localMultiplayer Boolean?
-  campaignCoop    Boolean?
-  capabilitySource String?
-  capabilityConfidence Float?
-  timeToBeatHastilyMinutes Int?
-  timeToBeatNormallyMinutes Int?
+  id                          String           @id @default(cuid())
+  title                       String
+  normalizedTitle             String
+  slug                        String?          @unique
+  steamAppId                  Int?             @unique
+  igdbId                      Int?             @unique
+  itadId                      String?          @unique
+  coverUrl                    String?
+  summary                     String?
+  genres                      Json             @default("[]")
+  platforms                   Json             @default("[]")
+  gameModes                   Json             @default("[]")
+  popularityScore             Float?
+  steamReviewScore            Int?
+  steamReviewPercent          Int?
+  steamReviewTotal            Int?
+  steamReviewSummary          String?
+  qualitySource               String?
+  qualityFetchedAt            DateTime?
+  minPlayers                  Int?
+  maxPlayers                  Int?
+  onlineCoop                  Boolean?
+  localCoop                   Boolean?
+  onlineMultiplayer           Boolean?
+  localMultiplayer            Boolean?
+  campaignCoop                Boolean?
+  capabilitySource            String?
+  capabilityConfidence        Float?
+  timeToBeatHastilyMinutes    Int?
+  timeToBeatNormallyMinutes   Int?
   timeToBeatCompletelyMinutes Int?
-  timeToBeatCount Int?
-  timeToBeatSource String?
-  timeToBeatFetchedAt DateTime?
-  minimumSessionMinutes Int?
-  commitmentTier CommitmentTier?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  userGames       UserGame[]
-  sessionGames    SessionGame[]
-  steamStorePrice SteamStorePrice?
-  deal            GameDeal?
-  capabilities    GameCapability[]
-  challenges      GameChallenge[]
+  timeToBeatCount             Int?
+  timeToBeatSource            String?
+  timeToBeatFetchedAt         DateTime?
+  minimumSessionMinutes       Int?
+  commitmentTier              CommitmentTier?
+  createdAt                   DateTime         @default(now())
+  updatedAt                   DateTime         @updatedAt
+  userGames                   UserGame[]
+  sessionGames                SessionGame[]
+  steamStorePrice             SteamStorePrice?
+  deals                       GameDeal[]
+  capabilities                GameCapability[]
+  challenges                  GameChallenge[]
 
   @@index([normalizedTitle])
   @@index([normalizedTitle(ops: raw("gin_trgm_ops"))], type: Gin, map: "Game_normalizedTitle_trgm_idx")
@@ -470,14 +508,14 @@ model GameCapability {
 
 model GameDeal {
   id              String   @id @default(cuid())
-  gameId          String   @unique
+  gameId          String
   game            Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
   itadId          String?
   currentPrice    Int?
   regularPrice    Int?
   discountPercent Int?
   currency        String?
-  country         String?
+  country         String
   shopName        String?
   dealUrl         String?
   historicalLow   Int?
@@ -488,20 +526,21 @@ model GameDeal {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  @@unique([gameId, country])
   @@index([itadId])
   @@index([fetchedAt])
   @@index([country, fetchedAt, status])
 }
 
 model FriendInvite {
-  id          String    @id @default(cuid())
-  token       String    @unique
-  inviterId   String
-  inviter     User      @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+  id           String    @id @default(cuid())
+  token        String    @unique
+  inviterId    String
+  inviter      User      @relation(fields: [inviterId], references: [id], onDelete: Cascade)
   acceptedById String?
-  expiresAt   DateTime
-  acceptedAt  DateTime?
-  createdAt   DateTime  @default(now())
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  createdAt    DateTime  @default(now())
 
   @@index([inviterId])
   @@index([acceptedById])
@@ -548,28 +587,28 @@ model UserBlock {
 }
 
 model AccountMergeIntent {
-  id            String   @id @default(cuid())
-  tokenHash     String   @unique
+  id            String    @id @default(cuid())
+  tokenHash     String    @unique
   currentUserId String
-  currentUser   User     @relation("MergeCurrentUser", fields: [currentUserId], references: [id], onDelete: Cascade)
+  currentUser   User      @relation("MergeCurrentUser", fields: [currentUserId], references: [id], onDelete: Cascade)
   otherUserId   String
-  otherUser     User     @relation("MergeOtherUser", fields: [otherUserId], references: [id], onDelete: Cascade)
+  otherUser     User      @relation("MergeOtherUser", fields: [otherUserId], references: [id], onDelete: Cascade)
   provider      String
   expiresAt     DateTime
   confirmedAt   DateTime?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
 
   @@index([currentUserId, expiresAt])
   @@index([otherUserId])
 }
 
 model FriendGroup {
-  id        String   @id @default(cuid())
+  id        String              @id @default(cuid())
   ownerId   String
-  owner     User     @relation("FriendGroupOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  owner     User                @relation("FriendGroupOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
   members   FriendGroupMember[]
   invites   FriendGroupInvite[]
 
@@ -593,16 +632,16 @@ model FriendGroupMember {
 }
 
 model FriendGroupInvite {
-  id          String       @id @default(cuid())
-  token       String       @unique
-  groupId     String
-  group       FriendGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  inviterId   String
-  inviter     User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+  id           String      @id @default(cuid())
+  token        String      @unique
+  groupId      String
+  group        FriendGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  inviterId    String
+  inviter      User        @relation(fields: [inviterId], references: [id], onDelete: Cascade)
   acceptedById String?
-  expiresAt   DateTime
-  acceptedAt  DateTime?
-  createdAt   DateTime     @default(now())
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  createdAt    DateTime    @default(now())
 
   @@index([groupId])
   @@index([inviterId])
@@ -628,24 +667,24 @@ model SteamStorePrice {
 }
 
 model UserGame {
-  id               String         @id @default(cuid())
+  id               String               @id @default(cuid())
   userId           String
-  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   gameId           String
-  game             Game           @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  game             Game                 @relation(fields: [gameId], references: [id], onDelete: Cascade)
   source           UserGameSource
-  ownership        UserGameOwnership @default(HAVE)
-  wishlist         Boolean        @default(false)
-  favourite        Boolean        @default(false)
+  ownership        UserGameOwnership    @default(HAVE)
+  wishlist         Boolean              @default(false)
+  favourite        Boolean              @default(false)
   rating           Int?
-  interest         UserGameInterest @default(NEUTRAL)
+  interest         UserGameInterest     @default(NEUTRAL)
   playedStatus     UserGamePlayedStatus @default(UNPLAYED)
   notes            String?
   playtimeMinutes  Int?
   recentlyPlayedAt DateTime?
   lastImportedAt   DateTime?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
 
   @@unique([userId, gameId])
   @@index([gameId])
@@ -653,9 +692,9 @@ model UserGame {
 }
 
 model GameChallenge {
-  id                  String   @id
+  id                  String          @id
   gameId              String
-  game                Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  game                Game            @relation(fields: [gameId], references: [id], onDelete: Cascade)
   title               String
   description         String
   difficulty          Int
@@ -668,8 +707,8 @@ model GameChallenge {
   sourceName          String
   sourceUrl           String
   verifiedAt          DateTime
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
   progress            UserChallenge[]
 
   @@index([gameId])
@@ -693,20 +732,21 @@ model UserChallenge {
 }
 
 model SessionGame {
-  id                   String              @id @default(cuid())
+  id                   String                @id @default(cuid())
   sessionId            String
-  session              Session             @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session              Session               @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   gameId               String
-  game                 Game                @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  game                 Game                  @relation(fields: [gameId], references: [id], onDelete: Cascade)
   addedByParticipantId String?
-  addedByParticipant   Participant?        @relation(fields: [addedByParticipantId], references: [id], onDelete: SetNull)
+  addedByParticipant   Participant?          @relation(fields: [addedByParticipantId], references: [id], onDelete: SetNull)
   addedByUserId        String?
-  addedByUser          User?               @relation(fields: [addedByUserId], references: [id], onDelete: SetNull)
+  addedByUser          User?                 @relation(fields: [addedByUserId], references: [id], onDelete: SetNull)
   source               SessionGameSource
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
   signals              SessionGameSignal[]
   interests            SessionGameInterest[]
+  selectedForGameNight GameNight?            @relation("SelectedGameNight")
 
   @@unique([sessionId, gameId])
   @@index([gameId])
@@ -715,38 +755,40 @@ model SessionGame {
 }
 
 model PriceAlertRule {
-  id              String         @id @default(cuid())
-  sessionId       String
-  session         Session        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  id                     String            @id @default(cuid())
+  sessionId              String
+  session                Session           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   createdByParticipantId String?
-  type            PriceAlertType
-  thresholdPrice  Int?
-  ownedCount      Int?
-  totalCount      Int?
-  missingOnly     Boolean        @default(false)
-  enabled         Boolean        @default(true)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  events          PriceAlertEvent[]
+  type                   PriceAlertType
+  thresholdPrice         Int?
+  ownedCount             Int?
+  totalCount             Int?
+  missingOnly            Boolean           @default(false)
+  enabled                Boolean           @default(true)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  events                 PriceAlertEvent[]
 
   @@index([sessionId])
   @@index([sessionId, enabled])
 }
 
 model PriceAlertEvent {
-  id              String         @id @default(cuid())
-  sessionId       String
-  session         Session        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  ruleId          String?
-  rule            PriceAlertRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
-  gameId          String
-  title           String
-  message         String
-  currentPrice    Int?
-  historicalLow   Int?
-  currency        String?
-  url             String?
-  triggeredAt     DateTime       @default(now())
+  id             String          @id @default(cuid())
+  sessionId      String
+  session        Session         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  ruleId         String?
+  rule           PriceAlertRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  gameId         String
+  title          String
+  message        String
+  currentPrice   Int?
+  historicalLow  Int?
+  currency       String?
+  url            String?
+  triggeredAt    DateTime        @default(now())
+  lastObservedAt DateTime        @default(now())
+  resolvedAt     DateTime?
 
   @@unique([sessionId, gameId, message])
   @@index([sessionId])
@@ -754,28 +796,28 @@ model PriceAlertEvent {
 }
 
 model SessionGameSignal {
-  id              String                @id @default(cuid())
-  sessionGameId   String
-  sessionGame     SessionGame           @relation(fields: [sessionGameId], references: [id], onDelete: Cascade)
-  participantId   String
-  participant     Participant           @relation(fields: [participantId], references: [id], onDelete: Cascade)
-  signal          SessionGameSignalType
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
+  id            String                @id @default(cuid())
+  sessionGameId String
+  sessionGame   SessionGame           @relation(fields: [sessionGameId], references: [id], onDelete: Cascade)
+  participantId String
+  participant   Participant           @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  signal        SessionGameSignalType
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
 
   @@unique([sessionGameId, participantId])
   @@index([participantId])
 }
 
 model SessionGameInterest {
-  id              String             @id @default(cuid())
-  sessionGameId   String
-  sessionGame     SessionGame        @relation(fields: [sessionGameId], references: [id], onDelete: Cascade)
-  participantId   String
-  participant     Participant        @relation(fields: [participantId], references: [id], onDelete: Cascade)
-  interest        GameInterestSignal
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  id            String             @id @default(cuid())
+  sessionGameId String
+  sessionGame   SessionGame        @relation(fields: [sessionGameId], references: [id], onDelete: Cascade)
+  participantId String
+  participant   Participant        @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  interest      GameInterestSignal
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
   @@unique([sessionGameId, participantId])
   @@index([participantId])

@@ -87,6 +87,7 @@ export const discordCommandPayload = {
             { name: "In person", value: "IN_PERSON" },
           ],
         },
+        { type: 3, name: "timezone", description: "IANA timezone, for example America/New_York", required: false },
         {
           type: 3,
           name: "reminder",
@@ -161,15 +162,7 @@ export async function handleDiscordInteraction(interaction: DiscordInteraction) 
 
   if (subcommand.name === "remind") {
     const message = await reminderDiscordMessage(integration.sessionId);
-    await postDiscordChannelMessage(integration.channelId, message);
-    await logDiscordNotification({
-      sessionId: integration.sessionId,
-      guildId: integration.guildId,
-      channelId: integration.channelId,
-      type: "availability_ping",
-      status: "sent",
-    });
-    return discordMessage("Posted an availability reminder in this channel.", true);
+    return discordJson({ type: responseTypes.channelMessageWithSource, data: message });
   }
 
   if (subcommand.name === "games") {
@@ -181,7 +174,7 @@ export async function handleDiscordInteraction(interaction: DiscordInteraction) 
 
 export async function createDiscordSessionFromInteraction(interaction: DiscordInteraction, options: DiscordCommandOption[]) {
   const discordUser = interaction.member?.user ?? interaction.user;
-  const timezone = "Europe/London";
+  const timezone = validTimezone(stringOption(options, "timezone")) ?? "Europe/London";
   const title = stringOption(options, "title") ?? "Game night";
   const duration = numberOption(options, "duration") ?? 2;
   const minimumPlayers = numberOption(options, "players") ?? 4;
@@ -340,7 +333,8 @@ export function reminderDueAt(lockedStartTime: Date, reminder: { minutesBefore?:
 export async function sendDueDiscordReminders(now = new Date()) {
   const sessions = await prisma.session.findMany({
     where: {
-      lockedStartTime: { not: null, gt: now },
+      lockedStartTime: { not: null },
+      lockedEndTime: { not: null, gt: now },
       discordIntegrations: { some: {} },
     },
     include: { discordIntegrations: true },
@@ -380,10 +374,7 @@ export async function sendDueDiscordReminders(now = new Date()) {
           });
           sent += 1;
         } catch (error) {
-          await prisma.discordNotificationLog.update({
-            where: { id: created.id },
-            data: { status: "failed", error: error instanceof Error ? error.message : "Unknown Discord send error" },
-          });
+          await markNotificationFailed(created.id, error, created.attemptCount);
         }
       }
     }
@@ -423,10 +414,7 @@ export async function announceLockedSessionToDiscord(shareToken: string) {
         data: { status: "sent", messageId: response?.id ?? null },
       });
     } catch (error) {
-      await prisma.discordNotificationLog.update({
-        where: { id: created.id },
-        data: { status: "failed", error: error instanceof Error ? error.message : "Unknown Discord send error" },
-      });
+      await markNotificationFailed(created.id, error, created.attemptCount);
     }
   }
 }
@@ -437,6 +425,7 @@ export async function announceDiscordPriceAlerts(sessionId: string) {
     include: {
       discordIntegrations: true,
       priceAlertEvents: {
+        where: { resolvedAt: null },
         orderBy: { triggeredAt: "desc" },
         take: 6,
       },
@@ -470,10 +459,7 @@ export async function announceDiscordPriceAlerts(sessionId: string) {
           data: { status: "sent", messageId: response?.id ?? null },
         });
       } catch (error) {
-        await prisma.discordNotificationLog.update({
-          where: { id: created.id },
-          data: { status: "failed", error: error instanceof Error ? error.message : "Unknown Discord send error" },
-        });
+        await markNotificationFailed(created.id, error, created.attemptCount);
       }
     }
   }
@@ -510,26 +496,52 @@ async function createNotificationIfMissing(input: {
   type: string;
   scheduledFor?: Date | null;
 }) {
-  const existing = await prisma.discordNotificationLog.findFirst({
-    where: {
-      sessionId: input.sessionId,
-      type: input.type,
-      scheduledFor: input.scheduledFor ?? null,
-    },
-  });
+  const notificationKey = [
+    input.sessionId,
+    input.guildId ?? "no-guild",
+    input.channelId ?? "no-channel",
+    input.type,
+    input.scheduledFor?.toISOString() ?? "now",
+  ].join(":");
+  const existing = await prisma.discordNotificationLog.findUnique({ where: { notificationKey } });
 
   if (existing) {
-    return null;
+    if (existing.status !== "failed" || (existing.nextAttemptAt && existing.nextAttemptAt > new Date())) {
+      return null;
+    }
+    return prisma.discordNotificationLog.update({
+      where: { id: existing.id },
+      data: { status: "pending", error: null, nextAttemptAt: null },
+    });
   }
 
-  return prisma.discordNotificationLog.create({
+  try {
+    return await prisma.discordNotificationLog.create({
+      data: {
+        sessionId: input.sessionId,
+        guildId: input.guildId ?? null,
+        channelId: input.channelId ?? null,
+        notificationKey,
+        type: input.type,
+        scheduledFor: input.scheduledFor ?? null,
+        status: "pending",
+      },
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function markNotificationFailed(id: string, error: unknown, previousAttempts: number) {
+  const attemptCount = previousAttempts + 1;
+  const delayMinutes = Math.min(5 * 2 ** Math.max(attemptCount - 1, 0), 6 * 60);
+  await prisma.discordNotificationLog.update({
+    where: { id },
     data: {
-      sessionId: input.sessionId,
-      guildId: input.guildId ?? null,
-      channelId: input.channelId ?? null,
-      type: input.type,
-      scheduledFor: input.scheduledFor ?? null,
-      status: "pending",
+      status: "failed",
+      error: error instanceof Error ? error.message : "Unknown Discord send error",
+      attemptCount,
+      nextAttemptAt: new Date(Date.now() + delayMinutes * 60_000),
     },
   });
 }
@@ -548,6 +560,7 @@ export async function logDiscordNotification(input: {
       sessionId: input.sessionId,
       guildId: input.guildId ?? null,
       channelId: input.channelId ?? null,
+      notificationKey: `event:${input.sessionId}:${input.type}:${createShareToken()}`,
       type: input.type,
       status: input.status,
       messageId: input.messageId ?? null,
@@ -558,11 +571,10 @@ export async function logDiscordNotification(input: {
 
 function sessionDiscordMessage({
   session,
-  host,
   appUrl,
 }: Awaited<ReturnType<typeof createDiscordSessionFromInteraction>>) {
-  const planUrl = `${appUrl}/s/${session.shareToken}?participant=${host.id}`;
-  const pickUrl = `${appUrl}/s/${session.shareToken}?tab=pick&participant=${host.id}`;
+  const planUrl = `${appUrl}/s/${session.shareToken}`;
+  const pickUrl = `${appUrl}/s/${session.shareToken}?tab=pick`;
 
   return {
     content: `**${session.title}** is ready. Fill in your availability here:\n${planUrl}`,
@@ -584,7 +596,10 @@ function sessionDiscordMessage({
 async function statusDiscordMessage(sessionId: string): Promise<DiscordMessage> {
   const session = await prisma.session.findUnique({
     where: { id: sessionId },
-    include: { participants: { include: { responses: true } } },
+    include: {
+      participants: { include: { responses: true } },
+      gameNight: { include: { selectedSessionGame: { include: { game: true } } } },
+    },
   });
 
   if (!session) {
@@ -601,10 +616,12 @@ async function statusDiscordMessage(sessionId: string): Promise<DiscordMessage> 
   const planUrl = `${appUrl}/s/${session.shareToken}`;
   const submitted = participantAvailability.filter((participant) => participant.responses.size > 0).length;
 
-  return {
-    content: best
+  const status = best
       ? `Current best time: **${formatSlotRange(best.startsAt, best.endsAt, session.timezone)}**\n${best.availableCount} of ${session.participants.length} available.`
-      : `No best time yet. ${submitted} of ${session.participants.length} players have submitted availability.`,
+      : `No best time yet. ${submitted} of ${session.participants.length} players have submitted availability.`;
+  const selectedGame = session.gameNight?.selectedSessionGame?.game.title;
+  return {
+    content: `${status}${selectedGame ? `\nFinal game: **${selectedGame}**` : ""}`,
     components: sessionButtons(session.shareToken, planUrl, `${planUrl}?tab=pick`),
   };
 }
@@ -689,6 +706,16 @@ function discordJson(payload: unknown) {
 function stringOption(options: DiscordCommandOption[], name: string) {
   const value = options.find((option) => option.name === name)?.value;
   return typeof value === "string" ? value : null;
+}
+
+function validTimezone(value?: string | null) {
+  if (!value) return null;
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: value }).format();
+    return value;
+  } catch {
+    return null;
+  }
 }
 
 function numberOption(options: DiscordCommandOption[], name: string) {

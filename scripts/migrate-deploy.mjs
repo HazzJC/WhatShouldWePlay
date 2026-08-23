@@ -1,4 +1,5 @@
-// Applies pending Prisma migrations and deployment seeds as part of the build.
+// Applies pending Prisma migrations and deployment seeds as an explicit release
+// step, and automatically during production-only Vercel builds.
 //
 // This is what keeps the deployed database in sync with the schema: whenever a
 // feature adds a column and a migration, the next deploy applies it instead of
@@ -11,6 +12,32 @@
 // When no database is configured (e.g. a local `npm run build` with no DB, or a
 // CI typecheck), it skips rather than failing, so the build still works offline.
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { loadEnvFile } from "node:process";
+
+if (!process.env.DATABASE_URL) {
+  try {
+    loadEnvFile(".env");
+  } catch {
+    // Production injects environment variables and may not have a local file.
+  }
+  // Node's native loader treats a UTF-8 BOM as part of the first key. Support
+  // legacy Windows-created .env files without rewriting or exposing them.
+  if (!process.env.DATABASE_URL) {
+    try {
+      const source = readFileSync(".env", "utf8").replace(/^\uFEFF/, "");
+      for (const line of source.split(/\r?\n/)) {
+        const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
+        if (!match || process.env[match[1]] !== undefined) continue;
+        const raw = match[2];
+        const quoted = raw.length >= 2 && ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'")));
+        process.env[match[1]] = quoted ? raw.slice(1, -1) : raw;
+      }
+    } catch {
+      // The absence of a local file is expected in managed production builds.
+    }
+  }
+}
 
 const databaseUrl = process.env.DATABASE_URL;
 

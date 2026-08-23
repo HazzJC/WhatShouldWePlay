@@ -39,16 +39,20 @@ export async function mergeAccounts(currentUserId: string, token: string) {
     const [current, other, currentGames, otherGames] = await Promise.all([
       transaction.user.findUniqueOrThrow({
         where: { id: currentUserId },
-        include: { steamAccount: true, preference: true },
+        include: { steamAccount: true, preference: true, avatarImage: true },
       }),
       transaction.user.findUniqueOrThrow({
         where: { id: intent.otherUserId },
-        include: { steamAccount: true, preference: true },
+        include: { steamAccount: true, preference: true, avatarImage: true },
       }),
       transaction.userGame.findMany({ where: { userId: currentUserId } }),
       transaction.userGame.findMany({ where: { userId: intent.otherUserId } }),
     ]);
     const currentGamesById = new Map(currentGames.map((game) => [game.gameId, game]));
+
+    if (current.steamAccount && other.steamAccount && current.steamAccount.steamId !== other.steamAccount.steamId) {
+      throw new Error("Both accounts have different Steam profiles. Disconnect the Steam profile you do not want before merging.");
+    }
 
     for (const otherGame of otherGames) {
       const existing = currentGamesById.get(otherGame.gameId);
@@ -88,6 +92,8 @@ export async function mergeAccounts(currentUserId: string, token: string) {
     await mergeFriendships(transaction, currentUserId, intent.otherUserId);
     await mergeGroupMemberships(transaction, currentUserId, intent.otherUserId);
     await mergeChallenges(transaction, currentUserId, intent.otherUserId);
+    await mergeBlocks(transaction, currentUserId, intent.otherUserId);
+    await mergeParticipants(transaction, currentUserId, intent.otherUserId);
 
     if (!current.preference && other.preference) {
       await transaction.userPreference.update({
@@ -103,11 +109,14 @@ export async function mergeAccounts(currentUserId: string, token: string) {
       });
     }
 
+    if (!current.avatarImage && other.avatarImage) {
+      await transaction.userAvatar.update({
+        where: { userId: intent.otherUserId },
+        data: { userId: currentUserId },
+      });
+    }
+
     await transaction.oAuthAccount.updateMany({
-      where: { userId: intent.otherUserId },
-      data: { userId: currentUserId },
-    });
-    await transaction.participant.updateMany({
       where: { userId: intent.otherUserId },
       data: { userId: currentUserId },
     });
@@ -118,6 +127,10 @@ export async function mergeAccounts(currentUserId: string, token: string) {
     await transaction.friendGroup.updateMany({
       where: { ownerId: intent.otherUserId },
       data: { ownerId: currentUserId },
+    });
+    await transaction.gameNight.updateMany({
+      where: { ownerUserId: intent.otherUserId },
+      data: { ownerUserId: currentUserId, lastActivityAt: new Date() },
     });
     await transaction.friendInvite.updateMany({
       where: { inviterId: intent.otherUserId },
@@ -132,7 +145,9 @@ export async function mergeAccounts(currentUserId: string, token: string) {
       data: {
         email: current.email ?? other.email,
         emailVerified: current.emailVerified || other.emailVerified,
-        avatarUrl: current.avatarUrl ?? other.avatarUrl,
+        avatarUrl: current.avatarUrl ?? rewriteAvatarUrl(other.avatarUrl, intent.otherUserId, currentUserId),
+        timezone: current.timezone ?? other.timezone,
+        role: current.role === "METADATA_ADMIN" || other.role === "METADATA_ADMIN" ? "METADATA_ADMIN" : "USER",
         favouriteGenres: mergeJsonStringLists(current.favouriteGenres, other.favouriteGenres),
       },
     });
@@ -142,6 +157,78 @@ export async function mergeAccounts(currentUserId: string, token: string) {
     });
     await transaction.user.delete({ where: { id: intent.otherUserId } });
   }, { timeout: 20_000 });
+}
+
+async function mergeParticipants(transaction: Prisma.TransactionClient, currentUserId: string, otherUserId: string) {
+  const otherParticipants = await transaction.participant.findMany({
+    where: { userId: otherUserId },
+    include: { responses: true, gameSignals: true, gameInterests: true, preference: true },
+  });
+
+  for (const participant of otherParticipants) {
+    const existing = await transaction.participant.findUnique({
+      where: { sessionId_userId: { sessionId: participant.sessionId, userId: currentUserId } },
+      include: { preference: true },
+    });
+    if (!existing) {
+      await transaction.participant.update({ where: { id: participant.id }, data: { userId: currentUserId } });
+      continue;
+    }
+
+    for (const response of participant.responses) {
+      await transaction.availabilityResponse.upsert({
+        where: { participantId_slotStart: { participantId: existing.id, slotStart: response.slotStart } },
+        create: { participantId: existing.id, slotStart: response.slotStart, slotEnd: response.slotEnd, status: response.status },
+        update: { slotEnd: response.slotEnd, status: response.status },
+      });
+    }
+    for (const signal of participant.gameSignals) {
+      await transaction.sessionGameSignal.upsert({
+        where: { sessionGameId_participantId: { sessionGameId: signal.sessionGameId, participantId: existing.id } },
+        create: { sessionGameId: signal.sessionGameId, participantId: existing.id, signal: signal.signal },
+        update: { signal: signal.signal },
+      });
+    }
+    for (const interest of participant.gameInterests) {
+      await transaction.sessionGameInterest.upsert({
+        where: { sessionGameId_participantId: { sessionGameId: interest.sessionGameId, participantId: existing.id } },
+        create: { sessionGameId: interest.sessionGameId, participantId: existing.id, interest: interest.interest },
+        update: { interest: interest.interest },
+      });
+    }
+    if (!existing.preference && participant.preference) {
+      await transaction.participantPreference.update({
+        where: { participantId: participant.id },
+        data: { participantId: existing.id },
+      });
+    }
+    await transaction.sessionGame.updateMany({ where: { addedByParticipantId: participant.id }, data: { addedByParticipantId: existing.id } });
+    await transaction.discordAttendance.updateMany({ where: { participantId: participant.id }, data: { participantId: existing.id } });
+    await transaction.participant.delete({ where: { id: participant.id } });
+  }
+}
+
+async function mergeBlocks(transaction: Prisma.TransactionClient, currentUserId: string, otherUserId: string) {
+  const blocks = await transaction.userBlock.findMany({
+    where: { OR: [{ blockerId: otherUserId }, { blockedId: otherUserId }] },
+  });
+  for (const block of blocks) {
+    const blockerId = block.blockerId === otherUserId ? currentUserId : block.blockerId;
+    const blockedId = block.blockedId === otherUserId ? currentUserId : block.blockedId;
+    if (blockerId !== blockedId) {
+      await transaction.userBlock.upsert({
+        where: { blockerId_blockedId: { blockerId, blockedId } },
+        create: { blockerId, blockedId },
+        update: {},
+      });
+    }
+  }
+  await transaction.userBlock.deleteMany({ where: { OR: [{ blockerId: otherUserId }, { blockedId: otherUserId }] } });
+}
+
+function rewriteAvatarUrl(value: string | null, otherUserId: string, currentUserId: string) {
+  if (!value) return null;
+  return value === `/api/users/${otherUserId}/avatar` ? `/api/users/${currentUserId}/avatar` : value;
 }
 
 async function mergeFriendships(

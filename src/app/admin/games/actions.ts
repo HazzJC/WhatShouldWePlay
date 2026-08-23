@@ -49,7 +49,7 @@ export async function saveGamePlayerCountAction(formData: FormData) {
       data: {
         minPlayers,
         maxPlayers,
-        capabilitySource: "admin:hazzjc",
+        capabilitySource: "admin:metadata",
         capabilityConfidence: 1,
       },
     }),
@@ -58,7 +58,7 @@ export async function saveGamePlayerCountAction(formData: FormData) {
         gameId_platform_source: {
           gameId,
           platform: "All",
-          source: "admin:hazzjc",
+          source: "admin:metadata",
         },
       },
       create: {
@@ -66,7 +66,7 @@ export async function saveGamePlayerCountAction(formData: FormData) {
         platform: "All",
         minPlayers,
         maxPlayers,
-        source: "admin:hazzjc",
+        source: "admin:metadata",
         confidence: 1,
       },
       update: {
@@ -124,7 +124,7 @@ export async function importGamePlayerCountsAction(formData: FormData) {
           data: {
             minPlayers: update.minPlayers,
             maxPlayers: update.maxPlayers,
-            capabilitySource: "admin:hazzjc",
+            capabilitySource: "admin:metadata",
             capabilityConfidence: 1,
           },
         }),
@@ -133,7 +133,7 @@ export async function importGamePlayerCountsAction(formData: FormData) {
             gameId_platform_source: {
               gameId: update.gameId,
               platform: "All",
-              source: "admin:hazzjc",
+              source: "admin:metadata",
             },
           },
           create: {
@@ -141,7 +141,7 @@ export async function importGamePlayerCountsAction(formData: FormData) {
             platform: "All",
             minPlayers: update.minPlayers,
             maxPlayers: update.maxPlayers,
-            source: "admin:hazzjc",
+            source: "admin:metadata",
             confidence: 1,
           },
           update: {

@@ -1,22 +1,19 @@
 "use client";
 
 import { Laptop, Moon, Sun } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useHydrated } from "@/lib/use-hydrated";
 
 type ThemeMode = "light" | "dark" | "system";
 
 export function ThemeToggle() {
-  const [mode, setMode] = useState<ThemeMode>("system");
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem("theme-mode");
-    if (saved === "light" || saved === "dark" || saved === "system") {
-      setMode(saved);
-    }
-  }, []);
+  const hydrated = useHydrated();
+  const [selectedMode, setSelectedMode] = useState<ThemeMode | null>(null);
+  const saved = hydrated ? window.localStorage.getItem("theme-mode") : null;
+  const mode: ThemeMode = selectedMode ?? (saved === "light" || saved === "dark" || saved === "system" ? saved : "system");
 
   function updateMode(nextMode: ThemeMode) {
-    setMode(nextMode);
+    setSelectedMode(nextMode);
     window.localStorage.setItem("theme-mode", nextMode);
     if (nextMode === "system") {
       document.documentElement.removeAttribute("data-theme");

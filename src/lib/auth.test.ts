@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createOAuthState, parseOAuthState, signValue, verifySignedValue } from "@/lib/auth";
+import { createOAuthState, parseOAuthState, safeInternalRedirect, signValue, verifySignedValue } from "@/lib/auth";
 
 describe("signed cookie values", () => {
   const secret = "test-secret-value";
@@ -38,7 +38,14 @@ describe("signed cookie values", () => {
       participant: "participant",
       redirectTo: "/sessions/pick",
       intent: "signin",
+      nonce: expect.any(String),
     });
     expect(parseOAuthState(`${state}tampered`)).toBeNull();
+  });
+
+  it("allows only same-origin relative redirect paths", () => {
+    expect(safeInternalRedirect("/game-nights?tab=upcoming")).toBe("/game-nights?tab=upcoming");
+    expect(safeInternalRedirect("//evil.example/steal")).toBe("/");
+    expect(safeInternalRedirect("https://evil.example/steal")).toBe("/");
   });
 });

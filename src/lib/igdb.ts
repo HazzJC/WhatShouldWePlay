@@ -260,10 +260,10 @@ export function mapIgdbQuality(result: IgdbGameResult) {
   const count = result.total_rating_count ?? result.aggregated_rating_count ?? result.rating_count ?? null;
 
   return {
-    popularityScore: result.hypes ?? rating ?? null,
+    popularityScore: rating ?? null,
     reviewTotal: count,
     summary: rating ? `IGDB rating ${Math.round(rating)}/100${count ? ` from ${count} rating${count === 1 ? "" : "s"}` : ""}` : null,
-    qualitySource: rating ? "igdb:rating" : result.hypes ? "igdb:hypes" : null,
+    qualitySource: rating ? "igdb:rating" : null,
   };
 }
 

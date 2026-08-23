@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
-import { createUserSession, getCurrentUser, parseOAuthState, rotateUserSession, safeInternalRedirect, setParticipantIdentity } from "@/lib/auth";
+import { consumeOAuthState, createUserSession, getCurrentUser, parseOAuthState, rotateUserSession, safeInternalRedirect } from "@/lib/auth";
 import { onboardingUrl } from "@/lib/accounts";
 import { createAccountMergeIntent } from "@/lib/account-merge";
 import { getGoogleProfileFromCode, GoogleAuthError } from "@/lib/google-auth";
 import { prisma } from "@/lib/prisma";
+import { claimSessionParticipantForUser } from "@/lib/participant-identity";
 
 function destinationFromState(state: NonNullable<ReturnType<typeof parseOAuthState>>, participantId?: string) {
   if (state.friendInvite) {
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const providerError = url.searchParams.get("error");
-  const state = parseOAuthState(url.searchParams.get("state"));
+  const state = await consumeOAuthState(url.searchParams.get("state"));
 
   if (!state) {
     redirect("/?google_error=missing_or_invalid_state");
@@ -144,7 +145,7 @@ export async function GET(request: Request) {
   let participantId = state.participant;
 
   if (state.shareToken) {
-    participantId = await claimParticipantForUser({
+    participantId = await claimSessionParticipantForUser({
       shareToken: state.shareToken,
       participantId,
       userId: user.id,
@@ -160,62 +161,4 @@ export async function GET(request: Request) {
 
   const destination = destinationFromState(state, participantId);
   redirect(user.username && user.onboardingCompletedAt ? destination : onboardingUrl(destination));
-}
-
-async function claimParticipantForUser({
-  shareToken,
-  participantId,
-  userId,
-  displayName,
-}: {
-  shareToken: string;
-  participantId?: string;
-  userId: string;
-  displayName: string;
-}) {
-  const session = await prisma.session.findUnique({
-    where: { shareToken },
-    select: { id: true },
-  });
-
-  if (!session) {
-    return participantId;
-  }
-
-  const requested = participantId
-    ? await prisma.participant.findFirst({
-        where: { id: participantId, sessionId: session.id },
-        select: { id: true, userId: true, isHost: true },
-      })
-    : null;
-  let participant =
-    requested && (requested.userId === null || requested.userId === userId)
-      ? requested
-      : null;
-
-  if (!participant) {
-    participant =
-      (await prisma.participant.findFirst({
-        where: { sessionId: session.id, userId },
-        select: { id: true, userId: true, isHost: true },
-      })) ??
-      (await prisma.participant.create({
-        data: {
-          sessionId: session.id,
-          userId,
-          name: displayName,
-        },
-        select: { id: true, userId: true, isHost: true },
-      }));
-  }
-
-  if (participant.userId !== userId) {
-    await prisma.participant.update({
-      where: { id: participant.id },
-      data: { userId },
-    });
-  }
-
-  await setParticipantIdentity(session.id, participant.id, { isHost: participant.isHost });
-  return participant.id;
 }

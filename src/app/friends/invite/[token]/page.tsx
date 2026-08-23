@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { Gamepad2, UsersRound } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { acceptFriendInviteAction } from "@/app/friends/actions";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 
 type PageProps = {
   params: Promise<{ token: string }>;
@@ -15,7 +17,7 @@ export default async function FriendInvitePage({ params }: PageProps) {
     include: { inviter: true },
   });
 
-  if (!invite || invite.expiresAt < new Date()) {
+  if (!invite || invite.expiresAt < new Date() || invite.acceptedAt) {
     notFound();
   }
 
@@ -37,26 +39,20 @@ export default async function FriendInvitePage({ params }: PageProps) {
     );
   }
 
-  if (currentUser.id !== invite.inviterId) {
-    await Promise.all([
-      prisma.userFriend.upsert({
-        where: { userId_friendId: { userId: invite.inviterId, friendId: currentUser.id } },
-        create: { userId: invite.inviterId, friendId: currentUser.id },
-        update: {},
-      }),
-      prisma.userFriend.upsert({
-        where: { userId_friendId: { userId: currentUser.id, friendId: invite.inviterId } },
-        create: { userId: currentUser.id, friendId: invite.inviterId },
-        update: {},
-      }),
-      prisma.friendInvite.update({
-        where: { id: invite.id },
-        data: { acceptedById: currentUser.id, acceptedAt: new Date() },
-      }),
-    ]);
-  }
-
-  redirect("/sessions/pick");
+  return (
+    <main className="ui-shell">
+      <InviteShell inviterName={invite.inviter.displayName}>
+        {currentUser.id === invite.inviterId ? (
+          <p className="text-sm font-bold text-ink/60">Share this link with someone else.</p>
+        ) : (
+          <form action={acceptFriendInviteAction}>
+            <input type="hidden" name="token" value={token} />
+            <PendingSubmitButton className="primary-button" pendingLabel="Accepting...">Accept friend invite</PendingSubmitButton>
+          </form>
+        )}
+      </InviteShell>
+    </main>
+  );
 }
 
 function InviteShell({ inviterName, children }: { inviterName: string; children: React.ReactNode }) {

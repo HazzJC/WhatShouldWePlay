@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
-import { createUserSession, getCurrentUser, safeInternalRedirect } from "@/lib/auth";
+import { consumeOAuthState, createUserSession, getCurrentUser, rotateUserSession, safeInternalRedirect } from "@/lib/auth";
 import { onboardingUrl } from "@/lib/accounts";
 import { createAccountMergeIntent } from "@/lib/account-merge";
 import { prisma } from "@/lib/prisma";
 import { verifySteamOpenIdCallback } from "@/lib/steam";
+import { claimSessionParticipantForUser } from "@/lib/participant-identity";
 
 function withSteamStatus(path: string, status: string) {
   const destination = new URL(safeInternalRedirect(path), "https://local.invalid");
@@ -13,10 +14,14 @@ function withSteamStatus(path: string, status: string) {
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const shareToken = url.searchParams.get("shareToken") ?? "";
-  const participantId = url.searchParams.get("participant") ?? "";
-  const friendInvite = url.searchParams.get("friendInvite") ?? "";
-  const redirectTo = safeInternalRedirect(url.searchParams.get("redirectTo"));
+  const state = await consumeOAuthState(url.searchParams.get("state"));
+  if (!state) {
+    redirect("/?steam=missing_or_invalid_state");
+  }
+  const shareToken = state.shareToken ?? "";
+  const participantId = state.participant;
+  const friendInvite = state.friendInvite ?? "";
+  const redirectTo = safeInternalRedirect(state.redirectTo);
   const steamId = await verifySteamOpenIdCallback(url.searchParams);
   const currentUser = await getCurrentUser();
 
@@ -56,44 +61,12 @@ export async function GET(request: Request) {
     });
   }
 
-  if (shareToken && participantId) {
-    await prisma.participant.updateMany({
-      where: {
-        id: participantId,
-        session: { shareToken },
-      },
-      data: { userId: user.id },
-    });
-  }
+  const redirectParticipantId = shareToken
+    ? await claimSessionParticipantForUser({ shareToken, participantId, userId: user.id, displayName: user.displayName })
+    : undefined;
 
-  let redirectParticipantId = participantId;
-
-  if (shareToken && !redirectParticipantId) {
-    const session = await prisma.session.findUnique({
-      where: { shareToken },
-      select: { id: true },
-    });
-
-    if (session) {
-      const participant =
-        (await prisma.participant.findFirst({
-          where: { sessionId: session.id, userId: user.id },
-          select: { id: true },
-        })) ??
-        (await prisma.participant.create({
-          data: {
-            sessionId: session.id,
-            userId: user.id,
-            name: user.displayName,
-          },
-          select: { id: true },
-        }));
-
-      redirectParticipantId = participant.id;
-    }
-  }
-
-  await createUserSession(user.id);
+  if (currentUser) await rotateUserSession(user.id);
+  else await createUserSession(user.id);
   if (friendInvite) {
     redirect(`/friends/invite/${friendInvite}`);
   }

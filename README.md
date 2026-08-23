@@ -132,6 +132,7 @@ notes. The required minimum is:
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public"
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 AUTH_COOKIE_SECRET="<openssl rand -base64 32>"
+METADATA_ADMIN_USER_IDS="" # optional immutable user IDs; DB roles are preferred
 ```
 
 Optional integrations:
@@ -173,11 +174,18 @@ npm run dev
 
 ## Production setup notes
 
-Database preparation is automatic on deploy: the `build` script runs
-`prisma migrate deploy` and the idempotent challenge catalogue seed through
-`scripts/migrate-deploy.mjs` before `next build`. The deployment fails instead
-of publishing incompatible application code if either database step fails.
-When no database is configured, such as an offline local build, both steps skip.
+Run database preparation as a release step before deploying application code:
+
+```bash
+npm run release:migrate
+```
+
+The normal local and preview `build` command only generates Prisma Client and
+builds Next.js. On Vercel production builds (`VERCEL_ENV=production`) it also
+runs the same release migration automatically before compilation. This keeps
+preview builds read-only while ensuring production cannot promote application
+code ahead of its schema. Other deployment platforms should run
+`npm run release:migrate` explicitly before promotion.
 
 For Neon free tier, use the pooled connection string for `DATABASE_URL` in
 production. The host usually contains `-pooler`, and the URL should include:
@@ -190,12 +198,12 @@ Migrations can't run over pgbouncer, so when `DATABASE_URL` is pooled, also set
 `DIRECT_URL` to the Neon *direct* endpoint (host without `-pooler`). The migrate
 step uses `DIRECT_URL` when present and falls back to `DATABASE_URL` otherwise.
 
-The automatic order used by Vercel is:
+The recommended deployment order is:
 
 1. Generate Prisma Client.
 2. Apply pending migrations using `DIRECT_URL` when configured.
 3. Seed/update challenge catalogue data using `DATABASE_URL`.
-4. Build the Next.js application.
+4. Build and deploy the Next.js application.
 
 To run the same database preparation manually:
 
@@ -221,14 +229,16 @@ Vercel cron jobs are declared in `vercel.json`:
 ```txt
 /api/cron/discord-reminders   # sends due Discord reminders
 /api/cron/refresh-game-data   # keeps shared game metadata + prices fresh
+/api/cron/cleanup             # removes expired auth, invite, and log records
 ```
 
 Both are protected by `CRON_SECRET`.
 
 **Shared game data cache.** Game metadata (player count, capability confidence,
-reviews) and deals live on the shared `Game`/`GameDeal` rows keyed by Steam app
-id — there is no per-user copy, so once a game is populated, every user who has
-imported that same game gets it instantly. `refresh-game-data` runs daily over
+reviews) live on shared `Game` rows and deals are keyed by game and country.
+There is no per-user copy, so once a game is populated, every user who has
+imported that same game gets it instantly while still receiving market-correct
+prices. `refresh-game-data` runs daily over
 the games actually in use (in a session shortlist or an imported library) to
 fill in metadata for newly imported games and keep prices/sales current. It is
 bounded per run (defaults: ~36 metadata + ~48 deal lookups) to fit one
@@ -238,14 +248,12 @@ are spread across several daily runs.
 Set `CRON_SECRET` in Vercel and send it as a bearer token for non-Vercel/manual
 cron calls.
 
-**Cron schedule and plan limits.** `vercel.json` uses a daily schedule
-(`0 17 * * *`) because Vercel's Hobby plan only permits once-per-day cron jobs —
-a more frequent expression (e.g. `*/15 * * * *`) fails deployment on Hobby. The
-reminder job is safe at this cadence: each run sends every reminder that has
-become due since the last run and dedupes by `(session, type, scheduledFor)`, so
-no reminder is missed or sent twice — they are simply delivered up to ~24h late.
-For timely reminders (e.g. "2 hours before"), upgrade to Pro and change the
-schedule to a finer interval such as `*/15 * * * *`.
+**Cron schedule and plan limits.** `vercel.json` checks reminders every five
+minutes so short reminders are delivered on time. That frequency requires a
+Vercel plan that supports frequent cron jobs. Notification identity includes
+the destination channel, and failed deliveries are retried with bounded
+backoff. If deploying on a once-daily cron plan, use an external scheduler or
+accept that short reminders cannot be delivered reliably.
 
 ## Tool setup on Windows
 

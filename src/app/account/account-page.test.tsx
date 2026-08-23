@@ -41,6 +41,8 @@ describe("account page", () => {
       email: "player@example.com",
       emailVerified: true,
       avatarUrl: null,
+      timezone: "Europe/London",
+      role: "USER",
       favouriteGenres: [],
       directoryVisible: true,
       lastSignedInAt: new Date(),

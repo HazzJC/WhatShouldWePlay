@@ -48,7 +48,12 @@ export const commonMultiplayerGames: GameInput[] = [
 ];
 
 export function normalizeGameTitle(title: string) {
-  return title.trim().toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return title
+    .normalize("NFKC")
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
 }
 
 export function excludeExistingGames(games: GameInput[], existingGames: Array<{ normalizedTitle: string }>) {
@@ -187,7 +192,14 @@ export async function upsertGame(input: GameInput) {
     return prisma.game.update({ where: { id: existing.id }, data: updateData });
   }
 
-  return prisma.game.create({ data: createData });
+  return prisma.$transaction(async (transaction) => {
+    const normalizedTitle = normalizeGameTitle(input.title);
+    await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${normalizedTitle}))`;
+    const concurrent = await transaction.game.findFirst({ where: { normalizedTitle } });
+    return concurrent
+      ? transaction.game.update({ where: { id: concurrent.id }, data: updateData })
+      : transaction.game.create({ data: createData });
+  });
 }
 
 export async function addGameToSession({
@@ -268,6 +280,16 @@ export async function importSteamGamesForUser(userId: string, games: SteamOwnedG
     select: { id: true, steamAppId: true },
   });
   const gameIdBySteamAppId = new Map(importedGames.map((game) => [game.steamAppId, game.id]));
+  const importedGameIds = importedGames.map((game) => game.id);
+  await prisma.userGame.updateMany({
+    where: {
+      userId,
+      source: "STEAM",
+      ownership: "HAVE",
+      gameId: { notIn: importedGameIds },
+    },
+    data: { ownership: "UNKNOWN", lastImportedAt: now },
+  });
   const userGameRows = importableGames
     .map((steamGame) => {
       const gameId = gameIdBySteamAppId.get(steamGame.appid);

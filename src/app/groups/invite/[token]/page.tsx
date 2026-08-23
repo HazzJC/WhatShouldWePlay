@@ -17,7 +17,7 @@ export default async function FriendGroupInvitePage({ params }: PageProps) {
     include: { group: { include: { owner: true } } },
   });
 
-  if (!invite || invite.expiresAt < new Date()) {
+  if (!invite || invite.expiresAt < new Date() || invite.acceptedAt) {
     notFound();
   }
 

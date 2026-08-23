@@ -2,11 +2,10 @@ import Link from "next/link";
 import { ArrowLeft, Gamepad2, ListChecks, UsersRound } from "lucide-react";
 import { createPickSessionAction, startPickSessionFromFriendGroupAction } from "@/app/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { TimezoneInput } from "@/components/timezone-input";
 import { requireActivePickUser } from "@/lib/accounts";
 import { getCuratedGame } from "@/lib/curated-games";
 import { prisma } from "@/lib/prisma";
-
-const defaultTimezone = "Europe/London";
 
 type PageProps = {
   searchParams?: Promise<{ game?: string; gameNight?: string }>;
@@ -60,7 +59,7 @@ export default async function NewPickSessionPage({ searchParams }: PageProps) {
               <span className="text-sm font-bold text-ink">Your name</span>
               <input name="hostName" required maxLength={80} defaultValue={currentUser.displayName} className="field" />
             </label>
-            <input type="hidden" name="timezone" value={defaultTimezone} />
+            <TimezoneInput defaultTimezone={currentUser.timezone ?? "Europe/London"} />
             {query?.gameNight ? <input type="hidden" name="gameNightId" value={query.gameNight} /> : null}
             {initialGame ? <input type="hidden" name="initialGameSlug" value={initialGame.slug} /> : null}
             {initialGame ? (
@@ -94,7 +93,7 @@ export default async function NewPickSessionPage({ searchParams }: PageProps) {
                     </div>
                     <form action={startPickSessionFromFriendGroupAction}>
                       <input type="hidden" name="groupId" value={group.id} />
-                      <input type="hidden" name="timezone" value={defaultTimezone} />
+                      <TimezoneInput defaultTimezone={currentUser.timezone ?? "Europe/London"} />
                       <PendingSubmitButton className="secondary-button px-3 py-2" pendingLabel="Starting...">
                         Start Pick
                       </PendingSubmitButton>

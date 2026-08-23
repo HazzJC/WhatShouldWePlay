@@ -5,12 +5,17 @@ import { SharePanel } from "@/components/share-panel";
 import { getAppUrl } from "@/lib/app-url";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { updateGameNightStatusAction } from "@/app/actions";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
+
+export const metadata = { robots: { index: false, follow: false } };
 
 export default async function GameNightOverviewPage({ params }: { params: Promise<{ shareToken: string }> }) {
   const { shareToken } = await params;
   const gameNight = await prisma.gameNight.findUnique({
     where: { shareToken },
     include: {
+      selectedSessionGame: { include: { game: true } },
       workspaces: {
         include: {
           participants: {
@@ -32,8 +37,6 @@ export default async function GameNightOverviewPage({ params }: { params: Promis
   const canManage = currentUser?.id === gameNight.ownerUserId;
   const plan = gameNight.workspaces.find((workspace) => workspace.workspaceType === "PLAN");
   const pick = gameNight.workspaces.find((workspace) => workspace.workspaceType === "PICK");
-  const planParticipant = plan?.participants.find((participant) => participant.userId === currentUser?.id);
-  const pickParticipant = pick?.participants.find((participant) => participant.userId === currentUser?.id);
 
   return (
     <main className="ui-shell">
@@ -53,7 +56,7 @@ export default async function GameNightOverviewPage({ params }: { params: Promis
             eyebrow="Plan"
             title={plan.lockedStartTime ? "Time confirmed" : "Share your availability"}
             detail={`${plan.participants.filter((participant) => participant.responses.length).length} of ${plan.participants.length} players have responded`}
-            href={`/s/${plan.shareToken}${planParticipant ? `?participant=${planParticipant.id}` : ""}`}
+            href={`/s/${plan.shareToken}`}
             action={plan.lockedStartTime ? "View confirmed time" : "Fill availability"}
           />
         ) : (
@@ -65,13 +68,34 @@ export default async function GameNightOverviewPage({ params }: { params: Promis
             eyebrow="Pick"
             title={pick.games.length ? "Compare the shortlist" : "Build the shortlist"}
             detail={`${pick.participants.filter((participant) => participant.user?.steamAccount).length} of ${pick.participants.length} libraries connected · ${pick.games.length} games shortlisted`}
-            href={`/s/${pick.shareToken}?tab=pick${pickParticipant ? `&participant=${pickParticipant.id}` : ""}`}
+            href={`/s/${pick.shareToken}?tab=pick`}
             action="Open Pick"
           />
         ) : (
           <MissingWorkspace icon={<Gamepad2 className="h-5 w-5" />} title="No game shortlist yet" href={canManage ? `/sessions/pick?gameNight=${gameNight.id}` : undefined} action="Create Pick" />
         )}
       </section>
+
+      {gameNight.selectedSessionGame ? (
+        <section className="mb-6 rounded-lg border border-moss/30 bg-moss/10 p-5">
+          <p className="text-sm font-semibold text-moss">Final game</p>
+          <h2 className="mt-1 text-3xl font-black text-ink">{gameNight.selectedSessionGame.game.title}</h2>
+        </section>
+      ) : null}
+
+      {canManage ? (
+        <section className="mb-6 flex flex-wrap items-center gap-2">
+          <p className="mr-2 text-sm font-semibold text-ink/60">Status: {gameNight.status.toLocaleLowerCase()}</p>
+          {gameNight.status === "ACTIVE" ? (
+            <>
+              <form action={updateGameNightStatusAction}><input type="hidden" name="gameNightId" value={gameNight.id} /><input type="hidden" name="status" value="COMPLETED" /><PendingSubmitButton className="secondary-button" pendingLabel="Completing...">Mark complete</PendingSubmitButton></form>
+              <form action={updateGameNightStatusAction}><input type="hidden" name="gameNightId" value={gameNight.id} /><input type="hidden" name="status" value="CANCELLED" /><PendingSubmitButton className="secondary-button" pendingLabel="Cancelling...">Cancel</PendingSubmitButton></form>
+            </>
+          ) : (
+            <form action={updateGameNightStatusAction}><input type="hidden" name="gameNightId" value={gameNight.id} /><input type="hidden" name="status" value="ACTIVE" /><PendingSubmitButton className="secondary-button" pendingLabel="Reopening...">Reopen</PendingSubmitButton></form>
+          )}
+        </section>
+      ) : null}
 
       <section className="surface rounded-lg p-4">
         <div className="flex items-center gap-2">

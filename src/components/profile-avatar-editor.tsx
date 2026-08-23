@@ -8,6 +8,7 @@ import {
   uploadProfileAvatarAction,
 } from "@/app/account/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { useHydrated } from "@/lib/use-hydrated";
 
 const maxAvatarBytes = 512 * 1024;
 
@@ -19,10 +20,8 @@ export function ProfileAvatarEditor({
   displayName: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useHydrated();
   const [fileError, setFileError] = useState<string | null>(null);
-
-  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!open) return;

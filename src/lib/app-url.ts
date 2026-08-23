@@ -7,6 +7,10 @@ export async function getAppUrl() {
     return configuredUrl;
   }
 
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("NEXT_PUBLIC_APP_URL must be set to a valid public HTTP(S) URL in production.");
+  }
+
   const headerStore = await headers();
   const host = headerStore.get("host") ?? "localhost:3000";
   const protocol = headerStore.get("x-forwarded-proto") ?? "http";

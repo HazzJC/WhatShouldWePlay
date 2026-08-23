@@ -9,6 +9,7 @@ import {
   createPriceAlertRuleAction,
   importSteamLibraryAction,
   removeSessionGameAction,
+  selectFinalGameAction,
   updateDealSettingsAction,
   updatePreferenceAction,
   startPickSessionFromFriendGroupAction,
@@ -22,6 +23,7 @@ import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { SteamImportSubmitButton } from "@/components/steam-import-submit-button";
 import { RankedMatchList } from "@/components/ranked-match-list";
 import { GameSignalControls } from "@/components/game-signal-controls";
+import { TimezoneInput } from "@/components/timezone-input";
 
 export type SessionGameView = SessionGame & {
   game: Game & { steamStorePrice?: SteamStorePrice | null; deal?: GameDeal | null };
@@ -69,6 +71,8 @@ export function PickPanel({
   savedFriends,
   friendGroups,
   libraryConnectionSummary,
+  isHost = false,
+  selectedSessionGameId,
 }: {
   shareToken: string;
   participantId?: string;
@@ -97,6 +101,8 @@ export function PickPanel({
   savedFriends: User[];
   friendGroups: Array<FriendGroup & { members: Array<{ id: string; status: string }>; invites: Array<{ token: string; expiresAt: Date; acceptedAt: Date | null }> }>;
   libraryConnectionSummary: { connected: number; total: number };
+  isHost?: boolean;
+  selectedSessionGameId?: string | null;
 }) {
   const steamAccount = currentUser?.steamAccount;
   const importStatus = steamAccount?.lastImportStatus ?? null;
@@ -108,10 +114,17 @@ export function PickPanel({
   const guidedSetup = ownershipProfileCount < 2;
   const reviewTitle = showFullGroupList ? "Best shared options" : "Review games already added";
   const reviewEyebrow = showFullGroupList ? "Group match" : "Start here";
+  const selectedGame = sessionGames.find((sessionGame) => sessionGame.id === selectedSessionGameId);
 
   return (
     <section className="mt-4 grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_300px]">
       <div className="grid gap-4">
+        {selectedGame ? (
+          <section className="rounded-xl border border-moss/30 bg-moss/10 p-4">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-moss">Final choice</p>
+            <p className="mt-1 text-2xl font-black text-ink">{selectedGame.game.title}</p>
+          </section>
+        ) : null}
         <section className="surface rounded-xl p-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -285,7 +298,14 @@ export function PickPanel({
             <div className="mt-4 grid gap-3">
               {sessionGames.length > 0 ? (
                 sessionGames.map((sessionGame) => (
-                  <SessionGameCard key={sessionGame.id} shareToken={shareToken} participantId={participantId} sessionGame={sessionGame} />
+                  <SessionGameCard
+                    key={sessionGame.id}
+                    shareToken={shareToken}
+                    participantId={participantId}
+                    sessionGame={sessionGame}
+                    isHost={isHost}
+                    selected={sessionGame.id === selectedSessionGameId}
+                  />
                 ))
               ) : (
                 <p className="rounded-lg border border-dashed border-ink/20 bg-paper p-4 text-sm leading-6 text-ink/62">
@@ -717,7 +737,7 @@ function DealAndFriendsPanel({
                   <input type="hidden" name="shareToken" value={shareToken} />
                   <PendingSubmitButton className="secondary-button w-full justify-start" pendingLabel="Adding...">
                     <UsersRound className="h-4 w-4" />
-                    Add linked session players as friends
+                    Send friend requests to linked players
                   </PendingSubmitButton>
                 </form>
                 <form action={createFriendInviteAction}>
@@ -751,7 +771,7 @@ function DealAndFriendsPanel({
                         </div>
                         <form action={startPickSessionFromFriendGroupAction}>
                           <input type="hidden" name="groupId" value={group.id} />
-                          <input type="hidden" name="timezone" value="Europe/London" />
+                          <TimezoneInput />
                           <PendingSubmitButton className="secondary-button px-3 py-2" pendingLabel="Starting...">Start Pick</PendingSubmitButton>
                         </form>
                       </div>
@@ -1000,10 +1020,14 @@ function SessionGameCard({
   shareToken,
   participantId,
   sessionGame,
+  isHost,
+  selected,
 }: {
   shareToken: string;
   participantId?: string;
   sessionGame: SessionGameView;
+  isHost: boolean;
+  selected: boolean;
 }) {
   const haveCount = countHaveSignals(sessionGame);
   const dontHaveCount = countDontHaveSignals(sessionGame);
@@ -1033,7 +1057,16 @@ function SessionGameCard({
           initialInterest={sessionGame.interests.find((item) => item.participantId === participantId)?.interest ?? "NEUTRAL"}
         />
       ) : null}
-      <details className="mt-3">
+      {isHost ? (
+        <form action={selectFinalGameAction} className="mt-3">
+          <input type="hidden" name="shareToken" value={shareToken} />
+          <input type="hidden" name="sessionGameId" value={sessionGame.id} />
+          <PendingSubmitButton className={selected ? "primary-button" : "secondary-button"} pendingLabel="Choosing...">
+            {selected ? "Final choice" : "Choose as final game"}
+          </PendingSubmitButton>
+        </form>
+      ) : null}
+      {isHost ? <details className="mt-3">
         <summary className="cursor-pointer list-none text-xs font-black uppercase tracking-[0.12em] text-ink/45">Manage game</summary>
         <form action={removeSessionGameAction} className="mt-2">
           <input type="hidden" name="shareToken" value={shareToken} />
@@ -1042,7 +1075,7 @@ function SessionGameCard({
             Remove from shortlist
           </PendingSubmitButton>
         </form>
-      </details>
+      </details> : null}
     </div>
   );
 }
@@ -1118,18 +1151,6 @@ function GameGrid({
           {participantId ? <input type="hidden" name="participantId" value={participantId} /> : null}
           {game.igdbId ? <input type="hidden" name="igdbId" value={game.igdbId} /> : null}
           {game.steamAppId ? <input type="hidden" name="steamAppId" value={game.steamAppId} /> : null}
-          {game.coverUrl ? <input type="hidden" name="coverUrl" value={game.coverUrl} /> : null}
-          {game.summary ? <input type="hidden" name="summary" value={game.summary} /> : null}
-          {game.popularityScore ? <input type="hidden" name="popularityScore" value={game.popularityScore} /> : null}
-          {game.genres?.length ? <input type="hidden" name="genres" value={JSON.stringify(game.genres)} /> : null}
-          {game.platforms?.length ? <input type="hidden" name="platforms" value={JSON.stringify(game.platforms)} /> : null}
-          {game.gameModes?.length ? <input type="hidden" name="gameModes" value={JSON.stringify(game.gameModes)} /> : null}
-          {game.minPlayers ? <input type="hidden" name="minPlayers" value={game.minPlayers} /> : null}
-          {game.maxPlayers ? <input type="hidden" name="maxPlayers" value={game.maxPlayers} /> : null}
-          {game.onlineCoop !== null && game.onlineCoop !== undefined ? <input type="hidden" name="onlineCoop" value={String(game.onlineCoop)} /> : null}
-          {game.localCoop !== null && game.localCoop !== undefined ? <input type="hidden" name="localCoop" value={String(game.localCoop)} /> : null}
-          {game.capabilitySource ? <input type="hidden" name="capabilitySource" value={game.capabilitySource} /> : null}
-          {game.capabilityConfidence !== null && game.capabilityConfidence !== undefined ? <input type="hidden" name="capabilityConfidence" value={game.capabilityConfidence} /> : null}
           <p className="font-black text-ink">{game.title}</p>
           {game.platforms?.length ? <p className="mt-1 text-xs font-bold text-ink/50">{game.platforms.slice(0, 3).join(", ")}</p> : null}
           <p className="mt-2 text-xs font-black uppercase tracking-[0.12em] text-teal">{formatGamePlayerMetadata(game)}</p>

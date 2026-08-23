@@ -131,7 +131,10 @@ export async function getCurrentUser() {
 
 const participantCookiePrefix = "lpg_p_";
 const hostCookiePrefix = "lpg_host_";
+const participantIdentityCookie = "lpg_participants";
 const participantCookieDays = 60;
+
+type ParticipantIdentityMap = Record<string, { participantId: string; isHost: boolean; seenAt: number }>;
 
 export async function setParticipantIdentity(
   sessionId: string,
@@ -148,29 +151,60 @@ export async function setParticipantIdentity(
     expires,
   };
 
-  cookieStore.set(`${participantCookiePrefix}${sessionId}`, signValue(participantId), settings);
+  const identities = readParticipantIdentities(cookieStore.get(participantIdentityCookie)?.value);
+  identities[sessionId] = { participantId, isHost: Boolean(options.isHost), seenAt: Date.now() };
+  const compact = Object.fromEntries(
+    Object.entries(identities).sort((a, b) => b[1].seenAt - a[1].seenAt).slice(0, 20),
+  );
+  const encoded = Buffer.from(JSON.stringify(compact), "utf8").toString("base64url");
+  cookieStore.set(participantIdentityCookie, signValue(encoded), settings);
+}
 
-  if (options.isHost) {
-    cookieStore.set(`${hostCookiePrefix}${sessionId}`, signValue(participantId), settings);
-  }
+export async function getCurrentUserIdentity() {
+  const cookieStore = await cookies();
+  const signedToken = cookieStore.get(cookieName)?.value;
+  const token = signedToken ? verifySignedValue(signedToken) : null;
+  if (!token) return null;
+
+  const session = await prisma.userSession.findFirst({
+    where: { tokenHash: hashSessionToken(token), expiresAt: { gt: new Date() } },
+    select: { user: { select: { id: true, username: true, displayName: true, role: true } } },
+  });
+  return session?.user ?? null;
 }
 
 export async function getParticipantId(sessionId: string) {
   const cookieStore = await cookies();
+  const identity = readParticipantIdentities(cookieStore.get(participantIdentityCookie)?.value)[sessionId];
+  if (identity) return identity.participantId;
   const signed = cookieStore.get(`${participantCookiePrefix}${sessionId}`)?.value;
   return signed ? verifySignedValue(signed) : null;
 }
 
 export async function getHostParticipantId(sessionId: string) {
   const cookieStore = await cookies();
+  const identity = readParticipantIdentities(cookieStore.get(participantIdentityCookie)?.value)[sessionId];
+  if (identity?.isHost) return identity.participantId;
   const signed = cookieStore.get(`${hostCookiePrefix}${sessionId}`)?.value;
   return signed ? verifySignedValue(signed) : null;
 }
 
+function readParticipantIdentities(signed?: string): ParticipantIdentityMap {
+  if (!signed) return {};
+  const encoded = verifySignedValue(signed);
+  if (!encoded) return {};
+  try {
+    const parsed = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as ParticipantIdentityMap;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 // Resolves the participant the caller is allowed to write as for this session.
-// Prefers the signed cookie; falls back to a supplied id only when no cookie is
-// present (legacy links shared before this cookie existed). Returns null if a
-// cookie exists but disagrees with the supplied id (impersonation attempt).
+// A form value can only confirm the signed identity; it can never establish
+// one. Without a participant cookie, only the signed-in user's membership is
+// accepted.
 export async function resolveActingParticipantId(sessionId: string, suppliedId?: string | null) {
   const cookieId = await getParticipantId(sessionId);
 
@@ -179,10 +213,26 @@ export async function resolveActingParticipantId(sessionId: string, suppliedId?:
       return null;
     }
 
-    return cookieId;
+    const participant = await prisma.participant.findFirst({
+      where: { id: cookieId, sessionId },
+      select: { id: true },
+    });
+
+    return participant?.id ?? null;
   }
 
-  return suppliedId ?? null;
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    return null;
+  }
+
+  const participant = await prisma.participant.findUnique({
+    where: { sessionId_userId: { sessionId, userId: currentUser.id } },
+    select: { id: true },
+  });
+
+  return participant?.id ?? null;
 }
 
 export type OAuthState = {
@@ -192,15 +242,78 @@ export type OAuthState = {
   friendGroupInvite?: string;
   redirectTo?: string;
   intent?: "signin" | "link";
+  nonce: string;
   exp: number;
 };
 
-export function createOAuthState(input: Omit<OAuthState, "exp">) {
+const oauthNonceCookie = "lpg_oauth_nonce";
+
+export function createOAuthState(input: Omit<OAuthState, "exp" | "nonce">) {
   const state = {
     ...input,
+    nonce: randomBytes(24).toString("base64url"),
     exp: Date.now() + 10 * 60 * 1000,
   };
   return signValue(Buffer.from(JSON.stringify(state), "utf8").toString("base64url"));
+}
+
+export async function rememberOAuthState(signedState: string) {
+  const state = parseOAuthState(signedState);
+
+  if (!state) {
+    throw new Error("Could not create OAuth state.");
+  }
+
+  const cookieStore = await cookies();
+  cookieStore.set(oauthNonceCookie, signValue(state.nonce), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/auth",
+    expires: new Date(state.exp),
+  });
+}
+
+export async function consumeOAuthState(signedState: string | null) {
+  const state = parseOAuthState(signedState);
+  const cookieStore = await cookies();
+  const signedNonce = cookieStore.get(oauthNonceCookie)?.value;
+  cookieStore.delete(oauthNonceCookie);
+  const browserNonce = signedNonce ? verifySignedValue(signedNonce) : null;
+
+  if (!state || !browserNonce || browserNonce !== state.nonce) {
+    return null;
+  }
+
+  return state;
+}
+
+export async function oauthParticipantForShareToken(shareToken?: string | null, suppliedId?: string | null) {
+  if (!shareToken) {
+    return undefined;
+  }
+
+  const session = await prisma.session.findUnique({
+    where: { shareToken },
+    select: { id: true },
+  });
+
+  if (!session) {
+    return undefined;
+  }
+
+  const participantId = await getParticipantId(session.id);
+
+  if (!participantId || (suppliedId && suppliedId !== participantId)) {
+    return undefined;
+  }
+
+  const participant = await prisma.participant.findFirst({
+    where: { id: participantId, sessionId: session.id },
+    select: { id: true },
+  });
+
+  return participant?.id;
 }
 
 export function parseOAuthState(signedState: string | null) {
@@ -217,7 +330,7 @@ export function parseOAuthState(signedState: string | null) {
   try {
     const parsed = JSON.parse(Buffer.from(raw, "base64url").toString("utf8")) as Partial<OAuthState>;
 
-    if (typeof parsed.exp !== "number" || parsed.exp < Date.now()) {
+    if (typeof parsed.exp !== "number" || parsed.exp < Date.now() || typeof parsed.nonce !== "string") {
       return null;
     }
 

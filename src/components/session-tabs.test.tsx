@@ -20,10 +20,11 @@ vi.mock("next/link", () => ({
 }));
 
 describe("SessionTabs", () => {
-  it("renders plan and pick tabs while preserving participant links", () => {
-    render(<SessionTabs shareToken="abc" participantId="p1" activeTab="pick" />);
+  it("disables a missing sibling workspace", () => {
+    render(<SessionTabs shareToken="abc" participantId="p1" activeTab="pick" pickHref="/s/abc?tab=pick" />);
 
-    expect(screen.getByRole("link", { name: "Plan Collect availability" })).toHaveAttribute("href", "/s/abc?tab=plan&participant=p1");
-    expect(screen.getByRole("link", { name: "Pick Compare libraries" })).toHaveAttribute("href", "/s/abc?tab=pick&participant=p1");
+    expect(screen.queryByRole("link", { name: /Plan/ })).not.toBeInTheDocument();
+    expect(screen.getByText("Not set up")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Pick Compare libraries" })).toHaveAttribute("href", "/s/abc?tab=pick");
   });
 });

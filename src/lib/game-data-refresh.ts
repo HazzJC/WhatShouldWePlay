@@ -67,9 +67,8 @@ export async function refreshActiveGameData({
             inUseGame,
             {
               OR: [
-                { deal: null },
-                { deal: { country: { not: dealCountry } } },
-                { deal: { fetchedAt: { lt: dealStaleBefore } } },
+                { deals: { none: { country: dealCountry } } },
+                { deals: { some: { country: dealCountry, fetchedAt: { lt: dealStaleBefore } } } },
               ],
             },
           ],
@@ -93,4 +92,31 @@ export async function refreshActiveGameData({
     metadataCandidates: metadataGames.length,
     dealsRefreshed,
   };
+}
+
+export async function refreshActiveGameDataForMarkets() {
+  const markets = await prisma.session.findMany({
+    where: { workspaceType: "PICK", games: { some: {} } },
+    distinct: ["dealCountry", "dealCurrency"],
+    select: { dealCountry: true, dealCurrency: true },
+  });
+  const activeMarkets = markets.length > 0 ? markets : [{ dealCountry: "GB", dealCurrency: "GBP" }];
+  const perMarketDealLimit = Math.max(Math.floor(60 / activeMarkets.length), 1);
+  let metadataRefreshed = 0;
+  let metadataCandidates = 0;
+  let dealsRefreshed = 0;
+
+  for (const [index, market] of activeMarkets.entries()) {
+    const result = await refreshActiveGameData({
+      metadataLimit: index === 0 ? 36 : 0,
+      dealLimit: perMarketDealLimit,
+      dealCountry: market.dealCountry,
+      dealCurrency: market.dealCurrency,
+    });
+    metadataRefreshed += result.metadataRefreshed;
+    metadataCandidates += result.metadataCandidates;
+    dealsRefreshed += result.dealsRefreshed;
+  }
+
+  return { metadataRefreshed, metadataCandidates, dealsRefreshed, marketsRefreshed: activeMarkets.length };
 }

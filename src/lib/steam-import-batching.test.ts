@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const gameCreateMany = vi.fn(async () => ({ count: 0 }));
 const gameFindMany = vi.fn(async (): Promise<Array<{ id: string; steamAppId: number | null }>> => []);
 const userGameCreateMany = vi.fn(async () => ({ count: 0 }));
+const userGameUpdateMany = vi.fn(async () => ({ count: 0 }));
 const userGameUpdate = vi.fn((args) => Promise.resolve(args));
 const transaction = vi.fn(async (operations: Array<Promise<unknown>>) => Promise.all(operations));
 
@@ -15,6 +16,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     userGame: {
       createMany: userGameCreateMany,
+      updateMany: userGameUpdateMany,
       update: userGameUpdate,
     },
   },
@@ -26,6 +28,7 @@ describe("Steam import batching", () => {
     gameCreateMany.mockClear();
     gameFindMany.mockReset();
     userGameCreateMany.mockClear();
+    userGameUpdateMany.mockClear();
     userGameUpdate.mockClear();
     transaction.mockClear();
   });
@@ -65,6 +68,15 @@ describe("Steam import batching", () => {
         skipDuplicates: true,
       }),
     );
+    expect(userGameUpdateMany).toHaveBeenCalledWith({
+      where: {
+        userId: "user-1",
+        source: "STEAM",
+        ownership: "HAVE",
+        gameId: { notIn: ["game-1", "game-2"] },
+      },
+      data: expect.objectContaining({ ownership: "UNKNOWN" }),
+    });
     expect(transaction).toHaveBeenCalledTimes(1);
     expect(userGameUpdate).toHaveBeenCalledTimes(2);
     expect(result.gameIds).toEqual(["game-1", "game-2"]);

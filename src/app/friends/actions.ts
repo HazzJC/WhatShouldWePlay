@@ -181,3 +181,49 @@ export async function blockUserAction(formData: FormData) {
   ]);
   revalidatePath("/friends");
 }
+
+export async function acceptFriendInviteAction(formData: FormData) {
+  const user = await requireAccountUser();
+  const token = String(formData.get("token") ?? "");
+
+  if (!token) throw new Error("Friend invite not found.");
+
+  await prisma.$transaction(async (tx) => {
+    const invite = await tx.friendInvite.findFirst({
+      where: { token, acceptedAt: null, expiresAt: { gt: new Date() } },
+    });
+    if (!invite || invite.inviterId === user.id) throw new Error("This friend invite is no longer available.");
+
+    const blocked = await tx.userBlock.findFirst({
+      where: {
+        OR: [
+          { blockerId: user.id, blockedId: invite.inviterId },
+          { blockerId: invite.inviterId, blockedId: user.id },
+        ],
+      },
+      select: { id: true },
+    });
+    if (blocked) throw new Error("This friend invite is not available.");
+
+    const consumed = await tx.friendInvite.updateMany({
+      where: { id: invite.id, acceptedAt: null, expiresAt: { gt: new Date() } },
+      data: { acceptedById: user.id, acceptedAt: new Date() },
+    });
+    if (consumed.count !== 1) throw new Error("This friend invite has already been used.");
+
+    await Promise.all([
+      tx.userFriend.upsert({
+        where: { userId_friendId: { userId: invite.inviterId, friendId: user.id } },
+        create: { userId: invite.inviterId, friendId: user.id },
+        update: {},
+      }),
+      tx.userFriend.upsert({
+        where: { userId_friendId: { userId: user.id, friendId: invite.inviterId } },
+        create: { userId: user.id, friendId: invite.inviterId },
+        update: {},
+      }),
+    ]);
+  });
+
+  redirect("/friends");
+}

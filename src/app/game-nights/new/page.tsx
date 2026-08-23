@@ -3,6 +3,7 @@ import { CalendarDays, Gamepad2, Layers3 } from "lucide-react";
 import { createCombinedGameNightAction } from "@/app/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getCurrentUser } from "@/lib/auth";
+import { TimezoneInput } from "@/components/timezone-input";
 
 export default async function NewGameNightPage() {
   const user = await getCurrentUser();
@@ -24,7 +25,13 @@ export default async function NewGameNightPage() {
             <form action={createCombinedGameNightAction} className="mt-4 grid gap-3 sm:grid-cols-2">
               <label><span className="text-sm font-semibold text-ink">Game Night name</span><input name="title" required defaultValue="Game night" className="field" /></label>
               <label><span className="text-sm font-semibold text-ink">Your name</span><input name="hostName" required defaultValue={user.displayName} className="field" /></label>
-              <input type="hidden" name="timezone" value="Europe/London" />
+              <label><span className="text-sm font-semibold text-ink">Where</span><select name="mode" defaultValue="ONLINE" className="field"><option value="ONLINE">Online</option><option value="IN_PERSON">In person</option></select></label>
+              <label><span className="text-sm font-semibold text-ink">Minimum players</span><input name="minimumPlayerCount" type="number" min={2} max={30} defaultValue={4} className="field" /></label>
+              <label><span className="text-sm font-semibold text-ink">Duration (hours)</span><input name="requiredDuration" type="number" min={1} max={8} defaultValue={2} className="field" /></label>
+              <label><span className="text-sm font-semibold text-ink">Date window</span><select name="datePreset" defaultValue="this_week" className="field"><option value="tonight">Tonight</option><option value="this_week">This week</option><option value="this_month">This month</option></select></label>
+              <label><span className="text-sm font-semibold text-ink">From</span><input name="dailyStartHour" type="number" min={0} max={23} defaultValue={18} className="field" /></label>
+              <label><span className="text-sm font-semibold text-ink">Until</span><input name="dailyEndHour" type="number" min={1} max={24} defaultValue={23} className="field" /></label>
+              <TimezoneInput defaultTimezone={user.timezone ?? "Europe/London"} />
               <PendingSubmitButton className="primary-button w-fit sm:col-span-2" pendingLabel="Creating both workspaces...">Create both</PendingSubmitButton>
             </form>
           ) : (

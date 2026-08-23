@@ -42,25 +42,26 @@ export async function evaluatePriceAlerts({
     return deal?.status === "ok" && deal.currentPrice !== null && deal.currentPrice !== undefined;
   });
 
-  if (gamesWithDeals.length === 0) {
-    return;
-  }
-
   const rules = await prisma.priceAlertRule.findMany({
     where: { sessionId, enabled: true },
   });
-  const defaultRules: AlertRuleInput[] = [
-    { id: null, type: "GROUP_ON_SALE" },
-    { id: null, type: "MISSING_PLAYERS_ONLY", missingOnly: true },
-    { id: null, type: "HISTORICAL_LOW" },
-    { id: null, type: "OWNED_COUNT_DISCOUNTED", ownedCount: Math.max(selectedCount - 2, 1), totalCount: selectedCount },
-  ];
-  const effectiveRules =
-    rules.length > 0
-      ? rules
-      : defaultRules;
+  const previousEvents = await prisma.priceAlertEvent.findMany({
+    where: { sessionId },
+    select: { gameId: true, message: true, resolvedAt: true },
+  });
+  const previousByKey = new Map(previousEvents.map((event) => [`${event.gameId}\u0000${event.message}`, event]));
+  const effectiveRules: AlertRuleInput[] = rules;
+
+  if (effectiveRules.length === 0 || gamesWithDeals.length === 0) {
+    await prisma.priceAlertEvent.updateMany({
+      where: { sessionId, resolvedAt: null },
+      data: { resolvedAt: new Date() },
+    });
+    return;
+  }
 
   const writes: ReturnType<typeof prisma.priceAlertEvent.upsert>[] = [];
+  const activeMessages = new Set<string>();
 
   for (const sessionGame of gamesWithDeals) {
     const deal = sessionGame.game.deal;
@@ -88,6 +89,8 @@ export async function evaluatePriceAlerts({
       if (!message) {
         continue;
       }
+      activeMessages.add(message);
+      const previous = previousByKey.get(`${sessionGame.gameId}\u0000${message}`);
 
       writes.push(prisma.priceAlertEvent.upsert({
         where: {
@@ -114,7 +117,9 @@ export async function evaluatePriceAlerts({
           historicalLow: deal.historicalLow ?? null,
           currency: deal.currency ?? currency,
           url: deal.dealUrl ?? null,
-          triggeredAt: new Date(),
+          lastObservedAt: new Date(),
+          resolvedAt: null,
+          triggeredAt: previous?.resolvedAt ? new Date() : undefined,
         },
       }));
     }
@@ -123,6 +128,15 @@ export async function evaluatePriceAlerts({
   for (let index = 0; index < writes.length; index += 20) {
     await prisma.$transaction(writes.slice(index, index + 20));
   }
+
+  await prisma.priceAlertEvent.updateMany({
+    where: {
+      sessionId,
+      resolvedAt: null,
+      ...(activeMessages.size > 0 ? { message: { notIn: [...activeMessages] } } : {}),
+    },
+    data: { resolvedAt: new Date() },
+  });
 }
 
 function alertMessageForRule({

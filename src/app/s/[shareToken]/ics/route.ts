@@ -11,6 +11,7 @@ export async function GET(_request: Request, { params }: RouteProps) {
   const { shareToken } = await params;
   const session = await prisma.session.findUnique({
     where: { shareToken },
+    include: { gameNight: { include: { selectedSessionGame: { include: { game: true } } } } },
   });
 
   if (!session || !session.lockedStartTime || !session.lockedEndTime) {
@@ -22,7 +23,7 @@ export async function GET(_request: Request, { params }: RouteProps) {
     title: session.title,
     startsAt: session.lockedStartTime,
     endsAt: session.lockedEndTime,
-    description: `Game night planned with Let's Play Games.\n${appUrl}/s/${session.shareToken}`,
+    description: `Game night planned with Let's Play Games.${session.gameNight?.selectedSessionGame ? `\nGame: ${session.gameNight.selectedSessionGame.game.title}` : ""}\n${appUrl}/s/${session.shareToken}`,
     url: `${appUrl}/s/${session.shareToken}`,
   });
 

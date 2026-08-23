@@ -1,3 +1,5 @@
+import sharp from "sharp";
+
 export const maxAvatarBytes = 512 * 1024;
 export const allowedAvatarTypes = ["image/jpeg", "image/png", "image/webp"] as const;
 
@@ -13,7 +15,20 @@ export async function validateAvatarFile(file: File) {
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
-  return validateAvatarBytes(bytes, file.type, file.size);
+  const validation = validateAvatarBytes(bytes, file.type, file.size);
+  if (!validation.success) return validation;
+
+  try {
+    const image = sharp(validation.data, { limitInputPixels: 16_000_000, failOn: "warning" });
+    const metadata = await image.metadata();
+    if (!metadata.width || !metadata.height || metadata.width > 4096 || metadata.height > 4096) {
+      return { success: false as const, error: "Profile pictures must be no larger than 4096×4096 pixels." };
+    }
+    const data = await image.rotate().resize(512, 512, { fit: "inside", withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
+    return { success: true as const, data, mimeType: "image/webp" as const, sizeBytes: data.byteLength };
+  } catch {
+    return { success: false as const, error: "The selected file could not be decoded as a safe image." };
+  }
 }
 
 export function validateAvatarBytes(bytes: Uint8Array, mimeType: string, sizeBytes = bytes.byteLength) {

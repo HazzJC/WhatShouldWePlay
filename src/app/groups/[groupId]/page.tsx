@@ -6,6 +6,7 @@ import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getAppUrl } from "@/lib/app-url";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { TimezoneInput } from "@/components/timezone-input";
 
 type PageProps = {
   params: Promise<{ groupId: string }>;
@@ -20,7 +21,13 @@ export default async function FriendGroupPage({ params }: PageProps) {
   }
 
   const group = await prisma.friendGroup.findFirst({
-    where: { id: groupId, ownerId: currentUser.id },
+    where: {
+      id: groupId,
+      OR: [
+        { ownerId: currentUser.id },
+        { members: { some: { userId: currentUser.id, status: "ACCEPTED" } } },
+      ],
+    },
     include: {
       members: { include: { user: true }, orderBy: [{ status: "asc" }, { createdAt: "asc" }] },
       invites: { where: { expiresAt: { gt: new Date() }, acceptedAt: null }, orderBy: { createdAt: "desc" }, take: 1 },
@@ -31,18 +38,21 @@ export default async function FriendGroupPage({ params }: PageProps) {
     notFound();
   }
 
+  const isOwner = group.ownerId === currentUser.id;
   const appUrl = await getAppUrl();
-  const inviteUrl = group.invites[0] ? `${appUrl}/groups/invite/${group.invites[0].token}` : null;
+  const inviteUrl = isOwner && group.invites[0] ? `${appUrl}/groups/invite/${group.invites[0].token}` : null;
   const memberUserIds = new Set(group.members.map((member) => member.userId).filter((userId): userId is string => Boolean(userId)));
-  const savedFriends = await prisma.userFriend.findMany({
-    where: {
-      userId: currentUser.id,
-      friendId: { notIn: Array.from(memberUserIds) },
-    },
-    include: { friend: true },
-    orderBy: { createdAt: "desc" },
-    take: 8,
-  });
+  const savedFriends = isOwner
+    ? await prisma.userFriend.findMany({
+        where: {
+          userId: currentUser.id,
+          friendId: { notIn: Array.from(memberUserIds) },
+        },
+        include: { friend: true },
+        orderBy: { createdAt: "desc" },
+        take: 8,
+      })
+    : [];
 
   return (
     <main className="ui-shell">
@@ -63,11 +73,11 @@ export default async function FriendGroupPage({ params }: PageProps) {
               Accepted members are added automatically when you start a Pick session from this group.
             </p>
           </div>
-          <form action={startPickSessionFromFriendGroupAction}>
+          {isOwner ? <form action={startPickSessionFromFriendGroupAction}>
             <input type="hidden" name="groupId" value={group.id} />
-            <input type="hidden" name="timezone" value="Europe/London" />
+            <TimezoneInput defaultTimezone={currentUser.timezone ?? "Europe/London"} />
             <PendingSubmitButton className="primary-button" pendingLabel="Starting...">Start Pick</PendingSubmitButton>
-          </form>
+          </form> : null}
         </div>
         <div className="mt-5 grid gap-3">
           {group.members.map((member) => (
@@ -79,25 +89,25 @@ export default async function FriendGroupPage({ params }: PageProps) {
                   <p className="text-xs font-bold uppercase tracking-[0.12em] text-ink/45">{member.status.toLowerCase()}</p>
                 </div>
               </div>
-              <form action={removeFriendGroupMemberAction}>
+              {isOwner ? <form action={removeFriendGroupMemberAction}>
                 <input type="hidden" name="groupId" value={group.id} />
                 <input type="hidden" name="memberId" value={member.id} />
                 <PendingSubmitButton className="secondary-button px-3 py-2" pendingLabel="Removing...">
                   <Trash2 className="h-4 w-4" />
                   Remove
                 </PendingSubmitButton>
-              </form>
+              </form> : null}
             </div>
           ))}
         </div>
-        <form action={createFriendGroupInviteAction} className="mt-5">
+        {isOwner ? <form action={createFriendGroupInviteAction} className="mt-5">
           <input type="hidden" name="groupId" value={group.id} />
           <input type="hidden" name="redirectTo" value={`/groups/${group.id}`} />
           <PendingSubmitButton className="secondary-button" pendingLabel="Creating...">
             <LinkIcon className="h-4 w-4" />
             Create group invite
           </PendingSubmitButton>
-        </form>
+        </form> : null}
         {inviteUrl ? (
           <div className="mt-3 rounded-lg border border-teal/20 bg-teal/10 p-3">
             <p className="text-xs font-black uppercase tracking-[0.12em] text-ink/45">Invite link</p>

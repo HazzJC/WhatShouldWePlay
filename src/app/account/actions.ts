@@ -10,7 +10,7 @@ import {
   usernameChangeAvailableAt,
   validateUsername,
 } from "@/lib/accounts";
-import { importSteamGamesForUser, normalizeGameTitle } from "@/lib/games";
+import { importSteamGamesForUser, upsertGame } from "@/lib/games";
 import { prisma } from "@/lib/prisma";
 import { getOwnedSteamGames, getRecentlyPlayedSteamGames } from "@/lib/steam";
 import { mergeAccounts } from "@/lib/account-merge";
@@ -318,15 +318,7 @@ export async function addLibraryGameAction(formData: FormData) {
     throw new Error("Enter a valid game title.");
   }
 
-  const normalizedTitle = normalizeGameTitle(title);
-  const game =
-    (await prisma.game.findFirst({ where: { normalizedTitle } })) ??
-    (await prisma.game.create({
-      data: {
-        title,
-        normalizedTitle,
-      },
-    }));
+  const game = await upsertGame({ title });
 
   await prisma.userGame.upsert({
     where: { userId_gameId: { userId: currentUser.id, gameId: game.id } },
