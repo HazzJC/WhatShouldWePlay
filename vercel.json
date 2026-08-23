@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/discord-reminders",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 17 * * *"
     },
     {
       "path": "/api/cron/refresh-game-data",

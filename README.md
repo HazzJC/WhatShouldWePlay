@@ -248,12 +248,12 @@ are spread across several daily runs.
 Set `CRON_SECRET` in Vercel and send it as a bearer token for non-Vercel/manual
 cron calls.
 
-**Cron schedule and plan limits.** `vercel.json` checks reminders every five
-minutes so short reminders are delivered on time. That frequency requires a
-Vercel plan that supports frequent cron jobs. Notification identity includes
-the destination channel, and failed deliveries are retried with bounded
-backoff. If deploying on a once-daily cron plan, use an external scheduler or
-accept that short reminders cannot be delivered reliably.
+**Cron schedule and plan limits.** `vercel.json` uses a once-daily reminder
+schedule so the repository deploys on Vercel Hobby. Notification identity
+includes the destination channel, and failed deliveries are retried with
+bounded backoff. Short reminders cannot be delivered reliably at a daily
+cadence; use an external scheduler or, on Vercel Pro/Enterprise, change the
+schedule to `*/5 * * * *` for five-minute checks.
 
 ## Tool setup on Windows
 
