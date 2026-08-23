@@ -610,6 +610,8 @@ function ScoredGameCard({ game }: { game: ScoredGame }) {
       <div className="mt-3 flex flex-wrap gap-2">
         <span className={`rounded-md px-2 py-1 text-xs font-black ${alignmentClass}`}>Alignment: {game.alignment}</span>
         {game.discountPercent > 0 ? <span className="rounded-md bg-coral/10 px-2 py-1 text-xs font-black text-coral">{game.discountPercent}% off</span> : null}
+        {game.platformFit === "crossplay" ? <span className="rounded-md bg-teal/10 px-2 py-1 text-xs font-black text-teal">Cross-play ready</span> : null}
+        {game.platformFit === "mismatch" ? <span className="rounded-md bg-red-50 px-2 py-1 text-xs font-black text-red-800">Platform mismatch</span> : null}
       </div>
       <ul className="mt-3 grid gap-1 text-sm leading-6 text-ink/62">
         {game.reasons.map((reason) => (

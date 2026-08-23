@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Gamepad2, UsersRound } from "lucide-react";
+import { ArrowRight, Gamepad2, Sparkles, UsersRound } from "lucide-react";
+import { GameArtwork } from "@/components/game-artwork";
 import { PlayerCountFilter } from "@/components/player-count-filter";
-import { curatedGamesForList, curatedLists } from "@/lib/curated-games";
+import { curatedGames, curatedGamesForList, curatedLists, curatedPlayerLabel, supportsAtLeast, type CuratedGame } from "@/lib/curated-games";
 import { parseMinimumPlayers } from "@/lib/player-count";
 
 type PageProps = {
@@ -15,6 +16,11 @@ export default async function DiscoverPage({ searchParams }: PageProps) {
   const visibleLists = curatedLists
     .map((list) => ({ ...list, games: curatedGamesForList(list.slug, minimumPlayers) }))
     .filter((list) => list.games.length > 0);
+  const spotlightGames = curatedGames
+    .filter((game) => game.steamAppId && game.releaseStatus !== "upcoming")
+    .filter((game) => !hasPlayerCount || supportsAtLeast(game, minimumPlayers))
+    .sort((a, b) => Number(Boolean(b.trending)) - Number(Boolean(a.trending)))
+    .slice(0, 3);
 
   return (
     <main className="ui-shell">
@@ -31,7 +37,7 @@ export default async function DiscoverPage({ searchParams }: PageProps) {
         <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">Discover</p>
         <h1 className="mt-3 text-4xl font-black text-ink">Find better group games</h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/65">
-          Browse curated multiplayer lists before anyone connects Steam.
+          Browse the games making groups laugh, panic, coordinate, and immediately blame the host.
         </p>
         {!hasPlayerCount ? (
           <section className="surface mt-6 rounded-lg p-5">
@@ -47,6 +53,18 @@ export default async function DiscoverPage({ searchParams }: PageProps) {
         ) : (
         <PlayerCountFilter minimumPlayers={minimumPlayers} action="/discover" />
         )}
+        <section className="mt-6">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-coral"><Sparkles className="h-4 w-4" /> Tonight&apos;s wildcards</p>
+              <h2 className="mt-1 text-2xl font-bold text-ink">Start with a game, not a spreadsheet</h2>
+            </div>
+            {hasPlayerCount ? <p className="text-sm font-medium text-ink/55">Every pick supports {minimumPlayers}+ players</p> : null}
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            {spotlightGames.map((game) => <SpotlightCard key={game.slug} game={game} minimumPlayers={hasPlayerCount ? minimumPlayers : undefined} />)}
+          </div>
+        </section>
         {hasPlayerCount ? (
         <>
         <Link href="/discover/challenges" className="mt-5 block rounded-xl border border-coral/30 bg-coral p-5 text-white shadow-card transition hover:-translate-y-0.5 hover:bg-coralDark">
@@ -59,6 +77,11 @@ export default async function DiscoverPage({ searchParams }: PageProps) {
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {visibleLists.map((list) => (
             <Link key={list.slug} href={`/discover/${list.slug}?minPlayers=${minimumPlayers}`} className="surface rounded-xl p-5 transition hover:-translate-y-0.5">
+              <div className="mb-4 flex h-20 overflow-hidden rounded-lg bg-ink/10">
+                {list.games.filter((game) => game.steamAppId).slice(0, 3).map((game) => (
+                  <GameArtwork key={game.slug} appId={game.steamAppId!} title={game.title} sizes="184px" className="min-w-0 flex-1" />
+                ))}
+              </div>
               <h2 className="text-xl font-black text-ink">{list.title}</h2>
               <p className="mt-2 text-sm leading-6 text-ink/60">{list.description}</p>
               <p className="mt-3 line-clamp-2 text-sm font-semibold text-ink/75">{list.games.slice(0, 3).map((game) => game.title).join(" · ")}</p>
@@ -72,5 +95,22 @@ export default async function DiscoverPage({ searchParams }: PageProps) {
         ) : null}
       </section>
     </main>
+  );
+}
+
+function SpotlightCard({ game, minimumPlayers }: { game: CuratedGame; minimumPlayers?: number }) {
+  const params = minimumPlayers ? `?minPlayers=${minimumPlayers}` : "";
+
+  return (
+    <Link href={`/games/${game.slug}${params}`} className="group relative min-h-64 overflow-hidden rounded-xl border border-ink/10 bg-ink text-white shadow-card">
+      <GameArtwork appId={game.steamAppId!} title={game.title} sizes="(min-width: 768px) 33vw, 100vw" className="!absolute inset-0" imageClassName="transition duration-500 group-hover:scale-105" />
+      <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/50 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 p-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/70">{curatedPlayerLabel(game)}</p>
+        <h3 className="mt-1 text-xl font-bold">{game.title}</h3>
+        <p className="mt-1 line-clamp-2 text-sm leading-5 text-white/75">{game.description}</p>
+        <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-white">See why it fits <ArrowRight className="h-4 w-4" /></span>
+      </div>
+    </Link>
   );
 }

@@ -1,0 +1,12 @@
+ALTER TYPE "OAuthProvider" ADD VALUE IF NOT EXISTS 'MICROSOFT';
+
+ALTER TABLE "User"
+ADD COLUMN "xboxGamertag" TEXT,
+ADD COLUMN "playstationOnlineId" TEXT;
+
+ALTER TABLE "Game"
+ADD COLUMN "crossplay" BOOLEAN,
+ADD COLUMN "crossplayPlatforms" JSONB NOT NULL DEFAULT '[]';
+
+ALTER TABLE "UserGame"
+ADD COLUMN "platforms" JSONB NOT NULL DEFAULT '[]';

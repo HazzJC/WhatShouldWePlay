@@ -45,6 +45,8 @@ type CuratedGameSeed = {
   onlineCoop: boolean;
   localCoop: boolean;
   platforms?: string[];
+  crossplay?: boolean;
+  crossplayPlatforms?: string[];
   trending?: boolean;
   releaseStatus?: CuratedGame["releaseStatus"];
   caveat?: string;
@@ -88,9 +90,9 @@ export const curatedGames: CuratedGame[] = [
   game({ slug: "phasmophobia", title: "Phasmophobia", description: "Co-op ghost hunting with strong one-night energy.", listSlugs: ["online-co-op", "4-player", "party"], tags: ["horror", "co-op"], sessionLength: "one-night", steamAppId: 739630, minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: false }),
 
   game({ slug: "deep-rock-galactic", title: "Deep Rock Galactic", description: "Co-op mining chaos with strong 4-player teamwork.", listSlugs: ["online-co-op", "4-player", "cheap-co-op"], tags: ["co-op", "shooter", "dwarves"], sessionLength: "long-term", steamAppId: 548430, minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: false }),
-  game({ slug: "helldivers-2", title: "HELLDIVERS 2", description: "Explosive online co-op with fast missions and big group energy.", listSlugs: ["online-co-op", "4-player", "trending-multiplayer"], tags: ["co-op", "shooter", "intense"], sessionLength: "long-term", steamAppId: 553850, minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: false, trending: true }),
-  game({ slug: "sea-of-thieves", title: "Sea of Thieves", description: "Pirate co-op with sessions that naturally turn into stories.", listSlugs: ["online-co-op", "4-player", "campaign-co-op"], tags: ["co-op", "adventure", "open world"], sessionLength: "long-term", steamAppId: 1172620, minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: false }),
-  game({ slug: "monster-hunter-wilds", title: "Monster Hunter Wilds", description: "Big hunts, repeated sessions, and a natural fit for a committed four-player group.", listSlugs: ["online-co-op", "4-player", "campaign-co-op", "trending-multiplayer"], tags: ["action", "co-op", "campaign"], sessionLength: "long-term", steamAppId: 2246340, minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: false, trending: true }),
+  game({ slug: "helldivers-2", title: "HELLDIVERS 2", description: "Explosive online co-op with fast missions and big group energy.", listSlugs: ["online-co-op", "4-player", "trending-multiplayer"], tags: ["co-op", "shooter", "intense"], sessionLength: "long-term", steamAppId: 553850, minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: false, platforms: ["PC", "PlayStation"], crossplay: true, crossplayPlatforms: ["PC", "PlayStation"], trending: true }),
+  game({ slug: "sea-of-thieves", title: "Sea of Thieves", description: "Pirate co-op with sessions that naturally turn into stories.", listSlugs: ["online-co-op", "4-player", "campaign-co-op"], tags: ["co-op", "adventure", "open world"], sessionLength: "long-term", steamAppId: 1172620, minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: false, platforms: ["PC", "Xbox", "PlayStation"], crossplay: true, crossplayPlatforms: ["PC", "Xbox", "PlayStation"] }),
+  game({ slug: "monster-hunter-wilds", title: "Monster Hunter Wilds", description: "Big hunts, repeated sessions, and a natural fit for a committed four-player group.", listSlugs: ["online-co-op", "4-player", "campaign-co-op", "trending-multiplayer"], tags: ["action", "co-op", "campaign"], sessionLength: "long-term", steamAppId: 2246340, minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: false, platforms: ["PC", "Xbox", "PlayStation"], crossplay: true, crossplayPlatforms: ["PC", "Xbox", "PlayStation"], trending: true }),
   game({ slug: "warhammer-vermintide-2", title: "Warhammer: Vermintide 2", description: "Melee-focused horde co-op with a mountain of classes and progression.", listSlugs: ["online-co-op", "4-player", "cheap-co-op"], tags: ["co-op", "horde", "melee"], sessionLength: "long-term", steamAppId: 552500, minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: false }),
   game({ slug: "left-4-dead-2", title: "Left 4 Dead 2", description: "Still one of the cleanest templates for a co-op campaign night.", listSlugs: ["online-co-op", "4-player", "campaign-co-op", "cheap-co-op"], tags: ["co-op", "campaign", "zombies"], sessionLength: "one-night", steamAppId: 550, minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: true }),
   game({ slug: "risk-of-rain-2", title: "Risk of Rain 2", description: "Stack absurd builds together and turn a short run into a disaster story.", listSlugs: ["online-co-op", "4-player"], tags: ["roguelite", "co-op", "action"], sessionLength: "one-night", steamAppId: 632360, minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: false }),
@@ -225,6 +227,8 @@ function game(seed: CuratedGameSeed): CuratedGame {
     localCoop: seed.localCoop,
     gameModes: [seed.onlineCoop || seed.localCoop ? "Co-op" : "Multiplayer"],
     platforms: seed.platforms ?? ["PC"],
+    crossplay: seed.crossplay ?? null,
+    crossplayPlatforms: seed.crossplayPlatforms ?? [],
     genres: seed.tags,
     capabilitySource: "curated",
     capabilityConfidence: seed.caveat ? 0.75 : 0.9,

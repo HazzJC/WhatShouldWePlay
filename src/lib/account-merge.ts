@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 export async function createAccountMergeIntent(
   currentUserId: string,
   otherUserId: string,
-  provider: "GOOGLE" | "STEAM",
+  provider: "GOOGLE" | "MICROSOFT" | "STEAM",
 ) {
   const token = randomBytes(32).toString("base64url");
   await prisma.accountMergeIntent.create({
@@ -63,6 +63,7 @@ export async function mergeAccounts(currentUserId: string, token: string) {
           userId: currentUserId,
           gameId: otherGame.gameId,
           source: otherGame.source,
+          platforms: mergeJsonStringLists(undefined, otherGame.platforms),
           ownership: otherGame.ownership,
           wishlist: otherGame.wishlist,
           favourite: otherGame.favourite,
@@ -76,6 +77,7 @@ export async function mergeAccounts(currentUserId: string, token: string) {
         },
         update: {
           ownership: mergeOwnership(existing?.ownership, otherGame.ownership),
+          platforms: mergeJsonStringLists(existing?.platforms, otherGame.platforms),
           wishlist: Boolean(existing?.wishlist || otherGame.wishlist),
           favourite: Boolean(existing?.favourite || otherGame.favourite),
           rating: existing?.rating ?? otherGame.rating,
@@ -333,7 +335,7 @@ function latestDate(first?: Date | null, second?: Date | null) {
   return first > second ? first : second;
 }
 
-function mergeJsonStringLists(first: Prisma.JsonValue, second: Prisma.JsonValue) {
+function mergeJsonStringLists(first: Prisma.JsonValue | undefined, second: Prisma.JsonValue | undefined) {
   const values = [
     ...(Array.isArray(first) ? first : []),
     ...(Array.isArray(second) ? second : []),

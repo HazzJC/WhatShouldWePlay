@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CalendarDays, Compass, Gamepad2, History, LogOut, UserRound } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -14,6 +15,7 @@ const primaryLinks = [
 
 export function AppNavigation() {
   const [user, setUser] = useState<{ username: string | null; displayName: string } | null>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     fetch("/api/auth/me", { credentials: "same-origin" })
@@ -34,7 +36,7 @@ export function AppNavigation() {
           </Link>
           <nav className="hidden items-center gap-1 md:flex" aria-label="Primary navigation">
             {primaryLinks.map(({ href, label, icon: Icon }) => (
-              <Link key={href} href={href} className="focus-ring inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-ink/65 hover:bg-linen hover:text-ink">
+              <Link key={href} href={href} aria-current={isActivePath(pathname, href) ? "page" : undefined} className={`focus-ring inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold hover:text-ink ${isActivePath(pathname, href) ? "bg-teal/10 text-teal" : "text-ink/65 hover:bg-linen"}`}>
                 <Icon className="h-4 w-4" />
                 {label}
               </Link>
@@ -79,7 +81,7 @@ export function AppNavigation() {
 
       <nav className="app-mobile-nav" aria-label="Mobile navigation">
         {primaryLinks.map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} className="focus-ring grid min-w-0 flex-1 place-items-center gap-0.5 py-2 text-[0.68rem] font-semibold text-ink/60">
+          <Link key={href} href={href} aria-current={isActivePath(pathname, href) ? "page" : undefined} className={`focus-ring grid min-w-0 flex-1 place-items-center gap-0.5 py-2 text-[0.68rem] font-semibold ${isActivePath(pathname, href) ? "bg-teal/10 text-teal" : "text-ink/60"}`}>
             <Icon className="h-5 w-5" />
             <span className="truncate">{label}</span>
           </Link>
@@ -91,6 +93,11 @@ export function AppNavigation() {
       </nav>
     </>
   );
+}
+
+function isActivePath(pathname: string, href: string) {
+  if (href === "/sessions/new" || href === "/sessions/pick") return pathname === href;
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 function MenuLink({ href, label }: { href: string; label: string }) {

@@ -1,4 +1,4 @@
-import type { Game, Prisma } from "@prisma/client";
+import { Prisma, type Game } from "@prisma/client";
 import { mapIgdbGame, searchIgdbGames } from "@/lib/igdb";
 import { prisma } from "@/lib/prisma";
 import type { SteamOwnedGame, SteamRecentlyPlayedGame } from "@/lib/steam";
@@ -12,6 +12,8 @@ export type GameInput = {
   summary?: string | null;
   genres?: string[];
   platforms?: string[];
+  crossplay?: boolean | null;
+  crossplayPlatforms?: string[];
   gameModes?: string[];
   popularityScore?: number | null;
   minPlayers?: number | null;
@@ -35,16 +37,16 @@ export type GameInput = {
 export const defaultAddedGameSignal = "OWNED";
 
 export const commonMultiplayerGames: GameInput[] = [
-  { title: "Minecraft", platforms: ["PC", "Xbox", "PlayStation", "Switch", "Mobile"], gameModes: ["Multiplayer", "Co-op"], minPlayers: 1, maxPlayers: 8, onlineCoop: true, localCoop: true, capabilitySource: "curated", capabilityConfidence: 0.8 },
+  { title: "Minecraft", platforms: ["PC", "Xbox", "PlayStation", "Switch", "Mobile"], crossplay: true, crossplayPlatforms: ["PC", "Xbox", "PlayStation", "Nintendo Switch", "Mobile"], gameModes: ["Multiplayer", "Co-op"], minPlayers: 1, maxPlayers: 8, onlineCoop: true, localCoop: true, capabilitySource: "curated", capabilityConfidence: 0.8 },
   { title: "League of Legends", platforms: ["PC"], gameModes: ["Multiplayer"], minPlayers: 2, maxPlayers: 5, onlineCoop: false, localCoop: false, capabilitySource: "curated", capabilityConfidence: 0.8 },
   { title: "Valorant", platforms: ["PC", "Console"], gameModes: ["Multiplayer"], minPlayers: 2, maxPlayers: 5, onlineCoop: false, localCoop: false, capabilitySource: "curated", capabilityConfidence: 0.8 },
-  { title: "Fortnite", platforms: ["PC", "Xbox", "PlayStation", "Switch", "Mobile"], gameModes: ["Multiplayer", "Co-op"], minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: false, capabilitySource: "curated", capabilityConfidence: 0.75 },
-  { title: "Roblox", platforms: ["PC", "Xbox", "PlayStation", "Mobile"], gameModes: ["Multiplayer"], minPlayers: 1, maxPlayers: 8, onlineCoop: true, localCoop: false, capabilitySource: "curated", capabilityConfidence: 0.7 },
+  { title: "Fortnite", platforms: ["PC", "Xbox", "PlayStation", "Switch", "Mobile"], crossplay: true, crossplayPlatforms: ["PC", "Xbox", "PlayStation", "Nintendo Switch", "Mobile"], gameModes: ["Multiplayer", "Co-op"], minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: false, capabilitySource: "curated", capabilityConfidence: 0.75 },
+  { title: "Roblox", platforms: ["PC", "Xbox", "PlayStation", "Mobile"], crossplay: true, crossplayPlatforms: ["PC", "Xbox", "PlayStation", "Mobile"], gameModes: ["Multiplayer"], minPlayers: 1, maxPlayers: 8, onlineCoop: true, localCoop: false, capabilitySource: "curated", capabilityConfidence: 0.7 },
   { title: "World of Warcraft", platforms: ["PC"], gameModes: ["Massively Multiplayer", "Co-op"], minPlayers: 1, maxPlayers: 5, onlineCoop: true, localCoop: false, capabilitySource: "curated", capabilityConfidence: 0.8 },
-  { title: "Final Fantasy XIV", platforms: ["PC", "PlayStation", "Xbox"], gameModes: ["Massively Multiplayer", "Co-op"], minPlayers: 1, maxPlayers: 8, onlineCoop: true, localCoop: false, capabilitySource: "curated", capabilityConfidence: 0.8 },
-  { title: "Sea of Thieves", platforms: ["Game Pass", "Steam", "Xbox", "PlayStation"], gameModes: ["Co-op"], minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: false, capabilitySource: "curated", capabilityConfidence: 0.85 },
-  { title: "Rocket League", platforms: ["Epic Games Store", "PC", "Xbox", "PlayStation", "Switch"], gameModes: ["Multiplayer", "Co-op"], minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: true, capabilitySource: "curated", capabilityConfidence: 0.8 },
-  { title: "Among Us", platforms: ["PC", "Mobile", "Console"], gameModes: ["Multiplayer"], minPlayers: 4, maxPlayers: 15, onlineCoop: true, localCoop: true, capabilitySource: "curated", capabilityConfidence: 0.8 },
+  { title: "Final Fantasy XIV", platforms: ["PC", "PlayStation", "Xbox"], crossplay: true, crossplayPlatforms: ["PC", "PlayStation", "Xbox"], gameModes: ["Massively Multiplayer", "Co-op"], minPlayers: 1, maxPlayers: 8, onlineCoop: true, localCoop: false, capabilitySource: "curated", capabilityConfidence: 0.8 },
+  { title: "Sea of Thieves", platforms: ["Game Pass", "Steam", "Xbox", "PlayStation"], crossplay: true, crossplayPlatforms: ["PC", "Xbox", "PlayStation"], gameModes: ["Co-op"], minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: false, capabilitySource: "curated", capabilityConfidence: 0.85 },
+  { title: "Rocket League", platforms: ["Epic Games Store", "PC", "Xbox", "PlayStation", "Switch"], crossplay: true, crossplayPlatforms: ["PC", "Xbox", "PlayStation", "Nintendo Switch"], gameModes: ["Multiplayer", "Co-op"], minPlayers: 1, maxPlayers: 4, onlineCoop: true, localCoop: true, capabilitySource: "curated", capabilityConfidence: 0.8 },
+  { title: "Among Us", platforms: ["PC", "Mobile", "Console"], crossplay: true, crossplayPlatforms: ["PC", "Xbox", "PlayStation", "Nintendo Switch", "Mobile"], gameModes: ["Multiplayer"], minPlayers: 4, maxPlayers: 15, onlineCoop: true, localCoop: true, capabilitySource: "curated", capabilityConfidence: 0.8 },
 ];
 
 export function normalizeGameTitle(title: string) {
@@ -79,6 +81,8 @@ export function gameRecordToInput(game: Game): GameInput {
     summary: game.summary,
     genres: toStringList(game.genres),
     platforms: toStringList(game.platforms),
+    crossplay: game.crossplay,
+    crossplayPlatforms: toStringList(game.crossplayPlatforms),
     gameModes: toStringList(game.gameModes),
     popularityScore: game.popularityScore,
     minPlayers: game.minPlayers,
@@ -254,6 +258,56 @@ export async function addGameToSession({
   return sessionGame;
 }
 
+export async function addGamesToSessionBulk({
+  sessionId,
+  gameIds,
+  participantId,
+  userId,
+  source,
+  signal = defaultAddedGameSignal,
+}: {
+  sessionId: string;
+  gameIds: string[];
+  participantId: string;
+  userId?: string | null;
+  source: Prisma.SessionGameCreateManyInput["source"];
+  signal?: Prisma.SessionGameSignalCreateManyInput["signal"];
+}) {
+  const uniqueGameIds = [...new Set(gameIds)];
+
+  if (uniqueGameIds.length === 0) {
+    return [];
+  }
+
+  await prisma.sessionGame.createMany({
+    data: uniqueGameIds.map((gameId) => ({
+      sessionId,
+      gameId,
+      addedByParticipantId: participantId,
+      addedByUserId: userId ?? null,
+      source,
+    })),
+    skipDuplicates: true,
+  });
+
+  const sessionGames = await prisma.sessionGame.findMany({
+    where: { sessionId, gameId: { in: uniqueGameIds } },
+    select: { id: true, gameId: true },
+  });
+  const sessionGameIds = sessionGames.map((game) => game.id);
+
+  await prisma.sessionGameSignal.updateMany({
+    where: { participantId, sessionGameId: { in: sessionGameIds } },
+    data: { signal },
+  });
+  await prisma.sessionGameSignal.createMany({
+    data: sessionGameIds.map((sessionGameId) => ({ sessionGameId, participantId, signal })),
+    skipDuplicates: true,
+  });
+
+  return sessionGames;
+}
+
 export async function importSteamGamesForUser(userId: string, games: SteamOwnedGame[], recentGames: SteamRecentlyPlayedGame[]) {
   const recentAppIds = new Set(recentGames.map((game) => game.appid));
   const recentPlaytime = new Map(recentGames.map((game) => [game.appid, game.playtime_2weeks ?? 0]));
@@ -302,6 +356,7 @@ export async function importSteamGamesForUser(userId: string, games: SteamOwnedG
         userId,
         gameId,
         source: "STEAM" as const,
+        platforms: ["PC"],
         playtimeMinutes: steamGame.playtime_forever ?? 0,
         recentlyPlayedAt: recentAppIds.has(steamGame.appid) ? now : null,
         lastImportedAt: now,
@@ -316,6 +371,7 @@ export async function importSteamGamesForUser(userId: string, games: SteamOwnedG
         userId: row.userId,
         gameId: row.gameId,
         source: row.source,
+        platforms: row.platforms,
         ownership: "HAVE",
         playtimeMinutes: row.playtimeMinutes,
         recentlyPlayedAt: row.recentlyPlayedAt,
@@ -325,21 +381,30 @@ export async function importSteamGamesForUser(userId: string, games: SteamOwnedG
     });
   }
 
-  for (const chunk of chunks(userGameRows, 50)) {
-    await prisma.$transaction(
-      chunk.map((row) =>
-        prisma.userGame.update({
-          where: { userId_gameId: { userId, gameId: row.gameId } },
-          data: {
-            source: "STEAM",
-            ownership: "HAVE",
-            playtimeMinutes: row.playtimeMinutes,
-            recentlyPlayedAt: recentAppIds.has(row.steamAppId) && (recentPlaytime.get(row.steamAppId) ?? 0) > 0 ? now : undefined,
-            lastImportedAt: now,
-          },
-        }),
-      ),
-    );
+  for (const chunk of chunks(userGameRows, 500)) {
+    const values = Prisma.join(chunk.map((row) => Prisma.sql`(
+      ${row.gameId},
+      ${row.playtimeMinutes},
+      ${recentAppIds.has(row.steamAppId) && (recentPlaytime.get(row.steamAppId) ?? 0) > 0 ? now : null}
+    )`));
+
+    await prisma.$executeRaw(Prisma.sql`
+      UPDATE "UserGame" AS user_game
+      SET
+        "source" = 'STEAM'::"UserGameSource",
+        "platforms" = CASE
+          WHEN user_game."platforms" @> '["PC"]'::jsonb THEN user_game."platforms"
+          ELSE user_game."platforms" || '["PC"]'::jsonb
+        END,
+        "ownership" = 'HAVE'::"UserGameOwnership",
+        "playtimeMinutes" = imported."playtimeMinutes"::integer,
+        "recentlyPlayedAt" = COALESCE(imported."recentlyPlayedAt"::timestamp, user_game."recentlyPlayedAt"),
+        "lastImportedAt" = ${now},
+        "updatedAt" = ${now}
+      FROM (VALUES ${values}) AS imported("gameId", "playtimeMinutes", "recentlyPlayedAt")
+      WHERE user_game."userId" = ${userId}
+        AND user_game."gameId" = imported."gameId"::text
+    `);
   }
 
   return { gameIds: userGameRows.map((row) => row.gameId) };
@@ -422,6 +487,8 @@ function gameInputToData(input: GameInput, mode: "create" | "update") {
     summary: input.summary ?? absent,
     genres: input.genres ?? absentArray,
     platforms: input.platforms ?? absentArray,
+    crossplay: input.crossplay ?? absent,
+    crossplayPlatforms: input.crossplayPlatforms ?? absentArray,
     gameModes: input.gameModes ?? absentArray,
     popularityScore: input.popularityScore ?? absent,
     steamReviewScore: input.steamReviewScore ?? absent,

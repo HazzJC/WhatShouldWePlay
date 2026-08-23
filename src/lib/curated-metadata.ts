@@ -28,6 +28,8 @@ export function mergeCuratedMetadata(input: GameInput): GameInput {
     steamAppId: input.steamAppId ?? curatedGame.steamAppId ?? null,
     genres: mergeTextLists(input.genres, curatedGame.genres),
     platforms: mergeTextLists(input.platforms, curatedGame.platforms),
+    crossplay: curatedGame.crossplay ?? input.crossplay ?? null,
+    crossplayPlatforms: mergeTextLists(input.crossplayPlatforms, curatedGame.crossplayPlatforms),
     gameModes: mergeTextLists(input.gameModes, curatedGame.gameModes),
     minPlayers: curatedGame.minPlayers ?? input.minPlayers ?? null,
     maxPlayers: curatedGame.maxPlayers ?? input.maxPlayers ?? null,
@@ -47,6 +49,8 @@ export function curatedCapabilityData(curatedGame: CuratedGame) {
   return {
     genres: curatedGame.genres ?? [],
     platforms: curatedGame.platforms ?? [],
+    crossplay: curatedGame.crossplay ?? null,
+    crossplayPlatforms: curatedGame.crossplayPlatforms ?? [],
     gameModes: curatedGame.gameModes ?? [],
     minPlayers: curatedGame.minPlayers,
     maxPlayers: curatedGame.maxPlayers,

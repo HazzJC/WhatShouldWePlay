@@ -76,6 +76,9 @@ export function RankedMatchList({
               </span>
               {game.categories.slice(0, 2).map((category) => <span key={category} className="rounded bg-linen px-2 py-1 text-xs font-medium text-ink/55">{categoryLabel(category)}</span>)}
               {game.discountPercent > 0 ? <span className="rounded bg-coral/10 px-2 py-1 text-xs font-semibold text-coral">{game.discountPercent}% off</span> : null}
+              {game.platformFit === "crossplay" ? <span className="rounded bg-teal/10 px-2 py-1 text-xs font-semibold text-teal">Cross-play ready</span> : null}
+              {game.platformFit === "same-platform" && game.platforms?.length === 1 ? <span className="rounded bg-linen px-2 py-1 text-xs font-medium text-ink/60">All on {game.platforms[0]}</span> : null}
+              {game.platformFit === "mismatch" ? <span className="rounded bg-red-50 px-2 py-1 text-xs font-semibold text-red-800">Check cross-play</span> : null}
             </div>
             <ul className="mt-3 grid gap-1 text-sm leading-6 text-ink/65">
               {game.reasons.slice(0, 2).map((reason) => <li key={reason}>{reason}</li>)}

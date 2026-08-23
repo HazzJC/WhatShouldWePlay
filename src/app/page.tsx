@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { CalendarDays, CheckCircle2, Clock3, Gamepad2, ListChecks, Share2, UsersRound } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock3, Gamepad2, ListChecks, Share2 } from "lucide-react";
 
 export default function Home() {
   return (
@@ -35,14 +35,14 @@ export default function Home() {
       <section className="grid flex-1 items-start gap-6 py-8 lg:grid-cols-[0.9fr_1.1fr] lg:py-12">
         <div className="max-w-2xl">
           <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">
-            Plan without an account
+            <span>Plan without an account</span>
+            <span className="hidden sm:inline"> · one less group-chat spiral</span>
           </p>
           <h1 className="mt-3 text-4xl font-black leading-[1.02] text-ink sm:text-5xl lg:text-6xl">
-            Let&apos;s Play Games
+            Make game night happen.
           </h1>
           <p className="mt-4 max-w-xl text-base font-bold leading-7 text-ink/68 sm:text-lg">
-            Find the time, pick the crew, and get a game night locked without chasing everyone
-            across chat.
+            Find the overlap, match everyone&apos;s libraries, and land on something the whole crew can actually play.
           </p>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <Link href="/sessions/new" className="focus-ring rounded-lg border border-coral/30 bg-coral p-4 text-white shadow-card transition hover:-translate-y-0.5 hover:bg-coralDark">
@@ -83,7 +83,7 @@ export default function Home() {
 
         <div className="relative min-h-[380px] overflow-hidden rounded-xl border border-ink/10 bg-ink shadow-soft sm:min-h-[460px] lg:min-h-[min(620px,72vh)]">
           <Image
-            src="/assets/game-night-hero.webp"
+            src="/assets/game-night-choice-hero-v2.webp"
             alt=""
             fill
             priority
@@ -106,10 +106,11 @@ export default function Home() {
                 <Score value="0" label="Out" className="text-slate" />
               </div>
             </div>
-            <div className="rounded-lg bg-teal p-3 text-white shadow-card sm:p-4">
-              <UsersRound className="h-5 w-5" />
-              <p className="mt-3 text-sm font-bold text-white/70">Crew status</p>
-              <p className="text-xl font-black">Ready to lock</p>
+            <div className="rounded-lg bg-teal p-3 text-white shadow-card sm:min-w-40 sm:p-4">
+              <Gamepad2 className="h-5 w-5" />
+              <p className="mt-3 text-sm font-bold text-white/70">Top game match</p>
+              <p className="text-2xl font-black">92 / 100</p>
+              <p className="mt-1 text-xs font-semibold text-white/80">Cross-play ready · 5/6 own it</p>
             </div>
           </div>
         </div>

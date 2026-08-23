@@ -284,6 +284,34 @@ describe("match scoring", () => {
       scored.find((game) => game.title === "Endless Grind")!.factors.durationFit,
     );
   });
+
+  it("distinguishes confirmed cross-play from incompatible platform ownership", () => {
+    const ready = sessionGame("sg-ready", "Cross-play Ready", [{ participantId: "p1", signal: "OWNED" }, { participantId: "p2", signal: "OWNED" }], 4, "g-ready");
+    const mismatch = sessionGame("sg-mismatch", "Platform Mismatch", [{ participantId: "p1", signal: "OWNED" }, { participantId: "p2", signal: "OWNED" }], 4, "g-mismatch");
+    const scored = scoreSessionGames({
+      participants,
+      selectedParticipantIds: ["p1", "p2"],
+      playerCount: 2,
+      userGames: [
+        { userId: "u1", gameId: "g-ready", ownership: "HAVE", platforms: ["PC"] },
+        { userId: "u2", gameId: "g-ready", ownership: "HAVE", platforms: ["Xbox"] },
+        { userId: "u1", gameId: "g-mismatch", ownership: "HAVE", platforms: ["PC"] },
+        { userId: "u2", gameId: "g-mismatch", ownership: "HAVE", platforms: ["Xbox"] },
+      ],
+      sessionGames: [
+        { ...ready, game: { ...ready.game, crossplay: true, crossplayPlatforms: ["PC", "Xbox"] } },
+        { ...mismatch, game: { ...mismatch.game, crossplay: false, crossplayPlatforms: [] } },
+      ],
+    });
+
+    const crossplay = scored.find((game) => game.gameId === "g-ready")!;
+    const incompatible = scored.find((game) => game.gameId === "g-mismatch")!;
+    expect(crossplay.platformFit).toBe("crossplay");
+    expect(crossplay.reasons).toContain("Cross-play confirmed for PC + Xbox");
+    expect(incompatible.platformFit).toBe("mismatch");
+    expect(incompatible.alignment).toBe("Low");
+    expect(incompatible.categories).not.toContain("perfect");
+  });
 });
 
 function sessionGame(

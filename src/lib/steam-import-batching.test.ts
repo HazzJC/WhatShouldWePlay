@@ -4,12 +4,11 @@ const gameCreateMany = vi.fn(async () => ({ count: 0 }));
 const gameFindMany = vi.fn(async (): Promise<Array<{ id: string; steamAppId: number | null }>> => []);
 const userGameCreateMany = vi.fn(async () => ({ count: 0 }));
 const userGameUpdateMany = vi.fn(async () => ({ count: 0 }));
-const userGameUpdate = vi.fn((args) => Promise.resolve(args));
-const transaction = vi.fn(async (operations: Array<Promise<unknown>>) => Promise.all(operations));
+const executeRaw = vi.fn(async () => 2);
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    $transaction: transaction,
+    $executeRaw: executeRaw,
     game: {
       createMany: gameCreateMany,
       findMany: gameFindMany,
@@ -17,7 +16,6 @@ vi.mock("@/lib/prisma", () => ({
     userGame: {
       createMany: userGameCreateMany,
       updateMany: userGameUpdateMany,
-      update: userGameUpdate,
     },
   },
 }));
@@ -29,8 +27,7 @@ describe("Steam import batching", () => {
     gameFindMany.mockReset();
     userGameCreateMany.mockClear();
     userGameUpdateMany.mockClear();
-    userGameUpdate.mockClear();
-    transaction.mockClear();
+    executeRaw.mockClear();
   });
 
   it("preserves unified game and user ownership writes in batches", async () => {
@@ -62,8 +59,8 @@ describe("Steam import batching", () => {
     expect(userGameCreateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: [
-          expect.objectContaining({ gameId: "game-1", source: "STEAM", playtimeMinutes: 600 }),
-          expect.objectContaining({ gameId: "game-2", source: "STEAM", playtimeMinutes: 30 }),
+          expect.objectContaining({ gameId: "game-1", source: "STEAM", platforms: ["PC"], playtimeMinutes: 600 }),
+          expect.objectContaining({ gameId: "game-2", source: "STEAM", platforms: ["PC"], playtimeMinutes: 30 }),
         ],
         skipDuplicates: true,
       }),
@@ -77,8 +74,7 @@ describe("Steam import batching", () => {
       },
       data: expect.objectContaining({ ownership: "UNKNOWN" }),
     });
-    expect(transaction).toHaveBeenCalledTimes(1);
-    expect(userGameUpdate).toHaveBeenCalledTimes(2);
+    expect(executeRaw).toHaveBeenCalledTimes(1);
     expect(result.gameIds).toEqual(["game-1", "game-2"]);
   });
 });

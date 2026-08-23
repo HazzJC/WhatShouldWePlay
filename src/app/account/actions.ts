@@ -15,10 +15,13 @@ import { prisma } from "@/lib/prisma";
 import { getOwnedSteamGames, getRecentlyPlayedSteamGames } from "@/lib/steam";
 import { mergeAccounts } from "@/lib/account-merge";
 import { validateAvatarFile } from "@/lib/avatar";
+import { gamingPlatforms } from "@/lib/platforms";
 
 const profileSchema = z.object({
   displayName: z.string().trim().min(1).max(80),
   favouriteGenres: z.string().trim().max(300).optional(),
+  xboxGamertag: z.string().trim().max(32).optional(),
+  playstationOnlineId: z.string().trim().max(32).optional(),
   directoryVisible: z.enum(["true", "false"]).default("true"),
 });
 
@@ -106,6 +109,8 @@ export async function updateAccountProfileAction(formData: FormData) {
   const parsed = profileSchema.safeParse({
     displayName: formData.get("displayName"),
     favouriteGenres: formData.get("favouriteGenres") || undefined,
+    xboxGamertag: formData.get("xboxGamertag") || undefined,
+    playstationOnlineId: formData.get("playstationOnlineId") || undefined,
     directoryVisible: formData.get("directoryVisible") ? "true" : "false",
   });
 
@@ -124,6 +129,8 @@ export async function updateAccountProfileAction(formData: FormData) {
     data: {
       displayName: parsed.data.displayName,
       favouriteGenres,
+      xboxGamertag: parsed.data.xboxGamertag || null,
+      playstationOnlineId: parsed.data.playstationOnlineId || null,
       directoryVisible: parsed.data.directoryVisible === "true",
     },
   });
@@ -254,6 +261,7 @@ const libraryGameSchema = z.object({
   rating: z.coerce.number().int().min(1).max(10).optional(),
   interest: z.enum(["WANT_TO_PLAY", "NEUTRAL", "NOT_INTERESTED"]).default("NEUTRAL"),
   playedStatus: z.enum(["UNPLAYED", "PLAYING", "PLAYED", "COMPLETED", "DROPPED"]).default("UNPLAYED"),
+  platforms: z.array(z.enum(gamingPlatforms)).max(gamingPlatforms.length).default([]),
   notes: z.string().trim().max(1000).optional(),
 });
 
@@ -272,6 +280,7 @@ export async function updateLibraryGameAction(formData: FormData) {
     rating: formData.get("rating") || undefined,
     interest: formData.get("interest") || "NEUTRAL",
     playedStatus: formData.get("playedStatus") || "UNPLAYED",
+    platforms: formData.getAll("platforms"),
     notes: formData.get("notes") || undefined,
   });
 
@@ -319,6 +328,9 @@ export async function addLibraryGameAction(formData: FormData) {
   }
 
   const game = await upsertGame({ title });
+  const platforms = formData.getAll("platforms").filter((value): value is string =>
+    typeof value === "string" && gamingPlatforms.includes(value as (typeof gamingPlatforms)[number]),
+  );
 
   await prisma.userGame.upsert({
     where: { userId_gameId: { userId: currentUser.id, gameId: game.id } },
@@ -327,9 +339,11 @@ export async function addLibraryGameAction(formData: FormData) {
       gameId: game.id,
       source: "MANUAL",
       ownership: "HAVE",
+      platforms,
     },
     update: {
       ownership: "HAVE",
+      platforms,
     },
   });
 

@@ -14,7 +14,7 @@ import {
 import { announceLockedSessionToDiscord, normalizeReminderPreferences } from "@/lib/discord";
 import { curatedGames, getCuratedGame } from "@/lib/curated-games";
 import { mergeCuratedMetadata } from "@/lib/curated-metadata";
-import { addGameToSession, importSteamGamesForUser, upsertGame } from "@/lib/games";
+import { addGameToSession, addGamesToSessionBulk, importSteamGamesForUser, upsertGame } from "@/lib/games";
 import { getIgdbGameById, mapIgdbGame } from "@/lib/igdb";
 import { prisma } from "@/lib/prisma";
 import { dateRangeFromPreset, generateCandidateWindows, generateHourlySlots, type DatePreset } from "@/lib/scheduling";
@@ -1830,19 +1830,14 @@ export async function importSteamLibraryAction(formData: FormData) {
     });
     const shortlistImports = uniqueUserGames([...sharedImportedGames, ...importedGames]);
 
-    await runInChunks(
-      shortlistImports,
-      (userGame) =>
-        addGameToSession({
-          sessionId: session.id,
-          gameId: userGame.gameId,
-          participantId: participant.id,
-          userId: currentUser.id,
-          source: "STEAM_MATCH",
-          signal: "OWNED",
-        }),
-      20,
-    );
+    await addGamesToSessionBulk({
+      sessionId: session.id,
+      gameIds: shortlistImports.map((userGame) => userGame.gameId),
+      participantId: participant.id,
+      userId: currentUser.id,
+      source: "STEAM_MATCH",
+      signal: "OWNED",
+    });
     console.info("[steam-import] added top imported games to session", {
       userId: currentUser.id,
       participantId: participant.id,

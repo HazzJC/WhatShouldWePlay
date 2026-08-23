@@ -10,6 +10,7 @@ import { ProfileAvatarEditor } from "@/components/profile-avatar-editor";
 import { RecentSessionAction } from "@/components/recent-session-action";
 import { getCurrentUser } from "@/lib/auth";
 import { isMetadataAdmin } from "@/lib/admin";
+import { isMicrosoftAuthConfigured } from "@/lib/microsoft-auth";
 import { prisma } from "@/lib/prisma";
 
 type PageProps = {
@@ -38,6 +39,18 @@ const steamMessages: Record<string, string> = {
   "linked-elsewhere": "This Steam account is already connected to another profile.",
 };
 
+const microsoftErrorMessages: Record<string, string> = {
+  missing_or_invalid_state: "Microsoft sign-in could not verify the return state. Try signing in again from this page.",
+  missing_code: "Microsoft did not return an authorization code.",
+  not_configured: "Microsoft sign-in is not available yet.",
+  provider_access_denied: "Microsoft sign-in was cancelled before permission was granted.",
+  token_exchange_failed: "Microsoft rejected the sign-in request. Try again.",
+  missing_access_token: "Microsoft did not complete the secure sign-in exchange.",
+  userinfo_failed: "Microsoft profile information could not be verified.",
+  missing_subject: "Microsoft did not return a stable account id.",
+  unknown: "Microsoft sign-in failed unexpectedly. Try again shortly.",
+};
+
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -55,6 +68,7 @@ function formatDate(value?: Date | null) {
 export default async function AccountPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const googleError = firstParam(params.google_error);
+  const microsoftError = firstParam(params.microsoft_error);
   const steamStatus = firstParam(params.steam);
   const merged = firstParam(params.merged);
   const avatarStatus = firstParam(params.avatar);
@@ -62,6 +76,8 @@ export default async function AccountPage({ searchParams }: PageProps) {
   const returnTo = firstParam(params.returnTo) ?? "/account";
   const user = await getCurrentUser();
   const googleAccount = user?.oauthAccounts.find((account) => account.provider === "GOOGLE") ?? null;
+  const microsoftAccount = user?.oauthAccounts.find((account) => account.provider === "MICROSOFT") ?? null;
+  const microsoftConfigured = isMicrosoftAuthConfigured();
   const recentParticipants = user
     ? await prisma.participant.findMany({
         where: { userId: user.id },
@@ -100,12 +116,15 @@ export default async function AccountPage({ searchParams }: PageProps) {
           <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">Account</p>
           <h1 className="mt-2 text-3xl font-black text-ink sm:text-4xl">Your profile and connections</h1>
           <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-ink/62">
-            Google keeps your account available across devices. Steam stays separate and is only used for library matching.
+            Sign in across devices, connect the stores you use, and keep PC, Xbox, and PlayStation ownership in one matching profile.
           </p>
         </div>
 
         {googleError ? (
           <AuthNotice tone="error" title={`Google auth error: ${googleError}`} detail={googleErrorMessages[googleError] ?? googleErrorMessages.unknown} />
+        ) : null}
+        {microsoftError ? (
+          <AuthNotice tone="error" title={`Microsoft auth error: ${microsoftError}`} detail={microsoftErrorMessages[microsoftError] ?? microsoftErrorMessages.unknown} />
         ) : null}
         {steamStatus ? (
           <AuthNotice tone={steamStatus === "linked" ? "success" : "error"} title={`Steam status: ${steamStatus}`} detail={steamMessages[steamStatus] ?? "Steam connection updated."} />
@@ -126,13 +145,18 @@ export default async function AccountPage({ searchParams }: PageProps) {
               <div>
                 <h2 className="text-2xl font-black text-ink">You&apos;re signed out</h2>
                 <p className="mt-2 text-sm font-bold leading-6 text-ink/62">
-                  Sign in with Google to save friend groups, preferences, and linked game libraries across devices.
+                  Create one profile for saved groups, preferences, and PC or console game ownership across devices.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <a href={providerStartUrl("google", returnTo)} className="primary-button">
                   Sign in with Google
                 </a>
+                {microsoftConfigured ? (
+                  <a href={providerStartUrl("microsoft", returnTo)} className="secondary-button">
+                    Sign in with Microsoft / Xbox
+                  </a>
+                ) : null}
                 <a href={providerStartUrl("steam", returnTo)} className="secondary-button">
                   Sign in with Steam
                 </a>
@@ -219,6 +243,28 @@ export default async function AccountPage({ searchParams }: PageProps) {
                     className="field"
                   />
                 </label>
+                <label>
+                  <span className="text-sm font-bold text-ink">Xbox gamertag</span>
+                  <input
+                    name="xboxGamertag"
+                    maxLength={32}
+                    defaultValue={user.xboxGamertag ?? ""}
+                    placeholder="Your Xbox name"
+                    className="field"
+                  />
+                  <span className="mt-1 block text-xs font-medium text-ink/48">Used to recognise console friends; never used to scrape a private library.</span>
+                </label>
+                <label>
+                  <span className="text-sm font-bold text-ink">PlayStation online ID</span>
+                  <input
+                    name="playstationOnlineId"
+                    maxLength={32}
+                    defaultValue={user.playstationOnlineId ?? ""}
+                    placeholder="Your PSN name"
+                    className="field"
+                  />
+                  <span className="mt-1 block text-xs font-medium text-ink/48">Add PlayStation ownership game by game in your library.</span>
+                </label>
                 <label className="flex items-center gap-2 text-sm font-bold text-ink sm:col-span-2">
                   <input type="checkbox" name="directoryVisible" defaultChecked={user.directoryVisible} />
                   Let signed-in users find my gaming profile by username
@@ -255,6 +301,31 @@ export default async function AccountPage({ searchParams }: PageProps) {
                   )
                 }
               />
+
+              {microsoftConfigured || microsoftAccount ? (
+                <ProviderCard
+                  title="Microsoft / Xbox"
+                  icon={<Gamepad2 className="h-5 w-5" />}
+                  status={microsoftAccount ? "Connected" : "Not connected"}
+                  detail={
+                    microsoftAccount
+                      ? microsoftAccount.email ?? "Microsoft account linked"
+                      : "Use a personal Microsoft account for sign-in; add your Xbox gamertag and owned platforms to complete matching."
+                  }
+                  action={
+                    microsoftAccount ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-moss/12 px-3 py-1 text-sm font-black text-moss">
+                        <ShieldCheck className="h-4 w-4" />
+                        Linked
+                      </span>
+                    ) : (
+                      <a href={`/auth/microsoft/start?redirectTo=${encodeURIComponent("/account")}`} className="primary-button">
+                        Connect Microsoft
+                      </a>
+                    )
+                  }
+                />
+              ) : null}
 
               <ProviderCard
                 title="Steam"
@@ -346,7 +417,7 @@ export default async function AccountPage({ searchParams }: PageProps) {
   );
 }
 
-function providerStartUrl(provider: "google" | "steam", returnTo: string) {
+function providerStartUrl(provider: "google" | "microsoft" | "steam", returnTo: string) {
   const target = new URL(returnTo, "https://local.invalid");
   const sessionMatch = target.pathname.match(/^\/s\/([^/]+)$/);
   const params = new URLSearchParams({

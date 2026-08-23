@@ -3,8 +3,8 @@
 A game-night planner and game picker for friend groups. The app has two main
 workstreams: **Plan** for finding a time, and **Pick** for choosing what to play.
 Plan remains fully usable without an account. Pick workspaces use persistent
-Google- or Steam-backed accounts so library matching works across sessions and
-devices; public discovery remains open to everyone.
+Google-, Microsoft-, or Steam-backed accounts so library matching works across
+sessions and devices; public discovery remains open to everyone.
 
 Plan and Pick are organised beneath a shared **Game Night**. A Game Night can
 contain either workspace or both, has one shareable overview link, and appears
@@ -27,10 +27,11 @@ in the signed-in Game nights archive as Active, Upcoming, or Past.
   reminders shown only when enabled.
 
 **Pick games**
-- Sign in with Google or Steam and choose a unique username before entering a
-  Pick workspace.
+- Sign in with Google, Microsoft, or Steam and choose a unique username before
+  entering a Pick workspace.
 - Maintain one persistent personal library with ownership, wishlist, favourite,
-  1–10 rating, interest, played state, notes, Steam playtime, and recency.
+  1–10 rating, interest, played state, notes, Steam playtime, recency, and the
+  PC/Xbox/PlayStation/Switch/mobile platforms where each game is owned.
 - Start with Pick from the home page or switch to Pick from any shared session.
 - Import Steam libraries through Steam OpenID and the Steam Web API, with
   graceful fallback messaging when profiles or game details are private.
@@ -57,6 +58,9 @@ in the signed-in Game nights archive as Active, Upcoming, or Past.
   multiplayer/co-op fit.
 - Show alignment separately from average score so one strong mismatch can lower
   confidence even when the average looks high.
+- Detect same-platform ownership, confirmed cross-play, unknown compatibility,
+  and platform mismatches. A known mismatch lowers alignment and cannot be
+  labelled a perfect match.
 - Support scoring modes: Balanced, Co-op Night, Backlog, Cheap, Familiar, and
   Fresh.
 - Offer short, optional preference prompts plus a deeper preference panel.
@@ -97,8 +101,10 @@ in the signed-in Game nights archive as Active, Upcoming, or Past.
   Vercel Cron, and post sale alerts.
 
 **Persistent accounts and friend groups**
-- Google and Steam can both create a cross-device account; linking remains
-  explicit and provider conflicts offer a short-lived confirmed merge.
+- Google, Microsoft, and Steam can create a cross-device account; linking
+  remains explicit and provider conflicts offer a short-lived confirmed merge.
+- Profiles can save an Xbox gamertag and PlayStation online ID without exposing
+  them to brittle unofficial library scraping.
 - Search usernames, exchange pending friend requests, block users, and keep
   full libraries friends-only.
 - Export account data or permanently delete an account while leaving anonymous
@@ -140,6 +146,8 @@ Optional integrations:
 ```bash
 GOOGLE_CLIENT_ID=""
 GOOGLE_CLIENT_SECRET=""
+MICROSOFT_CLIENT_ID=""
+MICROSOFT_CLIENT_SECRET=""
 STEAM_WEB_API_KEY=""
 IGDB_CLIENT_ID=""
 IGDB_CLIENT_SECRET=""
@@ -152,6 +160,15 @@ DISCORD_CLIENT_SECRET=""
 DISCORD_INSTALL_URL=""
 CRON_SECRET=""
 ```
+
+For Microsoft sign-in, register a Web application that accepts personal
+Microsoft accounts and add
+`https://your-domain.example/auth/microsoft/callback` as a redirect URI. This
+uses Microsoft identity for account access; Xbox services and library data need
+separate publisher provisioning, so console ownership is deliberately recorded
+in the user library instead of scraped. This project has no supported
+PlayStation game-library OAuth integration, so PlayStation users use the same
+manual platform-aware library path.
 
 Apply the database schema in development:
 

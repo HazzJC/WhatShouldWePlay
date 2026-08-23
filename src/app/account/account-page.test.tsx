@@ -42,6 +42,8 @@ describe("account page", () => {
       emailVerified: true,
       avatarUrl: null,
       timezone: "Europe/London",
+      xboxGamertag: null,
+      playstationOnlineId: null,
       role: "USER",
       favouriteGenres: [],
       directoryVisible: true,

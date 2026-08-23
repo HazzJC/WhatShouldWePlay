@@ -9,6 +9,7 @@ import {
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { requireActivePickUser } from "@/lib/accounts";
 import { prisma } from "@/lib/prisma";
+import { gamingPlatforms, parseGamingPlatforms } from "@/lib/platforms";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -151,12 +152,15 @@ export default async function AccountLibraryPage({ searchParams }: PageProps) {
 
       <details className="surface mt-3 p-4">
         <summary className="cursor-pointer font-black text-ink">Add a non-Steam game</summary>
-        <form action={addLibraryGameAction} className="mt-3 flex flex-wrap gap-2">
+        <form action={addLibraryGameAction} className="mt-3 grid gap-3">
+          <div className="flex flex-wrap gap-2">
           <input name="title" required maxLength={180} className="field mt-0 min-w-[220px] flex-1" placeholder="Game title" />
           <button type="submit" className="secondary-button">
             <Plus className="h-4 w-4" />
             Add as Have
           </button>
+          </div>
+          <PlatformChoices selected={[]} legend="Where do you own it?" />
         </form>
       </details>
 
@@ -179,6 +183,7 @@ export default async function AccountLibraryPage({ searchParams }: PageProps) {
                     {formatPlaytime(userGame.playtimeMinutes)}
                     {userGame.recentlyPlayedAt ? ` · played ${userGame.recentlyPlayedAt.toLocaleDateString("en-GB")}` : ""}
                   </p>
+                  <PlatformChoices selected={parseGamingPlatforms(userGame.platforms)} legend="Owned on" />
                   <textarea name="notes" maxLength={1000} defaultValue={userGame.notes ?? ""} className="field mt-2 min-h-10 py-2 text-sm" placeholder="Private note" />
                 </div>
               </div>
@@ -257,4 +262,20 @@ function formatPlaytime(minutes?: number | null) {
   }
 
   return `${Math.round(minutes / 60).toLocaleString()}h played`;
+}
+
+function PlatformChoices({ selected, legend }: { selected: string[]; legend: string }) {
+  return (
+    <fieldset className="mt-2">
+      <legend className="text-xs font-semibold text-ink/48">{legend}</legend>
+      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1.5">
+        {gamingPlatforms.map((platform) => (
+          <label key={platform} className="flex items-center gap-1.5 text-xs font-semibold text-ink/65">
+            <input type="checkbox" name="platforms" value={platform} defaultChecked={selected.includes(platform)} />
+            {platform}
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
 }

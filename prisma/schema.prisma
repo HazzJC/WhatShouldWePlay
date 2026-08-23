@@ -63,6 +63,7 @@ enum PriceAlertType {
 
 enum OAuthProvider {
   GOOGLE
+  MICROSOFT
 }
 
 enum FriendGroupMemberStatus {
@@ -300,6 +301,8 @@ model User {
   emailVerified          Boolean              @default(false)
   avatarUrl              String?
   timezone               String?
+  xboxGamertag           String?
+  playstationOnlineId    String?
   role                   UserRole             @default(USER)
   favouriteGenres        Json                 @default("[]")
   directoryVisible       Boolean              @default(true)
@@ -446,6 +449,8 @@ model Game {
   summary                     String?
   genres                      Json             @default("[]")
   platforms                   Json             @default("[]")
+  crossplay                   Boolean?
+  crossplayPlatforms          Json             @default("[]")
   gameModes                   Json             @default("[]")
   popularityScore             Float?
   steamReviewScore            Int?
@@ -673,6 +678,7 @@ model UserGame {
   gameId           String
   game             Game                 @relation(fields: [gameId], references: [id], onDelete: Cascade)
   source           UserGameSource
+  platforms        Json                 @default("[]")
   ownership        UserGameOwnership    @default(HAVE)
   wishlist         Boolean              @default(false)
   favourite        Boolean              @default(false)

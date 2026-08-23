@@ -1,12 +1,14 @@
 import { curatedGames } from "@/lib/curated-games";
 import { normalizeGameTitle, signalMeansHave } from "@/lib/games";
 import { formatMinorPrice } from "@/lib/itad";
+import { parseGamingPlatforms, type GamingPlatform } from "@/lib/platforms";
 
 export type ScoreMode = "balanced" | "coop" | "backlog" | "cheap" | "familiar" | "fresh";
 export type CommitmentFilter = "any" | "one-session" | "under-10" | "10-30" | "30-100" | "100-1000" | "1000-plus" | "endless";
 export type AlignmentLevel = "High" | "Medium" | "Low";
 export type MatchCategory = "perfect" | "hiddenBacklog" | "oldFavourites" | "almostReady" | "saleOpportunity";
 export type PlayerCountStatus = "supported" | "unsupported" | "uncertain";
+export type PlatformFit = "same-platform" | "crossplay" | "unknown" | "mismatch";
 type FactorKey = keyof ScoredGame["factors"];
 
 export type PreferenceProfile = {
@@ -44,6 +46,8 @@ type GameScoreInput = {
     onlineMultiplayer?: boolean | null;
     localMultiplayer?: boolean | null;
     campaignCoop?: boolean | null;
+    crossplay?: boolean | null;
+    crossplayPlatforms?: unknown;
     minimumSessionMinutes?: number | null;
     commitmentTier?: string | null;
     genres?: unknown;
@@ -88,6 +92,7 @@ type UserGameInput = {
   favourite?: boolean | null;
   rating?: number | null;
   interest?: string | null;
+  platforms?: unknown;
 };
 
 export type ScoredGame = {
@@ -133,6 +138,8 @@ export type ScoredGame = {
   currentPrice?: number | null;
   historicalLow?: number | null;
   playerCountStatus: PlayerCountStatus;
+  platformFit?: PlatformFit;
+  platforms?: GamingPlatform[];
   qualitySource?: string | null;
   reviewSummary?: string | null;
   capabilitySource?: string | null;
@@ -226,6 +233,7 @@ export function scoreSessionGames({
       const localCoop = coOpFit(game.localCoop, preference.coOpVsCompetitive);
       const relevantUserIds = selectedUserIdsForSessionGame(sessionGame, selectedIds, selectedUserIds);
       const relevantUserGames = (userGamesByGameId.get(sessionGame.gameId) ?? []).filter((userGame) => relevantUserIds.has(userGame.userId));
+      const platformCompatibility = platformCompatibilityFor(game, relevantUserGames);
       const persistentVetoCount = relevantUserGames.filter((userGame) => userGame.interest === "NOT_INTERESTED").length;
       const totalPlaytime = totalPlaytimeMinutes(relevantUserGames);
       const recentPlayCount = recentlyPlayedCount(relevantUserGames);
@@ -240,7 +248,7 @@ export function scoreSessionGames({
       const price = affordabilityScore(currentPrice, missing, discountPercent);
       const historicalLowFactor = currentPrice && historicalLow ? clampScore(100 - Math.round(((currentPrice - historicalLow) / Math.max(historicalLow, 1)) * 100)) : 40;
       const popularity = qualitySignalScore(game.popularityScore, game.steamReviewPercent);
-      const multiplayerFit = multiplayerFitScore(game);
+      const multiplayerFit = platformAdjustedMultiplayerFit(game, platformCompatibility.fit);
       const durationFit = durationFitScore(game.minimumSessionMinutes, game.commitmentTier, sessionMinutes, commitment);
       const personalRating = personalRatingScore(relevantUserGames);
       const genreFit = genreFitScore(game.genres, favouriteGenres, preference.genreImportance);
@@ -276,6 +284,7 @@ export function scoreSessionGames({
         playerCountFit,
         playerCountStatus,
         strongMismatchCount: preferenceMismatches.length,
+        platformFit: platformCompatibility.fit,
       });
       const alignmentReasons = alignmentReasonsFor({
         alignment,
@@ -286,6 +295,8 @@ export function scoreSessionGames({
         notTonightCount: notTonightCount + persistentVetoCount,
         playerCountStatus,
         preferenceMismatches,
+        platformFit: platformCompatibility.fit,
+        platforms: platformCompatibility.platforms,
       });
       const categories = categoriesFor({
         ownership,
@@ -295,6 +306,7 @@ export function scoreSessionGames({
         playerCountFit,
         totalPlaytime,
         discountPercent,
+        platformFit: platformCompatibility.fit,
       });
       const reasons = reasonsFor({
         have,
@@ -314,6 +326,8 @@ export function scoreSessionGames({
         totalPlaytime,
         recentPlayCount,
         currency: game.deal?.currency,
+        platformFit: platformCompatibility.fit,
+        platforms: platformCompatibility.platforms,
       });
 
       return {
@@ -333,6 +347,8 @@ export function scoreSessionGames({
         currentPrice,
         historicalLow,
         playerCountStatus,
+        platformFit: platformCompatibility.fit,
+        platforms: platformCompatibility.platforms,
         qualitySource: game.qualitySource ?? null,
         reviewSummary: game.steamReviewSummary ?? null,
         capabilitySource: game.capabilitySource ?? null,
@@ -612,6 +628,54 @@ function multiplayerFitScore(game: GameScoreInput["game"]) {
   return known ? 20 : 55;
 }
 
+function platformAdjustedMultiplayerFit(game: GameScoreInput["game"], platformFit: PlatformFit) {
+  const base = multiplayerFitScore(game);
+
+  if (platformFit === "crossplay") {
+    return Math.max(base, 96);
+  }
+  if (platformFit === "mismatch") {
+    return Math.min(base, 20);
+  }
+
+  return base;
+}
+
+function platformCompatibilityFor(game: GameScoreInput["game"], userGames: UserGameInput[]) {
+  const knownPlatformSets = userGames
+    .filter((userGame) => !userGame.ownership || userGame.ownership === "HAVE")
+    .map((userGame) => parseGamingPlatforms(userGame.platforms))
+    .filter((platforms) => platforms.length > 0);
+  const platforms = [...new Set(knownPlatformSets.flat())];
+
+  if (knownPlatformSets.length < 2) {
+    return { fit: "unknown" as const, platforms };
+  }
+
+  const sharedPlatform = knownPlatformSets[0]?.some((platform) =>
+    knownPlatformSets.slice(1).every((candidate) => candidate.includes(platform)),
+  );
+
+  if (sharedPlatform) {
+    return { fit: "same-platform" as const, platforms };
+  }
+
+  const supportedCrossplay = parseGamingPlatforms(game.crossplayPlatforms);
+  const everyPlayerSupported = supportedCrossplay.length === 0 || knownPlatformSets.every((candidate) =>
+    candidate.some((platform) => supportedCrossplay.includes(platform)),
+  );
+
+  if (game.crossplay === true && everyPlayerSupported) {
+    return { fit: "crossplay" as const, platforms };
+  }
+
+  if (game.crossplay === false || supportedCrossplay.length > 0) {
+    return { fit: "mismatch" as const, platforms };
+  }
+
+  return { fit: "unknown" as const, platforms };
+}
+
 function durationFitScore(
   minimumSessionMinutes: number | null | undefined,
   commitmentTier: string | null | undefined,
@@ -807,6 +871,7 @@ function alignmentLevel({
   playerCountFit,
   playerCountStatus,
   strongMismatchCount,
+  platformFit,
 }: {
   ownership: number;
   notAvailableCount: number;
@@ -814,8 +879,9 @@ function alignmentLevel({
   playerCountFit: number;
   playerCountStatus: PlayerCountStatus;
   strongMismatchCount: number;
+  platformFit: PlatformFit;
 }): AlignmentLevel {
-  if (notTonightCount > 0 || notAvailableCount > 0 || playerCountStatus === "unsupported" || strongMismatchCount > 0) {
+  if (notTonightCount > 0 || notAvailableCount > 0 || playerCountStatus === "unsupported" || strongMismatchCount > 0 || platformFit === "mismatch") {
     return "Low";
   }
 
@@ -835,6 +901,8 @@ function alignmentReasonsFor({
   notTonightCount,
   playerCountStatus,
   preferenceMismatches,
+  platformFit,
+  platforms,
 }: {
   alignment: AlignmentLevel;
   ownership: number;
@@ -844,6 +912,8 @@ function alignmentReasonsFor({
   notTonightCount: number;
   playerCountStatus: PlayerCountStatus;
   preferenceMismatches: string[];
+  platformFit: PlatformFit;
+  platforms: GamingPlatform[];
 }) {
   const reasons: string[] = [];
 
@@ -856,6 +926,10 @@ function alignmentReasonsFor({
   }
 
   reasons.push(...preferenceMismatches);
+
+  if (platformFit === "mismatch") {
+    reasons.push(`Ownership spans ${platforms.join(", ")}, but cross-play is not confirmed`);
+  }
 
   if (playerCountStatus === "uncertain") {
     reasons.push("Player-count support is not confirmed yet");
@@ -880,6 +954,7 @@ function categoriesFor({
   playerCountFit,
   totalPlaytime,
   discountPercent,
+  platformFit,
 }: {
   ownership: number;
   missing: number;
@@ -888,11 +963,12 @@ function categoriesFor({
   playerCountFit: number;
   totalPlaytime: number;
   discountPercent: number;
+  platformFit: PlatformFit;
 }) {
   const categories: MatchCategory[] = [];
   const groupIsFilled = selectedCount >= requestedPlayerCount;
 
-  if (groupIsFilled && ownership === 1 && playerCountFit >= 70) {
+  if (groupIsFilled && ownership === 1 && playerCountFit >= 70 && platformFit !== "mismatch") {
     categories.push("perfect");
   }
   if (ownership === 1 && isBarelyPlayedGroupPick(totalPlaytime)) {
@@ -929,6 +1005,8 @@ function reasonsFor({
   totalPlaytime,
   recentPlayCount,
   currency,
+  platformFit,
+  platforms,
 }: {
   have: number;
   selectedCount: number;
@@ -947,6 +1025,8 @@ function reasonsFor({
   playerCountStatus: PlayerCountStatus;
   mode: ScoreMode;
   currency?: string | null;
+  platformFit: PlatformFit;
+  platforms: GamingPlatform[];
 }) {
   const reasons = [`${have}/${selectedCount} selected players have it`];
 
@@ -956,6 +1036,14 @@ function reasonsFor({
     reasons.push(`Does not support ${playerCount} players`);
   } else {
     reasons.push(`Needs player-count metadata for ${playerCount} players`);
+  }
+
+  if (platformFit === "crossplay") {
+    reasons.push(`Cross-play confirmed for ${platforms.join(" + ")}`);
+  } else if (platformFit === "same-platform" && platforms.length === 1) {
+    reasons.push(`Everyone can play on ${platforms[0]}`);
+  } else if (platformFit === "mismatch") {
+    reasons.push(`Check cross-play before choosing: ownership spans ${platforms.join(" + ")}`);
   }
 
   if (notTonightCount > 0) {

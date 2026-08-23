@@ -20,6 +20,20 @@ type ReleaseMonth = {
 
 const releaseNotes: ReleaseMonth[] = [
   {
+    month: "August 2026",
+    entries: [
+      {
+        date: "23 August 2026",
+        headline: "Cross-play matching, faster imports, and a livelier front door",
+        details: [
+          "Libraries now record whether each game is owned on PC, Xbox, PlayStation, Switch, or mobile, and recommendations distinguish same-platform play, confirmed cross-play, unknown compatibility, and real platform mismatches.",
+          "Profiles can save Xbox and PlayStation identities, while an optional Microsoft sign-in path gives Xbox players another secure account route without pretending that sign-in automatically grants private console-library access.",
+          "Steam imports now bulk-update up to 500 ownership rows at a time and bulk-create session shortlists, while the home and Discovery experiences gained original game-night artwork, live game imagery, clearer active navigation, and more playful editorial copy.",
+        ],
+      },
+    ],
+  },
+  {
     month: "July 2026",
     entries: [
       {
