@@ -35,15 +35,15 @@ export default async function NewPickSessionPage({ searchParams }: PageProps) {
 
       <section className="mt-4 grid gap-5 lg:grid-cols-[320px_1fr]">
         <aside className="quest-map overflow-hidden rounded-3xl p-6 shadow-soft lg:sticky lg:top-24 lg:self-start">
-          <span className="sticker !border-white/15 !bg-white/10 !text-white/75"><Sparkles className="mr-1 h-3 w-3" />The decision room</span>
-          <h1 className="mt-5 text-4xl font-black leading-tight text-white">Right. What are we playing?</h1>
+          <span className="sticker !border-white/15 !bg-white/10 !text-white/75"><Sparkles className="mr-1 h-3 w-3" />Game matching</span>
+          <h1 className="mt-5 text-4xl font-black leading-tight text-white">Choose a game for this group</h1>
           <p className="mt-3 text-sm font-bold leading-6 text-white/62">
-            Put everyone&apos;s libraries in one room, rule out the awkward fits, and get to a shortlist that makes sense.
+            Compare everyone&apos;s libraries, player count, platforms and playtime to build a shortlist that fits.
           </p>
           <div className="mt-6 grid gap-3 text-sm font-bold text-white/75">
-            <Step number="1" icon={<UsersRound className="h-4 w-4" />} label="Bring the crew" />
-            <Step number="2" icon={<Gamepad2 className="h-4 w-4" />} label="Pull in the games" />
-            <Step number="3" icon={<ListChecks className="h-4 w-4" />} label="Pick without the debate" />
+            <Step number="1" icon={<UsersRound className="h-4 w-4" />} label="Add the group" />
+            <Step number="2" icon={<Gamepad2 className="h-4 w-4" />} label="Compare libraries" />
+            <Step number="3" icon={<ListChecks className="h-4 w-4" />} label="Review the shortlist" />
           </div>
         </aside>
 
@@ -77,13 +77,13 @@ export default async function NewPickSessionPage({ searchParams }: PageProps) {
             </div>
             <PendingSubmitButton className="primary-button w-full py-3 text-base sm:col-span-2 sm:w-fit" pendingLabel="Creating...">
               <Gamepad2 className="h-5 w-5" />
-              Open the decision room
+              Create shortlist
             </PendingSubmitButton>
           </div>
         </form>
 
         <section className="choice-card p-5 sm:p-6">
-            <div className="flex items-start gap-3"><span className="step-badge" style={{ background: "rgb(var(--color-teal))" }}><UsersRound className="h-5 w-5" /></span><div><p className="text-xs font-black uppercase tracking-[0.16em] text-teal">Your usual suspects</p><h2 className="mt-1 text-2xl font-black text-ink">Reuse a saved crew</h2><p className="mt-1 text-sm font-bold leading-6 text-ink/52">Skip the invites and bring the same people back in.</p></div></div>
+            <div className="flex items-start gap-3"><span className="step-badge" style={{ background: "rgb(var(--color-teal))" }}><UsersRound className="h-5 w-5" /></span><div><p className="text-xs font-black uppercase tracking-[0.16em] text-teal">Saved groups</p><h2 className="mt-1 text-2xl font-black text-ink">Start with the same people</h2><p className="mt-1 text-sm font-bold leading-6 text-ink/52">Reuse a group instead of inviting everyone again.</p></div></div>
             <div className="mt-4 grid gap-3">
               {friendGroups.length > 0 ? (
                 friendGroups.map((group) => (
@@ -103,7 +103,7 @@ export default async function NewPickSessionPage({ searchParams }: PageProps) {
                 ))
               ) : (
                 <p className="rounded-lg border border-dashed border-ink/20 bg-paper p-4 text-sm leading-6 text-ink/62">
-                  Save a crew from any Pick session to reuse it here.
+                  Save a group from any Pick session to reuse it here.
                 </p>
               )}
             </div>

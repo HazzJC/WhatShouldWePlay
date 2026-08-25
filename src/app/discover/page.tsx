@@ -38,7 +38,7 @@ export default async function DiscoverPage({ searchParams }: PageProps) {
         <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">The game cupboard</p>
         <h1 className="mt-3 text-4xl font-black text-white sm:text-5xl">What can we actually play?</h1>
         <p className="mt-3 max-w-2xl text-sm font-bold leading-6 text-white/60">
-          Filter by headcount, couch or online setup, price, and how much faff your group will tolerate.
+          Filter by group size, couch or online play, price, and the amount of setup involved.
         </p>
         </header>
         {!hasPlayerCount ? (

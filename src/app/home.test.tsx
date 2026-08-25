@@ -6,7 +6,7 @@ describe("home page", () => {
   it("exposes distinct plan and pick starts", () => {
     render(<Home />);
 
-    expect(screen.getAllByRole("link", { name: /Plan/i }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("link", { name: /Pick/i }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: /Plan a night/i })).toHaveAttribute("href", "/sessions/new");
+    expect(screen.getByRole("link", { name: /Compare our games/i })).toHaveAttribute("href", "/sessions/pick");
   });
 });

@@ -31,7 +31,7 @@ export function AppNavigation() {
         <div className="mx-auto flex h-[4.5rem] w-full max-w-7xl items-center justify-between gap-4 px-3 sm:px-5 lg:px-6">
           <Link href="/" className="app-logo focus-ring flex shrink-0 items-center gap-2 font-bold text-ink">
             <BrandMark compact />
-            <span className="hidden leading-none sm:block"><span className="block text-[0.95rem] font-black">Let&apos;s Play</span><span className="mt-1 block text-[0.64rem] font-bold uppercase tracking-[0.18em] text-ink/42">Game night, sorted</span></span>
+            <span className="hidden leading-none sm:block"><span className="block text-[0.95rem] font-black">Let&apos;s Play</span><span className="mt-1 block text-[0.64rem] font-bold uppercase tracking-[0.18em] text-ink/42">Plan · Pick · Play</span></span>
           </Link>
           <nav className="hidden items-center gap-1 md:flex" aria-label="Primary navigation">
             {primaryLinks.map(({ href, label, hint, icon: Icon, tone }) => (

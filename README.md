@@ -11,12 +11,12 @@ artwork uses Steam banners first where available, falls back to saved IGDB
 covers, and finally renders a deterministic title treatment so broken
 third-party imagery never leaves an empty card.
 
-The interface follows a shared "game-night clubhouse" design language: stacked
-game-piece branding, colour-coded routes, route heroes, tactile choice cards,
-quest-style steps, stickers, and a floating mobile dock. These primitives live
-in `src/app/globals.css` and the shared navigation components so Plan, Pick,
-Discovery, accounts, and Game Nights keep the same personality and interaction
-rules.
+The interface uses stacked game-piece branding, colour-coded routes, tactile
+cards, worked examples, and a floating mobile dock. The home hero demonstrates
+the complete flow with animated availability and library-matching data rather
+than relying on decorative artwork or an unexplained score. These primitives
+live in `src/app/globals.css` and the shared navigation components so Plan,
+Pick, Discovery, accounts, and Game Nights keep the same interaction rules.
 
 Plan and Pick are organised beneath a shared **Game Night**. A Game Night can
 contain either workspace or both, has one shareable overview link, and appears

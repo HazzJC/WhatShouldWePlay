@@ -32,8 +32,8 @@ export default async function NewSessionPage({ searchParams }: { searchParams?: 
 
       <header className="route-hero mt-3 p-5 sm:p-7 lg:hidden">
         <span className="sticker !border-white/15 !bg-white/10 !text-white/75">No account needed</span>
-        <h1 className="mt-4 text-3xl font-black leading-tight">Find the time. Send the link. Done.</h1>
-        <p className="mt-2 max-w-xl text-sm font-bold leading-6 text-white/65">Four short steps, then your friends can answer in a couple of taps.</p>
+        <h1 className="mt-4 text-3xl font-black leading-tight">Find a time everyone can make</h1>
+        <p className="mt-2 max-w-xl text-sm font-bold leading-6 text-white/65">Choose some dates, share the link, and let people mark when they are free.</p>
       </header>
 
       <form action={createSessionAction} className="mt-4 grid gap-4 lg:grid-cols-[290px_1fr]">
@@ -42,7 +42,7 @@ export default async function NewSessionPage({ searchParams }: { searchParams?: 
           <span className="sticker !border-white/15 !bg-white/10 !text-white/75"><Sparkles className="mr-1 h-3 w-3" />No account needed</span>
           <h1 className="mt-5 text-3xl font-black leading-tight text-white">Plan a game night</h1>
           <p className="mt-3 text-sm font-bold leading-6 text-white/62">
-            Get the awkward organising bit out of the way while everyone is still paying attention.
+            Choose the dates and group size, then share one link for everyone to answer.
           </p>
           <div className="mt-6 grid gap-3 text-sm font-bold text-white/76">
             <Step number="1" icon={<Gamepad2 className="h-4 w-4" />} label="Name the night" />
@@ -50,7 +50,7 @@ export default async function NewSessionPage({ searchParams }: { searchParams?: 
             <Step number="3" icon={<UsersRound className="h-4 w-4" />} label="Set the headcount" />
             <Step number="4" icon={<Bell className="h-4 w-4" />} label="Add extras" />
           </div>
-          <div className="mt-6 rounded-2xl border border-white/10 bg-white/10 p-4"><CalendarDays className="h-5 w-5 text-teal" /><p className="mt-2 text-sm font-black text-white">What happens next?</p><p className="mt-1 text-xs font-bold leading-5 text-white/52">You get one share link. Friends paint their availability. The best overlap rises to the top.</p></div>
+          <div className="mt-6 rounded-2xl border border-white/10 bg-white/10 p-4"><CalendarDays className="h-5 w-5 text-teal" /><p className="mt-2 text-sm font-black text-white">What happens next?</p><p className="mt-1 text-xs font-bold leading-5 text-white/52">You get a share link. Friends mark their availability, and the strongest overlap appears at the top.</p></div>
         </aside>
 
         <div className="grid gap-4">

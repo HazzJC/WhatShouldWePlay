@@ -142,7 +142,7 @@ export default async function AccountPage({ searchParams }: PageProps) {
         {!user ? (
           <section className="route-hero grid overflow-hidden lg:grid-cols-[1.05fr_.95fr]">
             <div className="relative z-10 p-6 sm:p-9">
-              <span className="sticker !border-white/15 !bg-white/10 !text-white/75"><Sparkles className="mr-1 h-3.5 w-3.5" />Save the good stuff</span>
+              <span className="sticker !border-white/15 !bg-white/10 !text-white/75"><Sparkles className="mr-1 h-3.5 w-3.5" />Your saved profile</span>
               <h2 className="mt-5 text-4xl font-black leading-tight text-white sm:text-5xl">You&apos;re signed out</h2>
               <p className="mt-4 max-w-xl font-bold leading-7 text-white/62">Planning a quick night stays account-free. Sign in when you want the app to remember your games, your people and what worked last time.</p>
               <div className="mt-7 grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
@@ -152,7 +152,7 @@ export default async function AccountPage({ searchParams }: PageProps) {
               </div>
             </div>
             <div className="relative z-10 flex flex-col justify-center border-t border-white/10 bg-white/10 p-6 sm:p-9 lg:border-l lg:border-t-0">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-teal">Choose your door</p>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-teal">Sign in</p>
               <h3 className="mt-2 text-2xl font-black text-white">Same profile, whichever you use</h3>
               <p className="mt-2 text-sm font-bold leading-6 text-white/52">Use Google for the simplest sign-in, Microsoft for Xbox identity, or Steam to get straight to your PC library.</p>
               <div className="mt-6 grid gap-3">

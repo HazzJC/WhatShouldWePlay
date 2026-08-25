@@ -24,6 +24,15 @@ const releaseNotes: ReleaseMonth[] = [
     entries: [
       {
         date: "25 August 2026",
+        headline: "A clearer home page with a real matching example",
+        details: [
+          "The decorative home illustration has been replaced by an animated example showing four people finding an available time, comparing named games, and seeing why one ranks first.",
+          "The first screen now uses its space for direct routes into planning, matching, and discovery, with a compact explanation of how the full flow works.",
+          "Homepage and shared navigation copy is warmer and more specific, while jokey or generic marketing phrases have been removed from Pick, Account, Game Nights, Discovery, and the footer.",
+        ],
+      },
+      {
+        date: "25 August 2026",
         headline: "A game-night clubhouse, not another dashboard",
         details: [
           "The shared shell now uses tactile game-piece branding, colour-coded destinations, a floating mobile dock, chunkier controls, and a consistent set of route heroes, choice cards, stickers, and motion cues.",
@@ -255,7 +264,7 @@ export default function ReleaseNotesPage() {
         <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">Changelog</p>
         <h1 className="mt-3 text-4xl font-black leading-tight text-ink sm:text-5xl">Changelog</h1>
         <p className="mt-4 max-w-3xl text-lg leading-8 text-ink/68">
-          The useful version of “what changed?” Newest first, no launch-post fog.
+          A straightforward record of what changed, newest first.
         </p>
       </header>
 

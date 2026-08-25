@@ -23,8 +23,9 @@ describe("planner entry", () => {
   it("puts the no-login planner first", () => {
     render(<Home />);
 
-    expect(screen.getAllByText("Plan a game night").length).toBeGreaterThan(0);
-    expect(screen.getByText("Free planning. No account. No chasing.")).toBeInTheDocument();
-    expect(screen.getByText("Best time to play")).toBeInTheDocument();
+    expect(screen.getAllByText("Plan a night").length).toBeGreaterThan(0);
+    expect(screen.getByText("Guests can answer without an account")).toBeInTheDocument();
+    expect(screen.getByText("When can everyone make it?")).toBeInTheDocument();
+    expect(screen.getByText("Deep Rock Galactic")).toBeInTheDocument();
   });
 });
