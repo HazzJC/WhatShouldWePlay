@@ -30,7 +30,7 @@ export default async function GameDetailPage({ params }: PageProps) {
         <Link href={`/sessions/pick?game=${game.slug}`} className="primary-button">Start Pick</Link>
       </nav>
       <section className="surface mt-8 overflow-hidden rounded-xl">
-        <GameArtwork appId={game.steamAppId} title={game.title} sizes="(min-width: 1280px) 1180px, 100vw" className="h-52 sm:h-72" priority />
+        <GameArtwork appId={game.steamAppId} coverUrl={game.coverUrl} title={game.title} sizes="(min-width: 1280px) 1180px, 100vw" className="h-52 sm:h-72" priority />
         <div className="p-6">
         <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">Group game</p>
         <div className="mt-3 flex flex-wrap items-start justify-between gap-3">

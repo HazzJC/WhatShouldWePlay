@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 
-export function PlayerCountFilter({ minimumPlayers, action }: { minimumPlayers: number; action: string }) {
+export function PlayerCountFilter({ minimumPlayers, action, hiddenFields = {} }: { minimumPlayers: number; action: string; hiddenFields?: Record<string, string> }) {
   const [value, setValue] = useState(minimumPlayers);
   const label = `${value}+`;
 
   return (
     <form action={action} className="mt-4 rounded-lg border border-ink/10 bg-paper p-3">
+      {Object.entries(hiddenFields).map(([name, fieldValue]) => <input key={name} type="hidden" name={name} value={fieldValue} />)}
       <label className="grid gap-3 sm:grid-cols-[8rem_1fr_4.5rem_auto] sm:items-center">
         <span className="text-sm font-black text-ink">I need at least:</span>
         <input

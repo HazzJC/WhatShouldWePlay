@@ -261,7 +261,7 @@ describe("PickPanel", () => {
     );
 
     expect(screen.getByText("Needs player-count metadata")).toBeInTheDocument();
-    expect(screen.getByText("Mystery Multiplayer")).toBeInTheDocument();
+    expect(screen.getAllByText("Mystery Multiplayer")).not.toHaveLength(0);
   });
 });
 

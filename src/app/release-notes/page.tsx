@@ -24,6 +24,15 @@ const releaseNotes: ReleaseMonth[] = [
     entries: [
       {
         date: "25 August 2026",
+        headline: "Three useful ways into Discovery",
+        details: [
+          "Discovery now starts with a clear choice: find games for a group size, by learning curve and coordination, or by how much time the group wants to commit.",
+          "The new difficulty route runs from welcoming games such as Minecraft and Overcooked! 2 to the deliberately punishing GTFO, while duration spans a quick Golf With Your Friends course to long-running Factorio projects.",
+          "Minecraft, BombSquad, Gartic Phone, skribbl.io, and Meccha Chameleon now have curated artwork, and every failed image falls back to a readable full-title card instead of an unexplained pair of initials.",
+        ],
+      },
+      {
+        date: "25 August 2026",
         headline: "A clearer home page with a real matching example",
         details: [
           "The decorative home illustration has been replaced by an animated example showing four people finding an available time, comparing named games, and seeing why one ranks first.",

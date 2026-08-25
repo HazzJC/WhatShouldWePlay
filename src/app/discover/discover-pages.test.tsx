@@ -44,15 +44,19 @@ vi.mock("@/lib/curated-deals", () => ({
 }));
 
 describe("curated discovery pages", () => {
-  it("asks for group size before showing the catalogue", async () => {
+  it("offers three distinct ways into the catalogue", async () => {
     render(await DiscoverPage({ searchParams: Promise.resolve({}) }));
 
-    expect(screen.getByText("How many people need to play?")).toBeInTheDocument();
+    expect(screen.getByText("Choose by group size")).toBeInTheDocument();
+    expect(screen.getByText("Choose by difficulty")).toBeInTheDocument();
+    expect(screen.getByText("Choose by duration")).toBeInTheDocument();
+    expect(screen.getByText(/Overcooked! 2 and Minecraft/)).toBeInTheDocument();
+    expect(screen.getByText(/Factorio \+ Space Exploration/)).toBeInTheDocument();
     expect(screen.queryByText("Best online co-op games")).not.toBeInTheDocument();
   });
 
   it("renders public curated categories", async () => {
-    render(await DiscoverPage({ searchParams: Promise.resolve({ minPlayers: "50" }) }));
+    render(await DiscoverPage({ searchParams: Promise.resolve({ path: "players", minPlayers: "50" }) }));
 
     expect(screen.getByText("Best online co-op games")).toBeInTheDocument();
     expect(screen.getByText("More than 4?")).toBeInTheDocument();
@@ -61,12 +65,28 @@ describe("curated discovery pages", () => {
     expect(screen.getAllByText(/50\+ players/)[0]).toBeInTheDocument();
   });
 
+  it("filters by learning difficulty", async () => {
+    render(await DiscoverPage({ searchParams: Promise.resolve({ path: "difficulty", difficulty: "5" }) }));
+
+    expect(screen.getByRole("heading", { name: "Brutal" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "GTFO" })).toBeInTheDocument();
+    expect(screen.queryByText("Overcooked! 2")).not.toBeInTheDocument();
+  });
+
+  it("filters by overall commitment", async () => {
+    render(await DiscoverPage({ searchParams: Promise.resolve({ path: "duration", duration: "epic" }) }));
+
+    expect(screen.getByRole("heading", { name: "The long haul" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Factorio" })).toBeInTheDocument();
+    expect(screen.getByText(/Space Exploration mod campaign/)).toBeInTheDocument();
+  });
+
   it("renders a category list", async () => {
     render(await DiscoverListPage({ params: Promise.resolve({ slug: "more-than-4" }), searchParams: Promise.resolve({ minPlayers: "16" }) }));
 
     expect(screen.getByText("More than 4?")).toBeInTheDocument();
-    expect(screen.getByText("Project Zomboid")).toBeInTheDocument();
-    expect(screen.getByText("Meccha Chameleon")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Project Zomboid" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Meccha Chameleon" })).toBeInTheDocument();
     expect(screen.getByText("£4.99")).toBeInTheDocument();
     expect(screen.getByText("25% off")).toBeInTheDocument();
   });
@@ -75,7 +95,7 @@ describe("curated discovery pages", () => {
     render(await DiscoverListPage({ params: Promise.resolve({ slug: "with-mods" }), searchParams: Promise.resolve({ minPlayers: "8" }) }));
 
     expect(screen.getByText("With mods")).toBeInTheDocument();
-    expect(screen.getByText("RimWorld")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "RimWorld" })).toBeInTheDocument();
     expect(screen.getAllByText(/1 player, 2-8 with mods/)[0]).toBeInTheDocument();
     expect(screen.getAllByText("Modded setup")[0]).toBeInTheDocument();
     expect(screen.getAllByText(/Solo by default/)[0]).toBeInTheDocument();
@@ -84,7 +104,7 @@ describe("curated discovery pages", () => {
   it("renders a curated game detail page", async () => {
     render(await GameDetailPage({ params: Promise.resolve({ slug: "deep-rock-galactic" }) }));
 
-    expect(screen.getByText("Deep Rock Galactic")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Deep Rock Galactic" })).toBeInTheDocument();
     expect(screen.getByText("£7.49")).toBeInTheDocument();
     expect(screen.getByText("50% off")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Put this on the shortlist" })).toHaveAttribute("href", "/sessions/pick?game=deep-rock-galactic");

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { curatedGames } from "@/lib/curated-games";
 import { findCuratedGameForGame, mergeCuratedMetadata } from "@/lib/curated-metadata";
 
 describe("curated metadata", () => {
@@ -43,5 +44,13 @@ describe("curated metadata", () => {
       onlineMultiplayer: true,
       maxPlayers: 12,
     });
+  });
+
+  it("provides curated artwork for browser games and games outside Steam", () => {
+    const titles = ["Minecraft", "BombSquad", "Gartic Phone", "skribbl.io", "Meccha Chameleon"];
+
+    for (const title of titles) {
+      expect(curatedGames.find((game) => game.title === title)?.coverUrl).toMatch(/^https:\/\//);
+    }
   });
 });

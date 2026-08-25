@@ -36,7 +36,9 @@ export function GameArtwork({ appId, coverUrl, title, className = "", imageClass
         className="absolute inset-0 grid place-items-center"
         style={{ backgroundImage: `radial-gradient(circle at 18% 16%, ${palette[0]} 0, transparent 42%), radial-gradient(circle at 82% 78%, ${palette[1]} 0, transparent 46%), linear-gradient(135deg, #17182a, #292641)` }}
       >
-        <span className="relative z-10 text-2xl font-black tracking-[0.12em] text-white/85">{initials || "?"}</span>
+        <span className="absolute left-3 top-2 text-4xl font-black tracking-[0.08em] text-white/10">{initials || "?"}</span>
+        <span className="artwork-fallback-title relative z-10 max-w-[88%] text-center font-black leading-tight text-white">{title}</span>
+        <span className="absolute bottom-2 right-3 text-[0.52rem] font-black uppercase tracking-[0.16em] text-white/42">Title card</span>
         <span className="absolute -right-5 -top-7 h-20 w-20 rounded-full border border-white/15" />
         <span className="absolute -bottom-6 left-5 h-16 w-16 rotate-12 rounded-2xl border border-white/10" />
       </div>

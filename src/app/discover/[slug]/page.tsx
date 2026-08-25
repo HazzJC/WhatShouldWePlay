@@ -45,7 +45,7 @@ export default async function DiscoverListPage({ params, searchParams }: PagePro
           {games.length > 0 ? (
             games.map((game) => (
               <Link key={game.slug} href={`/games/${game.slug}`} className="surface overflow-hidden rounded-xl">
-                <GameArtwork appId={game.steamAppId} title={game.title} sizes="(min-width: 640px) 50vw, 100vw" className="h-36" />
+                <GameArtwork appId={game.steamAppId} coverUrl={game.coverUrl} title={game.title} sizes="(min-width: 640px) 50vw, 100vw" className="h-36" />
                 <div className="p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <h2 className="text-xl font-black text-ink">{game.title}</h2>

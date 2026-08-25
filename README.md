@@ -7,8 +7,8 @@ Google-, Microsoft-, or Steam-backed accounts so library matching works across
 sessions and devices; public discovery remains open to everyone.
 
 The public shell also includes permanent About and Changelog pages. Game
-artwork uses Steam banners first where available, falls back to saved IGDB
-covers, and finally renders a deterministic title treatment so broken
+artwork uses Steam banners first where available, then curated or saved IGDB
+covers, and finally renders a deterministic full-title treatment so broken
 third-party imagery never leaves an empty card.
 
 The interface uses stacked game-piece branding, colour-coded routes, tactile
@@ -88,8 +88,10 @@ in the signed-in Game nights archive as Active, Upcoming, or Past.
   platform, session length, owned-game exclusion, and sale-only preference.
 
 **Curated discovery**
-- Choose the required group size, then browse public discovery without signing
-  in; categories with no compatible games are hidden.
+- Start by group size, learning curve and coordination, or expected session and
+  campaign duration; public discovery remains available without signing in.
+- Group-size categories with no compatible games are hidden rather than leading
+  to empty results.
 - Includes online co-op, local co-op, more-than-4-player games, party games,
   campaign co-op, survival groups, cheap co-op, trending multiplayer, recent
   releases, upcoming friend-slop, and games with multiplayer mods.
