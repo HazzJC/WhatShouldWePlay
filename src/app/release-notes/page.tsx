@@ -3,8 +3,8 @@ import Link from "next/link";
 import { CalendarDays, Gamepad2 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Release Notes | Let's Play Games",
-  description: "Product updates and changelog for Let's Play Games.",
+  title: "Changelog | Let's Play Games",
+  description: "What has changed in Let's Play Games.",
 };
 
 type ReleaseEntry = {
@@ -22,6 +22,15 @@ const releaseNotes: ReleaseMonth[] = [
   {
     month: "August 2026",
     entries: [
+      {
+        date: "23 August 2026",
+        headline: "Better game art and a visual reset",
+        details: [
+          "Game cards now try both Steam banners and IGDB covers before using a colourful title fallback, and metadata refreshes finally save artwork they discover.",
+          "The warmer new palette, livelier cards, and small hover details make the app feel more like game night and less like an admin tool.",
+          "About and Changelog now have permanent homes in the menu and footer, with shorter, more natural copy across the busiest pages.",
+        ],
+      },
       {
         date: "23 August 2026",
         headline: "Cross-play matching, faster imports, and a livelier front door",
@@ -235,13 +244,13 @@ export default function ReleaseNotesPage() {
 
       <header className="py-10">
         <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">Changelog</p>
-        <h1 className="mt-3 text-4xl font-black leading-tight text-ink sm:text-5xl">Release notes</h1>
+        <h1 className="mt-3 text-4xl font-black leading-tight text-ink sm:text-5xl">Changelog</h1>
         <p className="mt-4 max-w-3xl text-lg leading-8 text-ink/68">
-          A reverse-chronological record of shipped updates, grouped by month.
+          The useful version of “what changed?” Newest first, no launch-post fog.
         </p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+      <div className="mx-auto max-w-5xl">
         <section aria-labelledby="release-notes-heading" className="grid gap-8">
           <h2 id="release-notes-heading" className="sr-only">Site updates</h2>
           {releaseNotes.map((group) => (
@@ -249,7 +258,7 @@ export default function ReleaseNotesPage() {
               <h3 id={`month-${slugify(group.month)}`} className="text-2xl font-black text-ink">{group.month}</h3>
               <ol className="mt-5 grid gap-5">
                 {group.entries.map((entry) => (
-                  <li key={`${entry.date}-${entry.headline}`} className="rounded-lg border border-ink/10 bg-paper p-4">
+                <li key={`${entry.date}-${entry.headline}`} className="interactive-card rounded-lg border border-ink/10 bg-paper p-4">
                     <article aria-labelledby={`release-${slugify(entry.date)}-${slugify(entry.headline)}`}>
                       <time dateTime={toIsoDate(entry.date)} className="text-sm font-black uppercase tracking-[0.14em] text-teal">
                         {entry.date}
@@ -270,26 +279,6 @@ export default function ReleaseNotesPage() {
           ))}
         </section>
 
-        <aside aria-labelledby="future-format" className="surface rounded-xl p-5">
-          <h2 id="future-format" className="text-xl font-black text-ink">Future entry format</h2>
-          <p className="mt-3 text-sm leading-6 text-ink/65">
-            Keep entries short, dated, and outcome-led so the page stays useful as the product grows.
-          </p>
-          <dl className="mt-4 grid gap-3 text-sm">
-            <div>
-              <dt className="font-black text-ink">Date</dt>
-              <dd className="mt-1 text-ink/62">Use `DD Month YYYY`, matching the release date.</dd>
-            </div>
-            <div>
-              <dt className="font-black text-ink">Headline</dt>
-              <dd className="mt-1 text-ink/62">One short sentence fragment focused on the user-facing change.</dd>
-            </div>
-            <div>
-              <dt className="font-black text-ink">Details</dt>
-              <dd className="mt-1 text-ink/62">Add 2-3 sentences: what changed, why it matters, and any notable caveat.</dd>
-            </div>
-          </dl>
-        </aside>
       </div>
     </main>
   );

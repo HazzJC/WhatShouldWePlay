@@ -174,7 +174,7 @@ export function mapIgdbGame(result: IgdbGameResult) {
   return {
     igdbId: result.id,
     title: result.name,
-    coverUrl: result.cover?.url ? normalizeCoverUrl(result.cover.url) : null,
+    coverUrl: result.cover?.url ? normalizeIgdbCoverUrl(result.cover.url) : null,
     summary: result.summary ?? null,
     genres: result.genres?.map((genre) => genre.name) ?? [],
     platforms: result.platforms?.map((platform) => platform.name) ?? [],
@@ -267,8 +267,9 @@ export function mapIgdbQuality(result: IgdbGameResult) {
   };
 }
 
-function normalizeCoverUrl(url: string) {
-  return url.startsWith("//") ? `https:${url}` : url;
+export function normalizeIgdbCoverUrl(url: string) {
+  const secureUrl = url.startsWith("//") ? `https:${url}` : url;
+  return secureUrl.replace(/\/t_[^/]+\//, "/t_cover_big/");
 }
 
 function escapeIgdbString(value: string) {

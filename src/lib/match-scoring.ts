@@ -38,6 +38,8 @@ type GameScoreInput = {
   game: {
     id: string;
     title: string;
+    steamAppId?: number | null;
+    coverUrl?: string | null;
     popularityScore?: number | null;
     minPlayers?: number | null;
     maxPlayers?: number | null;
@@ -99,6 +101,8 @@ export type ScoredGame = {
   sessionGameId: string;
   gameId: string;
   title: string;
+  steamAppId?: number | null;
+  coverUrl?: string | null;
   score: number;
   alignment: AlignmentLevel;
   reasons: string[];
@@ -334,6 +338,8 @@ export function scoreSessionGames({
         sessionGameId: sessionGame.id,
         gameId: sessionGame.gameId,
         title: game.title,
+        steamAppId: game.steamAppId,
+        coverUrl: game.coverUrl,
         score: clampScore(Math.round(rawScore)),
         alignment,
         reasons,

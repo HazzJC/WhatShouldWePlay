@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AppNavigation } from "@/components/app-navigation";
+import { AppFooter } from "@/components/app-footer";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -29,6 +30,7 @@ try {
         />
         <AppNavigation />
         {children}
+        <AppFooter />
       </body>
     </html>
   );

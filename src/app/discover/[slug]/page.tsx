@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Gamepad2 } from "lucide-react";
 import { PlayerCountFilter } from "@/components/player-count-filter";
 import { LocalSetupBadge } from "@/components/local-setup-badge";
+import { GameArtwork } from "@/components/game-artwork";
 import { curatedGamesForList, curatedPlayerLabel, getCuratedList } from "@/lib/curated-games";
 import { curatedPriceLabel, curatedSaleLabel, enrichCuratedGamesWithDeals, sortCuratedGamesForDiscovery } from "@/lib/curated-deals";
 import { parseMinimumPlayers } from "@/lib/player-count";
@@ -43,7 +44,9 @@ export default async function DiscoverListPage({ params, searchParams }: PagePro
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           {games.length > 0 ? (
             games.map((game) => (
-              <Link key={game.slug} href={`/games/${game.slug}`} className="surface rounded-xl p-5 transition hover:-translate-y-0.5">
+              <Link key={game.slug} href={`/games/${game.slug}`} className="surface overflow-hidden rounded-xl">
+                <GameArtwork appId={game.steamAppId} title={game.title} sizes="(min-width: 640px) 50vw, 100vw" className="h-36" />
+                <div className="p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <h2 className="text-xl font-black text-ink">{game.title}</h2>
                   {curatedSaleLabel(game) ? (
@@ -81,6 +84,7 @@ export default async function DiscoverListPage({ params, searchParams }: PagePro
                     Source: {game.moddedSourceName}
                   </p>
                 ) : null}
+                </div>
               </Link>
             ))
           ) : (

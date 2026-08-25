@@ -13,8 +13,8 @@ export default function Home() {
           Let&apos;s Play Games
         </Link>
         <div className="flex min-w-0 gap-2">
-          <Link href="/release-notes" className="secondary-button hidden md:inline-flex">
-            Updates
+          <Link href="/changelog" className="secondary-button hidden md:inline-flex">
+            Changelog
           </Link>
           <Link href="/account" className="secondary-button hidden lg:inline-flex">
             Account
@@ -32,47 +32,46 @@ export default function Home() {
         </div>
       </nav>
 
-      <section className="grid flex-1 items-start gap-6 py-8 lg:grid-cols-[0.9fr_1.1fr] lg:py-12">
+      <section className="reveal-up grid flex-1 items-start gap-6 py-8 lg:grid-cols-[0.9fr_1.1fr] lg:py-12">
         <div className="max-w-2xl">
           <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">
-            <span>Plan without an account</span>
-            <span className="hidden sm:inline"> · one less group-chat spiral</span>
+            <span>Free planning. No account. No chasing.</span>
           </p>
           <h1 className="mt-3 text-4xl font-black leading-[1.02] text-ink sm:text-5xl lg:text-6xl">
-            Make game night happen.
+            Stop debating.<br />Start playing.
           </h1>
           <p className="mt-4 max-w-xl text-base font-bold leading-7 text-ink/68 sm:text-lg">
-            Find the overlap, match everyone&apos;s libraries, and land on something the whole crew can actually play.
+            Send one link, find a time everyone can make, then pick a game the group actually owns.
           </p>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <Link href="/sessions/new" className="focus-ring rounded-lg border border-coral/30 bg-coral p-4 text-white shadow-card transition hover:-translate-y-0.5 hover:bg-coralDark">
+            <Link href="/sessions/new" className="interactive-card focus-ring rounded-xl border border-coral/30 bg-coral p-4 text-white shadow-card hover:bg-coralDark">
               <CalendarDays className="h-6 w-6" />
               <span className="mt-3 block text-xl font-black">Plan a time</span>
               <span className="mt-2 block text-sm font-bold leading-6 text-white/78">
-                Build an availability poll, share one link, and lock the best slot.
+                See when everyone&apos;s free without asking them to install anything.
               </span>
             </Link>
-            <Link href="/sessions/pick" className="focus-ring rounded-lg border border-ink/10 bg-white p-4 text-ink shadow-card transition hover:-translate-y-0.5 hover:border-teal/40 hover:bg-paper">
+            <Link href="/sessions/pick" className="interactive-card focus-ring rounded-xl border border-ink/10 bg-white p-4 text-ink shadow-card hover:bg-paper">
               <ListChecks className="h-6 w-6 text-teal" />
               <span className="mt-3 block text-xl font-black">Pick a game</span>
               <span className="mt-2 inline-flex rounded bg-teal/10 px-2 py-1 text-xs font-semibold text-teal">Free account required</span>
               <span className="mt-2 block text-sm font-bold leading-6 text-ink/62">
-                Save libraries and friends once, then compare every future group instantly.
+                Bring your libraries together and spot the games that work for this group.
               </span>
             </Link>
           </div>
           <div className="mt-3 flex flex-wrap gap-3 text-sm font-bold">
             <Link href="/discover" className="text-teal underline underline-offset-4">Browse game ideas</Link>
-            <Link href="/release-notes" className="text-ink/60 underline underline-offset-4 md:hidden">Updates</Link>
+            <Link href="/changelog" className="text-ink/60 underline underline-offset-4 md:hidden">Changelog</Link>
           </div>
 
           <div className="mt-5 grid gap-2 sm:grid-cols-3">
             {[
-              [Clock3, "2 minutes", "Build a poll fast"],
-              [Share2, "One link", "No accounts for friends"],
-              [CheckCircle2, "Best time", "See the winning slot"],
+              [Clock3, "Under 2 minutes", "Get the poll out"],
+              [Share2, "One link", "Friends just tap and answer"],
+              [CheckCircle2, "One answer", "Lock the time and move on"],
             ].map(([Icon, title, copy]) => (
-              <div key={String(title)} className="rounded-lg border border-ink/10 bg-white/70 p-3">
+              <div key={String(title)} className="interactive-card rounded-lg border border-ink/10 bg-white/70 p-3">
                 <Icon className="h-5 w-5 text-teal" />
                 <p className="mt-2 font-black text-ink">{title as string}</p>
                 <p className="mt-1 text-sm leading-5 text-ink/60">{copy as string}</p>

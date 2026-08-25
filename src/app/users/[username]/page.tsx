@@ -1,9 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Gamepad2, LockKeyhole } from "lucide-react";
+import { ArrowLeft, LockKeyhole } from "lucide-react";
 import { notFound } from "next/navigation";
 import { requireActivePickUser } from "@/lib/accounts";
 import { prisma } from "@/lib/prisma";
+import { GameArtwork } from "@/components/game-artwork";
 
 type PageProps = {
   params: Promise<{ username: string }>;
@@ -110,13 +111,7 @@ export default async function UserGamingProfilePage({ params }: PageProps) {
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {games.map((userGame) => (
             <article key={userGame.id} className="surface flex gap-3 p-4">
-              {userGame.game.coverUrl ? (
-                <Image src={userGame.game.coverUrl} alt="" width={48} height={64} className="h-16 w-12 rounded-md object-cover" />
-              ) : (
-                <span className="grid h-16 w-12 shrink-0 place-items-center rounded-md bg-ink/8 text-teal">
-                  <Gamepad2 className="h-5 w-5" />
-                </span>
-              )}
+              <GameArtwork appId={userGame.game.steamAppId} coverUrl={userGame.game.coverUrl} title={userGame.game.title} sizes="48px" kind="cover" className="h-16 w-12 shrink-0 rounded-md" imageClassName="object-cover" />
               <div className="min-w-0">
                 <h3 className="line-clamp-2 font-black text-ink">{userGame.game.title}</h3>
                 <p className="mt-1 text-xs font-bold text-ink/48">

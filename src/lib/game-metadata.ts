@@ -1,7 +1,7 @@
 import type { Game } from "@prisma/client";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { curatedCapabilityData, findCuratedGameForGame } from "@/lib/curated-metadata";
-import { getIgdbGameById, getIgdbTimeToBeat, mapIgdbCapability, mapIgdbPlatformCapabilities, mapIgdbQuality, searchIgdbGames } from "@/lib/igdb";
+import { getIgdbGameById, getIgdbTimeToBeat, mapIgdbCapability, mapIgdbPlatformCapabilities, mapIgdbQuality, normalizeIgdbCoverUrl, searchIgdbGames } from "@/lib/igdb";
 import { prisma } from "@/lib/prisma";
 
 const metadataTtlMs = 1000 * 60 * 60 * 24 * 30;
@@ -63,6 +63,8 @@ async function refreshSingleGameMetadata(game: Game) {
       qualitySource: quality?.qualitySource ?? game.qualitySource ?? "metadata:unavailable",
       qualityFetchedAt: new Date(),
       igdbId: game.igdbId ?? igdbMetadata?.igdbId ?? undefined,
+      coverUrl: game.coverUrl ?? igdbMetadata?.coverUrl ?? undefined,
+      summary: game.summary ?? igdbMetadata?.summary ?? undefined,
       minPlayers: curatedCapability?.minPlayers ?? game.minPlayers ?? capability?.minPlayers ?? undefined,
       maxPlayers: curatedCapability?.maxPlayers ?? game.maxPlayers ?? capability?.maxPlayers ?? undefined,
       onlineCoop: curatedCapability?.onlineCoop ?? game.onlineCoop ?? capability?.onlineCoop ?? undefined,
@@ -161,6 +163,8 @@ async function fetchIgdbMetadata(game: Game) {
 
   return {
     igdbId: result.id,
+    coverUrl: result.cover?.url ? normalizeIgdbCoverUrl(result.cover.url) : null,
+    summary: result.summary ?? null,
     genres: result.genres?.map((genre) => genre.name) ?? undefined,
     platforms: result.platforms?.map((platform) => platform.name) ?? undefined,
     gameModes: result.game_modes?.map((mode) => mode.name) ?? undefined,

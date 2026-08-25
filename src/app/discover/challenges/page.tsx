@@ -4,6 +4,7 @@ import { updateChallengeProgressAction } from "@/app/discover/challenges/actions
 import { getCurrentUser } from "@/lib/auth";
 import { curatedChallenges } from "@/lib/challenges";
 import { prisma } from "@/lib/prisma";
+import { GameArtwork } from "@/components/game-artwork";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -88,7 +89,9 @@ export default async function ChallengesPage({ searchParams }: PageProps) {
           const status = progressByChallenge.get(challenge.id);
 
           return (
-            <article key={challenge.id} className="surface flex flex-col p-4">
+            <article key={challenge.id} className="interactive-card surface flex flex-col overflow-hidden rounded-xl">
+              <GameArtwork appId={challenge.game.steamAppId} title={challenge.game.title} sizes="(min-width: 1024px) 50vw, 100vw" className="h-32" />
+              <div className="flex flex-1 flex-col p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.14em] text-teal">{challenge.game.title}</p>
@@ -137,6 +140,7 @@ export default async function ChallengesPage({ searchParams }: PageProps) {
                 ) : (
                   <Link href="/account?returnTo=%2Fdiscover%2Fchallenges" className="secondary-button px-3 py-2">Sign in to track</Link>
                 )}
+              </div>
               </div>
             </article>
           );

@@ -4,41 +4,41 @@
 
 :root {
   color-scheme: light;
-  --color-ink: 18 24 38;
-  --color-paper: 250 247 255;
-  --color-linen: 237 232 246;
-  --color-surface: 255 255 255;
-  --color-surface-strong: 246 241 252;
-  --color-coral: 158 33 91;
-  --color-coral-dark: 115 22 66;
-  --color-teal: 12 105 116;
-  --color-teal-dark: 8 78 88;
-  --color-gold: 143 94 10;
-  --color-moss: 28 106 73;
-  --color-slate: 51 65 85;
-  --color-ember: 170 54 35;
-  --color-tide: 12 105 116;
-  --color-neon-pink: 158 33 91;
-  --color-neon-cyan: 12 105 116;
-  --color-neon-violet: 91 63 166;
-  --color-shadow: 45 38 62;
+  --color-ink: 25 27 45;
+  --color-paper: 248 246 239;
+  --color-linen: 235 232 244;
+  --color-surface: 255 254 250;
+  --color-surface-strong: 244 240 250;
+  --color-coral: 207 61 91;
+  --color-coral-dark: 155 36 64;
+  --color-teal: 0 116 112;
+  --color-teal-dark: 0 82 82;
+  --color-gold: 153 99 0;
+  --color-moss: 31 112 75;
+  --color-slate: 74 79 101;
+  --color-ember: 213 80 49;
+  --color-tide: 0 116 112;
+  --color-neon-pink: 207 61 91;
+  --color-neon-cyan: 0 116 112;
+  --color-neon-violet: 103 83 205;
+  --color-shadow: 57 44 77;
   background: rgb(var(--color-paper));
   color: rgb(var(--color-ink));
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --color-ink: 238 242 255;
-  --color-paper: 9 12 25;
-  --color-linen: 18 23 42;
-  --color-surface: 20 25 45;
-  --color-surface-strong: 29 36 64;
-  --color-coral: 190 43 103;
-  --color-coral-dark: 145 28 78;
-  --color-teal: 28 129 133;
-  --color-teal-dark: 18 99 104;
-  --color-gold: 225 175 73;
-  --color-moss: 35 128 84;
+  --color-ink: 246 244 255;
+  --color-paper: 13 13 27;
+  --color-linen: 24 22 42;
+  --color-surface: 24 23 41;
+  --color-surface-strong: 35 32 57;
+  --color-coral: 242 91 123;
+  --color-coral-dark: 194 53 88;
+  --color-teal: 53 194 181;
+  --color-teal-dark: 28 143 139;
+  --color-gold: 246 188 72;
+  --color-moss: 70 182 121;
   --color-slate: 174 185 202;
   --color-ember: 220 86 61;
   --color-tide: 28 129 133;
@@ -51,17 +51,17 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --color-ink: 238 242 255;
-    --color-paper: 9 12 25;
-    --color-linen: 18 23 42;
-    --color-surface: 20 25 45;
-    --color-surface-strong: 29 36 64;
-    --color-coral: 190 43 103;
-    --color-coral-dark: 145 28 78;
-    --color-teal: 28 129 133;
-    --color-teal-dark: 18 99 104;
-    --color-gold: 225 175 73;
-    --color-moss: 35 128 84;
+    --color-ink: 246 244 255;
+    --color-paper: 13 13 27;
+    --color-linen: 24 22 42;
+    --color-surface: 24 23 41;
+    --color-surface-strong: 35 32 57;
+    --color-coral: 242 91 123;
+    --color-coral-dark: 194 53 88;
+    --color-teal: 53 194 181;
+    --color-teal-dark: 28 143 139;
+    --color-gold: 246 188 72;
+    --color-moss: 70 182 121;
     --color-slate: 174 185 202;
     --color-ember: 220 86 61;
     --color-tide: 28 129 133;
@@ -84,10 +84,26 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
-  background: rgb(var(--color-paper));
+  background:
+    radial-gradient(circle at 8% -10%, rgb(var(--color-coral) / 0.09), transparent 30rem),
+    radial-gradient(circle at 92% 5%, rgb(var(--color-teal) / 0.1), transparent 32rem),
+    rgb(var(--color-paper));
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   overflow-x: hidden;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.025em;
+}
+
+a,
+button,
+summary {
+  transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+  transition-duration: 180ms;
 }
 
 button,
@@ -120,6 +136,7 @@ canvas {
 .surface {
   @apply border border-ink/10;
   background: rgb(var(--color-surface));
+  box-shadow: 0 1px 0 rgb(var(--color-ink) / 0.035);
 }
 
 .app-header {
@@ -170,10 +187,58 @@ canvas {
 
 .primary-button:hover {
   filter: saturate(1.08) brightness(1.03);
+  box-shadow: 0 10px 24px rgb(var(--color-coral) / 0.22);
 }
 
 .secondary-button:hover {
   background-color: rgb(var(--color-surface-strong) / 0.9);
+}
+
+.primary-button:active,
+.secondary-button:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.interactive-card,
+a.surface {
+  transition: transform 220ms cubic-bezier(.2,.75,.3,1), border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.interactive-card:hover,
+a.surface:hover {
+  transform: translateY(-4px);
+  border-color: rgb(var(--color-teal) / 0.32);
+  box-shadow: 0 16px 36px rgb(var(--color-shadow) / 0.14);
+}
+
+.game-artwork img {
+  transition: transform 500ms cubic-bezier(.2,.75,.3,1), filter 300ms ease;
+}
+
+.interactive-card:hover .game-artwork img,
+a.surface:hover .game-artwork img,
+.group:hover .game-artwork img {
+  transform: scale(1.055);
+  filter: saturate(1.08);
+}
+
+.nav-link:hover svg,
+.app-logo:hover svg {
+  transform: rotate(-7deg) scale(1.12);
+}
+
+.nav-link svg,
+.app-logo svg {
+  transition: transform 200ms cubic-bezier(.2,.8,.3,1.25);
+}
+
+.reveal-up {
+  animation: reveal-up 500ms cubic-bezier(.2,.75,.3,1) both;
+}
+
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @media (prefers-color-scheme: dark) {

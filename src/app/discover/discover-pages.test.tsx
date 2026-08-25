@@ -87,6 +87,6 @@ describe("curated discovery pages", () => {
     expect(screen.getByText("Deep Rock Galactic")).toBeInTheDocument();
     expect(screen.getByText("£7.49")).toBeInTheDocument();
     expect(screen.getByText("50% off")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Start a Pick shortlist with this game" })).toHaveAttribute("href", "/sessions/pick?game=deep-rock-galactic");
+    expect(screen.getByRole("link", { name: "Put this on the shortlist" })).toHaveAttribute("href", "/sessions/pick?game=deep-rock-galactic");
   });
 });

@@ -4,6 +4,7 @@ import { Gamepad2 } from "lucide-react";
 import { curatedPriceLabel, curatedSaleLabel, enrichedCuratedGame } from "@/lib/curated-deals";
 import { curatedPlayerLabel } from "@/lib/curated-games";
 import { LocalSetupBadge } from "@/components/local-setup-badge";
+import { GameArtwork } from "@/components/game-artwork";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -28,7 +29,9 @@ export default async function GameDetailPage({ params }: PageProps) {
         </Link>
         <Link href={`/sessions/pick?game=${game.slug}`} className="primary-button">Start Pick</Link>
       </nav>
-      <section className="surface mt-8 rounded-xl p-6">
+      <section className="surface mt-8 overflow-hidden rounded-xl">
+        <GameArtwork appId={game.steamAppId} title={game.title} sizes="(min-width: 1280px) 1180px, 100vw" className="h-52 sm:h-72" priority />
+        <div className="p-6">
         <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">Group game</p>
         <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
           <h1 className="text-4xl font-black text-ink">{game.title}</h1>
@@ -93,7 +96,8 @@ export default async function GameDetailPage({ params }: PageProps) {
             <p className="mt-1 text-sm leading-6 text-ink/65">{game.caveat}</p>
           </div>
         ) : null}
-        <Link href={`/sessions/pick?game=${game.slug}`} className="primary-button mt-6">Start a Pick shortlist with this game</Link>
+        <Link href={`/sessions/pick?game=${game.slug}`} className="primary-button mt-6">Put this on the shortlist</Link>
+        </div>
       </section>
     </main>
   );

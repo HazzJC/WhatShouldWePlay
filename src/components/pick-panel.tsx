@@ -24,6 +24,7 @@ import { SteamImportSubmitButton } from "@/components/steam-import-submit-button
 import { RankedMatchList } from "@/components/ranked-match-list";
 import { GameSignalControls } from "@/components/game-signal-controls";
 import { TimezoneInput } from "@/components/timezone-input";
+import { GameArtwork } from "@/components/game-artwork";
 
 export type SessionGameView = SessionGame & {
   game: Game & { steamStorePrice?: SteamStorePrice | null; deal?: GameDeal | null };
@@ -594,7 +595,9 @@ function ScoredGameCard({ game }: { game: ScoredGame }) {
   }[game.alignment];
 
   return (
-    <div className="rounded-lg border border-ink/10 bg-white p-4">
+    <div className="interactive-card overflow-hidden rounded-lg border border-ink/10 bg-white">
+      <GameArtwork appId={game.steamAppId} coverUrl={game.coverUrl} title={game.title} sizes="(min-width: 768px) 50vw, 100vw" className="h-24" />
+      <div className="p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-black text-ink">{game.title}</p>
@@ -640,6 +643,7 @@ function ScoredGameCard({ game }: { game: ScoredGame }) {
       {game.reviewSummary ? (
         <p className="mt-3 text-xs font-bold leading-5 text-ink/45">{game.reviewSummary}</p>
       ) : null}
+      </div>
     </div>
   );
 }
@@ -1037,7 +1041,9 @@ function SessionGameCard({
   const playerMetadata = formatGamePlayerMetadata(sessionGame.game);
 
   return (
-    <div className="rounded-lg border border-ink/10 bg-paper p-3">
+    <div className="interactive-card overflow-hidden rounded-lg border border-ink/10 bg-paper">
+      <GameArtwork appId={sessionGame.game.steamAppId} coverUrl={sessionGame.game.coverUrl} title={sessionGame.game.title} sizes="(min-width: 768px) 50vw, 100vw" className="h-24" />
+      <div className="p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-lg font-black text-ink">{sessionGame.game.title}</p>
@@ -1078,6 +1084,7 @@ function SessionGameCard({
           </PendingSubmitButton>
         </form>
       </details> : null}
+      </div>
     </div>
   );
 }
@@ -1145,7 +1152,9 @@ function GameGrid({
   return (
     <div className={`mt-4 grid gap-3 ${compact ? "" : "sm:grid-cols-2"}`}>
       {games.map((game) => (
-        <form key={`${source}-${game.gameId ?? game.igdbId ?? game.steamAppId ?? game.title}`} action={addSessionGameAction} className="rounded-lg border border-ink/10 bg-paper p-3">
+        <form key={`${source}-${game.gameId ?? game.igdbId ?? game.steamAppId ?? game.title}`} action={addSessionGameAction} className="interactive-card overflow-hidden rounded-lg border border-ink/10 bg-paper">
+          <GameArtwork appId={game.steamAppId} coverUrl={game.coverUrl} title={game.title} sizes="(min-width: 640px) 50vw, 100vw" className="h-24" />
+          <div className="p-3">
           <input type="hidden" name="shareToken" value={shareToken} />
           <input type="hidden" name="source" value={source} />
           <input type="hidden" name="title" value={game.title} />
@@ -1153,6 +1162,7 @@ function GameGrid({
           {participantId ? <input type="hidden" name="participantId" value={participantId} /> : null}
           {game.igdbId ? <input type="hidden" name="igdbId" value={game.igdbId} /> : null}
           {game.steamAppId ? <input type="hidden" name="steamAppId" value={game.steamAppId} /> : null}
+          {game.coverUrl ? <input type="hidden" name="coverUrl" value={game.coverUrl} /> : null}
           <p className="font-black text-ink">{game.title}</p>
           {game.platforms?.length ? <p className="mt-1 text-xs font-bold text-ink/50">{game.platforms.slice(0, 3).join(", ")}</p> : null}
           <p className="mt-2 text-xs font-black uppercase tracking-[0.12em] text-teal">{formatGamePlayerMetadata(game)}</p>
@@ -1160,6 +1170,7 @@ function GameGrid({
             <Plus className="h-4 w-4" />
             Add
           </PendingSubmitButton>
+          </div>
         </form>
       ))}
     </div>

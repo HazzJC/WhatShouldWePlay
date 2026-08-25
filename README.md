@@ -6,6 +6,11 @@ Plan remains fully usable without an account. Pick workspaces use persistent
 Google-, Microsoft-, or Steam-backed accounts so library matching works across
 sessions and devices; public discovery remains open to everyone.
 
+The public shell also includes permanent About and Changelog pages. Game
+artwork uses Steam banners first where available, falls back to saved IGDB
+covers, and finally renders a deterministic title treatment so broken
+third-party imagery never leaves an empty card.
+
 Plan and Pick are organised beneath a shared **Game Night**. A Game Night can
 contain either workspace or both, has one shareable overview link, and appears
 in the signed-in Game nights archive as Active, Upcoming, or Past.

@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Gamepad2, Plus, Search, Upload } from "lucide-react";
 import {
@@ -7,6 +6,7 @@ import {
   updateLibraryGameAction,
 } from "@/app/account/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { GameArtwork } from "@/components/game-artwork";
 import { requireActivePickUser } from "@/lib/accounts";
 import { prisma } from "@/lib/prisma";
 import { gamingPlatforms, parseGamingPlatforms } from "@/lib/platforms";
@@ -170,13 +170,7 @@ export default async function AccountLibraryPage({ searchParams }: PageProps) {
             <form key={userGame.id} action={updateLibraryGameAction} className="surface grid gap-4 p-4 xl:grid-cols-[minmax(220px,1fr)_160px_110px_170px_170px] xl:items-end">
               <input type="hidden" name="gameId" value={userGame.gameId} />
               <div className="flex min-w-0 gap-3">
-                {userGame.game.coverUrl ? (
-                  <Image src={userGame.game.coverUrl} alt="" width={54} height={72} className="h-[72px] w-[54px] rounded-md object-cover" />
-                ) : (
-                  <span className="grid h-[72px] w-[54px] shrink-0 place-items-center rounded-md bg-ink/8 text-teal">
-                    <Gamepad2 className="h-5 w-5" />
-                  </span>
-                )}
+                <GameArtwork appId={userGame.game.steamAppId} coverUrl={userGame.game.coverUrl} title={userGame.game.title} sizes="54px" kind="cover" className="h-[72px] w-[54px] shrink-0 rounded-md" imageClassName="object-cover" />
                 <div className="min-w-0">
                   <h2 className="truncate text-lg font-black text-ink">{userGame.game.title}</h2>
                   <p className="mt-1 text-xs font-bold text-ink/48">
