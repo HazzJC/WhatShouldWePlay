@@ -15,8 +15,8 @@ type GameArtworkProps = {
 };
 
 export function GameArtwork({ appId, coverUrl, title, className = "", imageClassName = "", sizes, kind = "banner", priority = false }: GameArtworkProps) {
-  const steamArtwork = appId ? `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg` : null;
-  const steamCapsule = appId ? `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${appId}/capsule_616x353.jpg` : null;
+  const steamArtwork = appId ? `https://shared.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg` : null;
+  const steamCapsule = appId ? `https://shared.steamstatic.com/store_item_assets/steam/apps/${appId}/capsule_616x353.jpg` : null;
   const igdbArtwork = coverUrl ? normalizeCoverUrl(coverUrl) : null;
   const sources = (kind === "cover" ? [igdbArtwork, steamArtwork, steamCapsule] : [steamArtwork, steamCapsule, igdbArtwork]).filter(
     (source): source is string => Boolean(source),
