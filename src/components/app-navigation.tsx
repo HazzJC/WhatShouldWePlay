@@ -5,12 +5,13 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CalendarDays, Compass, Gamepad2, History, Info, LogOut, ScrollText, UserRound } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { BrandMark } from "@/components/brand-mark";
 
 const primaryLinks = [
-  { href: "/sessions/new", label: "Plan", icon: CalendarDays },
-  { href: "/sessions/pick", label: "Pick", icon: Gamepad2 },
-  { href: "/discover", label: "Discover", icon: Compass },
-  { href: "/game-nights", label: "Game nights", icon: History },
+  { href: "/sessions/new", label: "Plan", hint: "Find a time", icon: CalendarDays, tone: "plan" },
+  { href: "/sessions/pick", label: "Pick", hint: "Choose a game", icon: Gamepad2, tone: "pick" },
+  { href: "/discover", label: "Discover", hint: "Browse ideas", icon: Compass, tone: "discover" },
+  { href: "/game-nights", label: "Your nights", hint: "Back to the crew", icon: History, tone: "nights" },
 ] as const;
 
 export function AppNavigation() {
@@ -27,27 +28,25 @@ export function AppNavigation() {
   return (
     <>
       <header className="app-header">
-        <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between gap-4 px-3 sm:px-5 lg:px-6">
+        <div className="mx-auto flex h-[4.5rem] w-full max-w-7xl items-center justify-between gap-4 px-3 sm:px-5 lg:px-6">
           <Link href="/" className="app-logo focus-ring flex shrink-0 items-center gap-2 font-bold text-ink">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-coral to-neonViolet text-white shadow-card">
-              <Gamepad2 className="h-4 w-4" />
-            </span>
-            <span className="hidden sm:inline">Let&apos;s Play Games</span>
+            <BrandMark compact />
+            <span className="hidden leading-none sm:block"><span className="block text-[0.95rem] font-black">Let&apos;s Play</span><span className="mt-1 block text-[0.64rem] font-bold uppercase tracking-[0.18em] text-ink/42">Game night, sorted</span></span>
           </Link>
           <nav className="hidden items-center gap-1 md:flex" aria-label="Primary navigation">
-            {primaryLinks.map(({ href, label, icon: Icon }) => (
-              <Link key={href} href={href} aria-current={isActivePath(pathname, href) ? "page" : undefined} className={`nav-link focus-ring inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold hover:text-ink ${isActivePath(pathname, href) ? "bg-teal/10 text-teal" : "text-ink/65 hover:bg-linen"}`}>
-                <Icon className="h-4 w-4" />
-                {label}
+            {primaryLinks.map(({ href, label, hint, icon: Icon, tone }) => (
+              <Link key={href} href={href} data-tone={tone} aria-current={isActivePath(pathname, href) ? "page" : undefined} className={`nav-link focus-ring inline-flex items-center gap-2 rounded-xl px-2.5 py-2 ${isActivePath(pathname, href) ? "is-active" : ""}`}>
+                <span className="nav-icon"><Icon className="h-4 w-4" /></span>
+                <span className="leading-none"><span className="block text-sm font-black">{label}</span><span className="mt-1 hidden text-[0.62rem] font-bold text-ink/42 xl:block">{hint}</span></span>
               </Link>
             ))}
           </nav>
           <details className="relative">
-            <summary className="focus-ring flex cursor-pointer list-none items-center gap-2 rounded-md border border-ink/10 bg-white px-3 py-2 text-sm font-semibold text-ink">
+            <summary className="account-trigger focus-ring flex cursor-pointer list-none items-center gap-2 rounded-xl border border-ink/10 bg-white px-3 py-2.5 text-sm font-black text-ink shadow-sm">
               <UserRound className="h-4 w-4" />
               <span className="hidden sm:inline">{user?.username ? `@${user.username}` : "Sign in"}</span>
             </summary>
-            <div className="absolute right-0 top-full z-[80] mt-2 grid w-64 gap-1 rounded-lg border border-ink/10 bg-white p-2 shadow-card">
+            <div className="account-menu absolute right-0 top-full z-[80] mt-2 grid w-64 gap-1 rounded-2xl border border-ink/10 bg-white p-2 shadow-card">
               {user ? (
                 <>
                   <p className="truncate px-2 py-2 text-xs font-medium text-ink/50">{user.displayName}</p>
@@ -82,13 +81,13 @@ export function AppNavigation() {
       </header>
 
       <nav className="app-mobile-nav" aria-label="Mobile navigation">
-        {primaryLinks.map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} aria-current={isActivePath(pathname, href) ? "page" : undefined} className={`focus-ring grid min-w-0 flex-1 place-items-center gap-0.5 py-2 text-[0.68rem] font-semibold ${isActivePath(pathname, href) ? "bg-teal/10 text-teal" : "text-ink/60"}`}>
+        {primaryLinks.map(({ href, label, icon: Icon, tone }) => (
+          <Link key={href} href={href} data-tone={tone} aria-current={isActivePath(pathname, href) ? "page" : undefined} className={`mobile-nav-link focus-ring grid min-w-0 flex-1 place-items-center gap-0.5 py-2 text-[0.64rem] font-black ${isActivePath(pathname, href) ? "is-active" : ""}`}>
             <Icon className="h-5 w-5" />
             <span className="truncate">{label}</span>
           </Link>
         ))}
-        <Link href="/account" className="focus-ring grid min-w-0 flex-1 place-items-center gap-0.5 py-2 text-[0.68rem] font-semibold text-ink/60">
+        <Link href="/account" className="mobile-nav-link focus-ring grid min-w-0 flex-1 place-items-center gap-0.5 py-2 text-[0.64rem] font-black text-ink/55">
           <UserRound className="h-5 w-5" />
           <span>{user ? "Account" : "Sign in"}</span>
         </Link>

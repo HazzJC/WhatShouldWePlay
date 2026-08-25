@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Gamepad2, ListChecks, UsersRound } from "lucide-react";
+import { ArrowLeft, Gamepad2, ListChecks, Sparkles, UsersRound } from "lucide-react";
 import { createPickSessionAction, startPickSessionFromFriendGroupAction } from "@/app/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { TimezoneInput } from "@/components/timezone-input";
@@ -33,24 +33,24 @@ export default async function NewPickSessionPage({ searchParams }: PageProps) {
         Let&apos;s Play Games
       </Link>
 
-      <section className="mt-6 grid gap-5 lg:grid-cols-[320px_1fr]">
-        <aside className="surface rounded-xl p-5 lg:sticky lg:top-5 lg:self-start">
-          <p className="text-sm font-black uppercase tracking-[0.16em] text-teal">Pick first</p>
-          <h1 className="mt-3 text-4xl font-black leading-tight text-ink">Start with the shortlist</h1>
-          <p className="mt-3 text-sm leading-6 text-ink/70">
-            Create one shared place to import libraries, mark what people have, and find the best group matches.
+      <section className="mt-4 grid gap-5 lg:grid-cols-[320px_1fr]">
+        <aside className="quest-map overflow-hidden rounded-3xl p-6 shadow-soft lg:sticky lg:top-24 lg:self-start">
+          <span className="sticker !border-white/15 !bg-white/10 !text-white/75"><Sparkles className="mr-1 h-3 w-3" />The decision room</span>
+          <h1 className="mt-5 text-4xl font-black leading-tight text-white">Right. What are we playing?</h1>
+          <p className="mt-3 text-sm font-bold leading-6 text-white/62">
+            Put everyone&apos;s libraries in one room, rule out the awkward fits, and get to a shortlist that makes sense.
           </p>
-          <div className="mt-6 grid gap-3 text-sm font-bold text-ink/70">
-            <Step icon={<Gamepad2 className="h-4 w-4" />} label="Import or add games" />
-            <Step icon={<UsersRound className="h-4 w-4" />} label="Compare the group" />
-            <Step icon={<ListChecks className="h-4 w-4" />} label="Pick the best fit" />
+          <div className="mt-6 grid gap-3 text-sm font-bold text-white/75">
+            <Step number="1" icon={<UsersRound className="h-4 w-4" />} label="Bring the crew" />
+            <Step number="2" icon={<Gamepad2 className="h-4 w-4" />} label="Pull in the games" />
+            <Step number="3" icon={<ListChecks className="h-4 w-4" />} label="Pick without the debate" />
           </div>
         </aside>
 
-        <form action={createPickSessionAction} className="surface rounded-xl p-5 sm:p-6">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-coral">New Pick session</p>
-          <h2 className="mt-1 text-2xl font-black text-ink">Create a game shortlist</h2>
-          <div className="mt-5 grid gap-4">
+        <div className="grid gap-4">
+        <form action={createPickSessionAction} className="choice-card p-5 sm:p-6">
+          <div className="flex items-start gap-3"><span className="step-badge" style={{ background: "rgb(var(--color-coral))" }}><Gamepad2 className="h-5 w-5" /></span><div><p className="text-xs font-black uppercase tracking-[0.16em] text-coral">Start fresh</p><h2 className="mt-1 text-2xl font-black text-ink">Make a new shortlist</h2><p className="mt-1 text-sm font-bold leading-6 text-ink/52">Best for a new mix of people or a one-off night.</p></div></div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <label>
               <span className="text-sm font-bold text-ink">Group name</span>
               <input name="title" required minLength={2} maxLength={120} defaultValue="Game night picks" className="field" />
@@ -59,7 +59,9 @@ export default async function NewPickSessionPage({ searchParams }: PageProps) {
               <span className="text-sm font-bold text-ink">Your name</span>
               <input name="hostName" required maxLength={80} defaultValue={currentUser.displayName} className="field" />
             </label>
+            <div className="sm:col-span-2">
             <TimezoneInput defaultTimezone={currentUser.timezone ?? "Europe/London"} />
+            </div>
             {query?.gameNight ? <input type="hidden" name="gameNightId" value={query.gameNight} /> : null}
             {initialGame ? <input type="hidden" name="initialGameSlug" value={initialGame.slug} /> : null}
             {initialGame ? (
@@ -70,23 +72,22 @@ export default async function NewPickSessionPage({ searchParams }: PageProps) {
                 </p>
               </div>
             ) : null}
-            <div className="rounded-lg border border-ink/10 bg-paper p-4 text-sm leading-6 text-ink/65">
-              Scheduling is ready when you need it. This starts in Pick mode with sensible planning defaults hidden in the background.
+            <div className="rounded-xl border border-purple/20 bg-linen p-4 text-sm font-bold leading-6 text-ink/58 sm:col-span-2">
+              This starts with games. Add scheduling later if the group needs it.
             </div>
-            <PendingSubmitButton className="primary-button w-full py-3 text-base sm:w-fit" pendingLabel="Creating...">
+            <PendingSubmitButton className="primary-button w-full py-3 text-base sm:col-span-2 sm:w-fit" pendingLabel="Creating...">
               <Gamepad2 className="h-5 w-5" />
-              Create Pick link
+              Open the decision room
             </PendingSubmitButton>
           </div>
         </form>
 
-        <section className="surface rounded-xl p-5 sm:p-6">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-moss">Saved crews</p>
-            <h2 className="mt-1 text-2xl font-black text-ink">Start with a saved group</h2>
+        <section className="choice-card p-5 sm:p-6">
+            <div className="flex items-start gap-3"><span className="step-badge" style={{ background: "rgb(var(--color-teal))" }}><UsersRound className="h-5 w-5" /></span><div><p className="text-xs font-black uppercase tracking-[0.16em] text-teal">Your usual suspects</p><h2 className="mt-1 text-2xl font-black text-ink">Reuse a saved crew</h2><p className="mt-1 text-sm font-bold leading-6 text-ink/52">Skip the invites and bring the same people back in.</p></div></div>
             <div className="mt-4 grid gap-3">
               {friendGroups.length > 0 ? (
                 friendGroups.map((group) => (
-                  <div key={group.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ink/10 bg-paper p-3">
+                  <div key={group.id} className="interactive-card flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink/10 bg-paper p-3">
                     <div>
                       <p className="font-black text-ink">{group.name}</p>
                       <p className="mt-1 text-xs font-bold text-ink/50">{group.members.length} member{group.members.length === 1 ? "" : "s"}</p>
@@ -107,16 +108,17 @@ export default async function NewPickSessionPage({ searchParams }: PageProps) {
               )}
             </div>
         </section>
+        </div>
       </section>
     </main>
   );
 }
 
-function Step({ icon, label }: { icon: React.ReactNode; label: string }) {
+function Step({ number, icon, label }: { number: string; icon: React.ReactNode; label: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-md bg-paper px-3 py-2">
-      <span className="grid h-8 w-8 place-items-center rounded-md bg-teal/10 text-teal">{icon}</span>
-      {label}
+    <div className="quest-step flex items-center gap-3 rounded-xl border border-white/10 bg-white/10 px-3 py-2.5">
+      <span className="grid h-8 w-8 place-items-center rounded-lg bg-white/10 text-teal">{icon}</span>
+      <span><span className="mr-2 text-white/35">{number}.</span>{label}</span>
     </div>
   );
 }

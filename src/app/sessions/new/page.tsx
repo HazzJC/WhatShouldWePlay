@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Bell, CalendarPlus, Clock3, Gamepad2, UsersRound } from "lucide-react";
+import { ArrowLeft, Bell, CalendarDays, CalendarPlus, Clock3, Gamepad2, Sparkles, UsersRound } from "lucide-react";
 import { createSessionAction } from "@/app/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { PlanDateOptions, PlanReminderOptions } from "@/components/plan-options";
@@ -30,24 +30,31 @@ export default async function NewSessionPage({ searchParams }: { searchParams?: 
         Let&apos;s Play Games
       </Link>
 
-      <form action={createSessionAction} className="mt-4 grid gap-4 lg:grid-cols-[260px_1fr]">
+      <header className="route-hero mt-3 p-5 sm:p-7 lg:hidden">
+        <span className="sticker !border-white/15 !bg-white/10 !text-white/75">No account needed</span>
+        <h1 className="mt-4 text-3xl font-black leading-tight">Find the time. Send the link. Done.</h1>
+        <p className="mt-2 max-w-xl text-sm font-bold leading-6 text-white/65">Four short steps, then your friends can answer in a couple of taps.</p>
+      </header>
+
+      <form action={createSessionAction} className="mt-4 grid gap-4 lg:grid-cols-[290px_1fr]">
         {query?.gameNight ? <input type="hidden" name="gameNightId" value={query.gameNight} /> : null}
-        <aside className="surface hidden rounded-lg p-4 lg:sticky lg:top-20 lg:block lg:self-start">
-          <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">Planner</p>
-          <h1 className="mt-2 text-3xl font-black leading-tight text-ink sm:text-4xl">Plan a game night</h1>
-          <p className="mt-2 text-sm leading-6 text-ink/70">
-            Set the basics, choose the time window, and share one link with everyone.
+        <aside className="quest-map hidden overflow-hidden rounded-3xl p-5 shadow-soft lg:sticky lg:top-24 lg:block lg:self-start">
+          <span className="sticker !border-white/15 !bg-white/10 !text-white/75"><Sparkles className="mr-1 h-3 w-3" />No account needed</span>
+          <h1 className="mt-5 text-3xl font-black leading-tight text-white">Plan a game night</h1>
+          <p className="mt-3 text-sm font-bold leading-6 text-white/62">
+            Get the awkward organising bit out of the way while everyone is still paying attention.
           </p>
-          <div className="mt-4 grid gap-2 text-sm font-bold text-ink/70">
-            <Step icon={<Gamepad2 className="h-4 w-4" />} label="Basics" />
-            <Step icon={<Clock3 className="h-4 w-4" />} label="Timing" />
-            <Step icon={<UsersRound className="h-4 w-4" />} label="Players" />
-            <Step icon={<Bell className="h-4 w-4" />} label="Optional details" />
+          <div className="mt-6 grid gap-3 text-sm font-bold text-white/76">
+            <Step number="1" icon={<Gamepad2 className="h-4 w-4" />} label="Name the night" />
+            <Step number="2" icon={<Clock3 className="h-4 w-4" />} label="Set the window" />
+            <Step number="3" icon={<UsersRound className="h-4 w-4" />} label="Set the headcount" />
+            <Step number="4" icon={<Bell className="h-4 w-4" />} label="Add extras" />
           </div>
+          <div className="mt-6 rounded-2xl border border-white/10 bg-white/10 p-4"><CalendarDays className="h-5 w-5 text-teal" /><p className="mt-2 text-sm font-black text-white">What happens next?</p><p className="mt-1 text-xs font-bold leading-5 text-white/52">You get one share link. Friends paint their availability. The best overlap rises to the top.</p></div>
         </aside>
 
         <div className="grid gap-4">
-          <Panel title="Basics" eyebrow="Step 1">
+          <Panel number="1" title="Name the night" description="Give people enough context to recognise it in the group chat." tone="coral" icon={<Gamepad2 className="h-5 w-5" />}>
             <label>
               <span className="text-sm font-bold text-ink">Session name</span>
               <input name="title" required minLength={2} maxLength={120} defaultValue="Game night" className="field" />
@@ -67,7 +74,7 @@ export default async function NewSessionPage({ searchParams }: { searchParams?: 
             </div>
           </Panel>
 
-          <Panel title="Timing" eyebrow="Step 2">
+          <Panel number="2" title="When could it happen?" description="Choose a useful window—not every evening for the rest of time." tone="purple" icon={<Clock3 className="h-5 w-5" />}>
             <PlanDateOptions />
 
             <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1.3fr]">
@@ -87,7 +94,7 @@ export default async function NewSessionPage({ searchParams }: { searchParams?: 
 
           </Panel>
 
-          <Panel title="Players" eyebrow="Step 3">
+          <Panel number="3" title="What counts as a go?" description="We’ll only call a time a winner when enough people can make it." tone="teal" icon={<UsersRound className="h-5 w-5" />}>
             <div className="grid gap-4 sm:grid-cols-2">
               <label>
                 <span className="text-sm font-bold text-ink">Duration</span>
@@ -109,7 +116,7 @@ export default async function NewSessionPage({ searchParams }: { searchParams?: 
             </p>
           </Panel>
 
-          <Panel title="Optional details" eyebrow="Step 4">
+          <Panel number="4" title="Useful extras" description="Skip these unless your group actually needs them." tone="gold" icon={<Bell className="h-5 w-5" />}>
             <label>
               <span className="text-sm font-bold text-ink">Discord channel</span>
               <input name="discordChannel" maxLength={120} placeholder="#game-night" className="field" />
@@ -120,7 +127,7 @@ export default async function NewSessionPage({ searchParams }: { searchParams?: 
           <div className="sticky bottom-0 z-20 -mx-3 border-t border-ink/10 bg-paper/95 p-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0">
             <PendingSubmitButton className="primary-button w-full py-3 text-base sm:w-auto" pendingLabel="Creating...">
               <CalendarPlus className="h-5 w-5" />
-              Create share link
+              Make the share link
             </PendingSubmitButton>
           </div>
         </div>
@@ -129,21 +136,23 @@ export default async function NewSessionPage({ searchParams }: { searchParams?: 
   );
 }
 
-function Panel({ eyebrow, title, children }: { eyebrow: string; title: string; children: React.ReactNode }) {
+function Panel({ number, title, description, tone, icon, children }: { number: string; title: string; description: string; tone: "coral" | "purple" | "teal" | "gold"; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="surface rounded-xl p-4 sm:p-5">
-      <p className="text-xs font-black uppercase tracking-[0.16em] text-coral">{eyebrow}</p>
-      <h2 className="mt-1 text-2xl font-black text-ink">{title}</h2>
+    <section className="step-panel surface p-4 sm:p-6" data-step={number} data-tone={tone}>
+      <div className="relative z-10 flex items-start gap-3">
+        <span className="step-badge">{icon}</span>
+        <div><p className="text-[0.65rem] font-black uppercase tracking-[0.16em] text-ink/42">Step {number} of 4</p><h2 className="mt-1 text-2xl font-black text-ink">{title}</h2><p className="mt-1 max-w-2xl text-sm font-bold leading-6 text-ink/55">{description}</p></div>
+      </div>
       <div className="mt-4 grid gap-3">{children}</div>
     </section>
   );
 }
 
-function Step({ icon, label }: { icon: React.ReactNode; label: string }) {
+function Step({ number, icon, label }: { number: string; icon: React.ReactNode; label: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-md bg-paper px-3 py-2">
-      <span className="grid h-8 w-8 place-items-center rounded-md bg-teal/10 text-teal">{icon}</span>
-      {label}
+    <div className="quest-step flex items-center gap-3 rounded-xl border border-white/10 bg-white/10 px-3 py-2.5">
+      <span className="grid h-8 w-8 place-items-center rounded-lg bg-white/10 text-teal">{icon}</span>
+      <span><span className="mr-2 text-white/35">{number}.</span>{label}</span>
     </div>
   );
 }

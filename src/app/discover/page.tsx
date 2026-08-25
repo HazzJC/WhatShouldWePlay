@@ -34,11 +34,13 @@ export default async function DiscoverPage({ searchParams }: PageProps) {
         <Link href="/sessions/pick" className="primary-button">Start Pick</Link>
       </nav>
       <section className="py-8">
-        <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">Discover</p>
-        <h1 className="mt-3 text-4xl font-black text-ink">What can we actually play?</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/65">
+        <header className="route-hero p-6 sm:p-8">
+        <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">The game cupboard</p>
+        <h1 className="mt-3 text-4xl font-black text-white sm:text-5xl">What can we actually play?</h1>
+        <p className="mt-3 max-w-2xl text-sm font-bold leading-6 text-white/60">
           Filter by headcount, couch or online setup, price, and how much faff your group will tolerate.
         </p>
+        </header>
         {!hasPlayerCount ? (
           <section className="surface mt-6 rounded-lg p-5">
             <div className="flex items-center gap-2 text-teal"><UsersRound className="h-5 w-5" /><h2 className="text-xl font-bold text-ink">How many people need to play?</h2></div>

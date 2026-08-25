@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Download, Gamepad2, Library, LogOut, Mail, ShieldCheck, Trash2 } from "lucide-react";
+import { CalendarCheck2, Download, Gamepad2, Library, LogOut, Mail, ShieldCheck, Sparkles, Trash2, UsersRound } from "lucide-react";
 import {
   deleteAccountAction,
   updateAccountProfileAction,
@@ -111,14 +111,14 @@ export default async function AccountPage({ searchParams }: PageProps) {
         </div>
       </nav>
 
-      <section className="mx-auto grid max-w-4xl gap-4 py-5">
-        <div>
+      <section className="mx-auto grid max-w-5xl gap-4 py-5">
+        {user ? <div>
           <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">Account</p>
           <h1 className="mt-2 text-3xl font-black text-ink sm:text-4xl">Your profile and connections</h1>
           <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-ink/62">
             Sign in across devices, connect the stores you use, and keep PC, Xbox, and PlayStation ownership in one matching profile.
           </p>
-        </div>
+        </div> : null}
 
         {googleError ? (
           <AuthNotice tone="error" title={`Google auth error: ${googleError}`} detail={googleErrorMessages[googleError] ?? googleErrorMessages.unknown} />
@@ -140,25 +140,32 @@ export default async function AccountPage({ searchParams }: PageProps) {
         ) : null}
 
         {!user ? (
-          <section className="surface p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-2xl font-black text-ink">You&apos;re signed out</h2>
-                <p className="mt-2 text-sm font-bold leading-6 text-ink/62">
-                  Create one profile for saved groups, preferences, and PC or console game ownership across devices.
-                </p>
+          <section className="route-hero grid overflow-hidden lg:grid-cols-[1.05fr_.95fr]">
+            <div className="relative z-10 p-6 sm:p-9">
+              <span className="sticker !border-white/15 !bg-white/10 !text-white/75"><Sparkles className="mr-1 h-3.5 w-3.5" />Save the good stuff</span>
+              <h2 className="mt-5 text-4xl font-black leading-tight text-white sm:text-5xl">You&apos;re signed out</h2>
+              <p className="mt-4 max-w-xl font-bold leading-7 text-white/62">Planning a quick night stays account-free. Sign in when you want the app to remember your games, your people and what worked last time.</p>
+              <div className="mt-7 grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                <Benefit icon={<Library className="h-5 w-5" />} title="Your library" copy="Keep ownership and playtime." />
+                <Benefit icon={<UsersRound className="h-5 w-5" />} title="Your crews" copy="Reuse friends and groups." />
+                <Benefit icon={<CalendarCheck2 className="h-5 w-5" />} title="Your nights" copy="Return to past decisions." />
               </div>
-              <div className="flex flex-wrap gap-2">
-                <a href={providerStartUrl("google", returnTo)} className="primary-button">
-                  Sign in with Google
+            </div>
+            <div className="relative z-10 flex flex-col justify-center border-t border-white/10 bg-white/10 p-6 sm:p-9 lg:border-l lg:border-t-0">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-teal">Choose your door</p>
+              <h3 className="mt-2 text-2xl font-black text-white">Same profile, whichever you use</h3>
+              <p className="mt-2 text-sm font-bold leading-6 text-white/52">Use Google for the simplest sign-in, Microsoft for Xbox identity, or Steam to get straight to your PC library.</p>
+              <div className="mt-6 grid gap-3">
+                <a href={providerStartUrl("google", returnTo)} className="primary-button w-full py-3">
+                  <Mail className="h-4 w-4" />Sign in with Google
                 </a>
                 {microsoftConfigured ? (
-                  <a href={providerStartUrl("microsoft", returnTo)} className="secondary-button">
-                    Sign in with Microsoft / Xbox
+                  <a href={providerStartUrl("microsoft", returnTo)} className="secondary-button w-full py-3 !border-white/15 !bg-white/10 !text-white">
+                    <Gamepad2 className="h-4 w-4" />Sign in with Microsoft / Xbox
                   </a>
                 ) : null}
-                <a href={providerStartUrl("steam", returnTo)} className="secondary-button">
-                  Sign in with Steam
+                <a href={providerStartUrl("steam", returnTo)} className="secondary-button w-full py-3 !border-white/15 !bg-white/10 !text-white">
+                  <Gamepad2 className="h-4 w-4" />Sign in with Steam
                 </a>
               </div>
             </div>
@@ -415,6 +422,10 @@ export default async function AccountPage({ searchParams }: PageProps) {
       </section>
     </main>
   );
+}
+
+function Benefit({ icon, title, copy }: { icon: ReactNode; title: string; copy: string }) {
+  return <div className="rounded-xl border border-white/10 bg-white/10 p-3"><span className="text-teal">{icon}</span><p className="mt-2 text-sm font-black text-white">{title}</p><p className="mt-1 text-xs font-bold leading-5 text-white/45">{copy}</p></div>;
 }
 
 function providerStartUrl(provider: "google" | "microsoft" | "steam", returnTo: string) {

@@ -16,10 +16,10 @@ const jobs = [
 export default function AboutPage() {
   return (
     <main className="ui-shell">
-      <header className="reveal-up mx-auto max-w-4xl py-10 sm:py-16">
-        <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">About</p>
-        <h1 className="mt-3 text-4xl font-black leading-tight text-ink sm:text-6xl">Built to end the “what are we playing?” loop.</h1>
-        <p className="mt-5 max-w-3xl text-lg leading-8 text-ink/68">
+      <header className="route-hero reveal-up mx-auto max-w-5xl p-7 sm:p-10">
+        <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">Why this exists</p>
+        <h1 className="mt-3 text-4xl font-black leading-tight text-white sm:text-6xl">Built to end the “what are we playing?” loop.</h1>
+        <p className="mt-5 max-w-3xl text-lg font-bold leading-8 text-white/62">
           Let&apos;s Play Games is a small, independent tool for the bit before game night: finding a time, working out what everyone owns, and making a decision before somebody gives up and launches their usual game.
         </p>
       </header>

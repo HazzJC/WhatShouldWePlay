@@ -48,7 +48,8 @@ export function GameArtwork({ appId, coverUrl, title, className = "", imageClass
           fill
           sizes={sizes}
           className={`object-cover ${imageClassName}`}
-          priority={priority}
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : "auto"}
           unoptimized
           onError={() => setSourceIndex((index) => index + 1)}
         />

@@ -23,6 +23,15 @@ const releaseNotes: ReleaseMonth[] = [
     month: "August 2026",
     entries: [
       {
+        date: "25 August 2026",
+        headline: "A game-night clubhouse, not another dashboard",
+        details: [
+          "The shared shell now uses tactile game-piece branding, colour-coded destinations, a floating mobile dock, chunkier controls, and a consistent set of route heroes, choice cards, stickers, and motion cues.",
+          "Plan is presented as a four-step quest, Pick clearly separates a fresh shortlist from a saved crew, and the account and Game Nights entry points now explain the useful choice before asking anyone to act.",
+          "Dark and light themes share the same visual character, while reduced-motion support and responsive layouts keep the new personality from getting in the way.",
+        ],
+      },
+      {
         date: "23 August 2026",
         headline: "Better game art and a visual reset",
         details: [

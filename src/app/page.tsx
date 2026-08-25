@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { CalendarDays, CheckCircle2, Clock3, Gamepad2, ListChecks, Share2 } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock3, Gamepad2, ListChecks, Share2, Sparkles } from "lucide-react";
 
 export default function Home() {
   return (
@@ -32,28 +32,28 @@ export default function Home() {
         </div>
       </nav>
 
-      <section className="reveal-up grid flex-1 items-start gap-6 py-8 lg:grid-cols-[0.9fr_1.1fr] lg:py-12">
+      <section className="reveal-up grid flex-1 items-start gap-7 py-8 lg:grid-cols-[0.88fr_1.12fr] lg:py-12">
         <div className="max-w-2xl">
-          <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">
-            <span>Free planning. No account. No chasing.</span>
-          </p>
+          <p className="eyebrow"><Sparkles className="h-3.5 w-3.5" /><span>Free planning. No account. No chasing.</span></p>
           <h1 className="mt-3 text-4xl font-black leading-[1.02] text-ink sm:text-5xl lg:text-6xl">
             Stop debating.<br />Start playing.
           </h1>
           <p className="mt-4 max-w-xl text-base font-bold leading-7 text-ink/68 sm:text-lg">
             Send one link, find a time everyone can make, then pick a game the group actually owns.
           </p>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <Link href="/sessions/new" className="interactive-card focus-ring rounded-xl border border-coral/30 bg-coral p-4 text-white shadow-card hover:bg-coralDark">
-              <CalendarDays className="h-6 w-6" />
-              <span className="mt-3 block text-xl font-black">Plan a time</span>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <Link href="/sessions/new" className="choice-card focus-ring group !border-coral/25 !bg-coral p-5 text-white">
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-white/15 shadow-inner"><CalendarDays className="h-6 w-6" /></span>
+              <span className="mt-4 block text-[0.65rem] font-black uppercase tracking-[0.15em] text-white/62">First: find the overlap</span>
+              <span className="mt-1 block text-2xl font-black">Plan a time</span>
               <span className="mt-2 block text-sm font-bold leading-6 text-white/78">
                 See when everyone&apos;s free without asking them to install anything.
               </span>
             </Link>
-            <Link href="/sessions/pick" className="interactive-card focus-ring rounded-xl border border-ink/10 bg-white p-4 text-ink shadow-card hover:bg-paper">
-              <ListChecks className="h-6 w-6 text-teal" />
-              <span className="mt-3 block text-xl font-black">Pick a game</span>
+            <Link href="/sessions/pick" className="choice-card focus-ring group p-5 text-ink">
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-purple/12 text-purple"><ListChecks className="h-6 w-6" /></span>
+              <span className="mt-4 block text-[0.65rem] font-black uppercase tracking-[0.15em] text-purple">Then: end the debate</span>
+              <span className="mt-1 block text-2xl font-black">Pick a game</span>
               <span className="mt-2 inline-flex rounded bg-teal/10 px-2 py-1 text-xs font-semibold text-teal">Free account required</span>
               <span className="mt-2 block text-sm font-bold leading-6 text-ink/62">
                 Bring your libraries together and spot the games that work for this group.
@@ -65,22 +65,22 @@ export default function Home() {
             <Link href="/changelog" className="text-ink/60 underline underline-offset-4 md:hidden">Changelog</Link>
           </div>
 
-          <div className="mt-5 grid gap-2 sm:grid-cols-3">
+          <div className="mt-6"><p className="text-[0.65rem] font-black uppercase tracking-[0.16em] text-ink/38">From “maybe Friday?” to sorted</p><div className="mt-2 grid gap-2 sm:grid-cols-3">
             {[
               [Clock3, "Under 2 minutes", "Get the poll out"],
               [Share2, "One link", "Friends just tap and answer"],
               [CheckCircle2, "One answer", "Lock the time and move on"],
             ].map(([Icon, title, copy]) => (
-              <div key={String(title)} className="interactive-card rounded-lg border border-ink/10 bg-white/70 p-3">
-                <Icon className="h-5 w-5 text-teal" />
+              <div key={String(title)} className="interactive-card rounded-xl border border-ink/10 bg-white/70 p-3">
+                <span className="grid h-8 w-8 place-items-center rounded-lg bg-teal/10 text-teal"><Icon className="h-4 w-4" /></span>
                 <p className="mt-2 font-black text-ink">{title as string}</p>
                 <p className="mt-1 text-sm leading-5 text-ink/60">{copy as string}</p>
               </div>
             ))}
-          </div>
+          </div></div>
         </div>
 
-        <div className="relative min-h-[380px] overflow-hidden rounded-xl border border-ink/10 bg-ink shadow-soft sm:min-h-[460px] lg:min-h-[min(620px,72vh)]">
+        <div className="hero-stage relative min-h-[400px] overflow-hidden rounded-[1.75rem] border border-white/10 bg-ink shadow-soft sm:min-h-[480px] lg:min-h-[min(620px,72vh)]">
           <Image
             src="/assets/game-night-choice-hero-v2.webp"
             alt=""
@@ -90,6 +90,7 @@ export default function Home() {
             className="object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-ink/75 via-ink/10 to-transparent" />
+          <div className="absolute right-4 top-4 flex rotate-2 items-center gap-2 rounded-xl border border-white/15 bg-ink/65 px-3 py-2 text-xs font-black text-white shadow-card backdrop-blur"><Sparkles className="h-4 w-4 text-gold" />Group chat boss defeated</div>
           <div className="absolute bottom-3 left-3 right-3 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
             <div className="rounded-lg bg-white/92 p-3 shadow-card backdrop-blur sm:p-4">
               <div className="flex items-center justify-between gap-2">

@@ -22,6 +22,9 @@
   --color-neon-cyan: 0 116 112;
   --color-neon-violet: 103 83 205;
   --color-shadow: 57 44 77;
+  --color-purple: 111 78 207;
+  --color-sky: 44 125 198;
+  --color-night: 20 18 39;
   background: rgb(var(--color-paper));
   color: rgb(var(--color-ink));
 }
@@ -46,6 +49,9 @@
   --color-neon-cyan: 28 129 133;
   --color-neon-violet: 139 113 214;
   --color-shadow: 0 0 0;
+  --color-purple: 167 137 255;
+  --color-sky: 100 178 245;
+  --color-night: 10 10 24;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -69,6 +75,9 @@
     --color-neon-cyan: 28 129 133;
     --color-neon-violet: 139 113 214;
     --color-shadow: 0 0 0;
+    --color-purple: 167 137 255;
+    --color-sky: 100 178 245;
+    --color-night: 10 10 24;
   }
 }
 
@@ -91,12 +100,28 @@ body {
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   overflow-x: hidden;
+  position: relative;
+}
+
+body::before {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgb(var(--color-ink) / 0.07) 1px, transparent 1px),
+    linear-gradient(115deg, transparent 0 68%, rgb(var(--color-purple) / 0.035) 68% 69%, transparent 69%);
+  background-position: 0 0, center;
+  background-size: 22px 22px, 100% 100%;
+  mask-image: linear-gradient(to bottom, black, transparent 72%);
 }
 
 h1,
 h2,
 h3 {
   letter-spacing: -0.025em;
+  font-family: ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold", Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
 a,
@@ -130,26 +155,112 @@ canvas {
 }
 
 .ui-shell {
-  @apply mx-auto min-h-[calc(100vh-3.5rem)] w-full max-w-7xl px-3 py-3 pb-20 sm:px-5 sm:py-4 sm:pb-20 md:pb-4 lg:px-6;
+  @apply mx-auto min-h-[calc(100vh-4.5rem)] w-full max-w-7xl px-3 py-4 pb-24 sm:px-5 sm:py-6 sm:pb-24 md:pb-8 lg:px-6;
 }
 
 .surface {
   @apply border border-ink/10;
-  background: rgb(var(--color-surface));
-  box-shadow: 0 1px 0 rgb(var(--color-ink) / 0.035);
+  border-radius: 1.25rem;
+  background:
+    linear-gradient(145deg, rgb(var(--color-surface)) 0%, rgb(var(--color-surface)) 65%, rgb(var(--color-surface-strong) / 0.7) 100%);
+  box-shadow: 0 2px 0 rgb(var(--color-ink) / 0.055), 0 12px 32px rgb(var(--color-shadow) / 0.07);
 }
 
 .app-header {
   @apply sticky top-0 z-[70] border-b border-ink/10;
-  background: rgb(var(--color-surface) / 0.96);
-  backdrop-filter: blur(14px);
+  background: rgb(var(--color-surface) / 0.9);
+  backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: 0 4px 24px rgb(var(--color-shadow) / 0.06);
 }
 
 .app-mobile-nav {
-  @apply fixed inset-x-0 bottom-0 z-[70] flex border-t border-ink/10 md:hidden;
+  @apply fixed bottom-2 left-2 right-2 z-[70] flex overflow-hidden rounded-2xl border border-white/10 shadow-soft md:hidden;
   padding-bottom: env(safe-area-inset-bottom);
-  background: rgb(var(--color-surface) / 0.98);
+  background: rgb(var(--color-night) / 0.96);
+  backdrop-filter: blur(20px);
 }
+
+.mobile-nav-link {
+  color: rgb(var(--color-paper) / 0.62);
+}
+
+.mobile-nav-link.is-active {
+  color: white;
+  background: linear-gradient(180deg, rgb(var(--color-teal) / 0.35), transparent);
+}
+
+.mobile-nav-link.is-active svg {
+  filter: drop-shadow(0 0 8px rgb(var(--color-teal) / 0.7));
+  transform: translateY(-1px) scale(1.08);
+}
+
+.app-footer {
+  border-top: 1px solid rgb(var(--color-ink) / 0.08);
+  background: linear-gradient(180deg, rgb(var(--color-surface) / 0.62), rgb(var(--color-linen) / 0.72));
+}
+
+.brand-mark {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+}
+
+.brand-mark-tile {
+  position: absolute;
+  display: grid;
+  height: 82%;
+  width: 82%;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 0.32);
+  border-radius: 28%;
+  color: white;
+  box-shadow: 0 6px 14px rgb(var(--color-shadow) / 0.22), inset 0 1px rgb(255 255 255 / 0.3);
+}
+
+.brand-mark-tile-back {
+  transform: translate(13%, -11%) rotate(11deg);
+  background: linear-gradient(145deg, rgb(var(--color-purple)), rgb(var(--color-sky)));
+}
+
+.brand-mark-tile-front {
+  transform: translate(-10%, 10%) rotate(-8deg);
+  background: linear-gradient(145deg, rgb(var(--color-coral)), rgb(var(--color-coral-dark)));
+}
+
+.app-logo:hover .brand-mark-tile-front { transform: translate(-10%, 7%) rotate(-13deg) scale(1.04); }
+.app-logo:hover .brand-mark-tile-back { transform: translate(16%, -13%) rotate(17deg); }
+.brand-mark-tile { transition: transform 240ms cubic-bezier(.2,.8,.3,1.3); }
+
+.nav-link {
+  color: rgb(var(--color-ink) / 0.62);
+}
+
+.nav-link:hover,
+.nav-link.is-active {
+  color: rgb(var(--color-ink));
+  background: rgb(var(--color-linen) / 0.72);
+}
+
+.nav-icon {
+  display: grid;
+  height: 2rem;
+  width: 2rem;
+  place-items: center;
+  border-radius: 0.72rem;
+  color: rgb(var(--color-teal));
+  background: rgb(var(--color-teal) / 0.1);
+}
+
+.nav-link[data-tone="plan"] .nav-icon { color: rgb(var(--color-coral)); background: rgb(var(--color-coral) / 0.11); }
+.nav-link[data-tone="pick"] .nav-icon { color: rgb(var(--color-purple)); background: rgb(var(--color-purple) / 0.11); }
+.nav-link[data-tone="discover"] .nav-icon { color: rgb(var(--color-teal)); background: rgb(var(--color-teal) / 0.11); }
+.nav-link[data-tone="nights"] .nav-icon { color: rgb(var(--color-gold)); background: rgb(var(--color-gold) / 0.12); }
+.nav-link.is-active { box-shadow: inset 0 -2px rgb(var(--color-teal)); }
+.account-trigger:hover { transform: translateY(-1px); border-color: rgb(var(--color-purple) / 0.28); box-shadow: 0 8px 20px rgb(var(--color-shadow) / 0.1); }
+.account-menu { transform-origin: top right; animation: menu-pop 160ms cubic-bezier(.2,.8,.3,1.2) both; }
+
+@keyframes menu-pop { from { opacity: 0; transform: translateY(-5px) scale(.98); } }
 
 /* Legacy route headers are replaced by the persistent application shell. */
 .ui-shell > nav:first-child,
@@ -162,18 +273,28 @@ canvas {
 }
 
 .field {
-  @apply focus-ring mt-1.5 w-full rounded-md border border-ink/10 px-3 py-2.5 text-sm text-ink shadow-sm transition placeholder:text-ink/40 hover:border-teal/45;
+  @apply focus-ring mt-1.5 w-full rounded-xl border border-ink/10 px-3.5 py-3 text-sm text-ink shadow-sm transition placeholder:text-ink/40 hover:border-teal/45;
   background-color: rgb(var(--color-surface) / 0.86);
 }
 
+.field:focus {
+  border-color: rgb(var(--color-teal) / 0.65);
+  box-shadow: 0 0 0 4px rgb(var(--color-teal) / 0.1), 0 8px 20px rgb(var(--color-shadow) / 0.08);
+}
+
+input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color: rgb(var(--color-teal)); }
+
 .primary-button {
-  @apply focus-ring inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2.5 text-sm font-black text-white shadow-card transition duration-200 hover:-translate-y-0.5;
+  @apply focus-ring inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black text-white shadow-card transition duration-200 hover:-translate-y-0.5;
   background: linear-gradient(135deg, rgb(var(--color-coral-dark)), rgb(var(--color-coral)));
+  border: 1px solid rgb(255 255 255 / 0.14);
+  box-shadow: 0 4px 0 rgb(var(--color-coral-dark) / 0.78), 0 10px 24px rgb(var(--color-coral) / 0.18);
 }
 
 .secondary-button {
-  @apply focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-ink/10 px-3.5 py-2.5 text-sm font-black text-ink shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-teal/40;
+  @apply focus-ring inline-flex items-center justify-center gap-2 rounded-xl border border-ink/10 px-4 py-2.5 text-sm font-black text-ink shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-teal/40;
   background-color: rgb(var(--color-surface) / 0.78);
+  box-shadow: 0 3px 0 rgb(var(--color-ink) / 0.1), 0 8px 18px rgb(var(--color-shadow) / 0.06);
 }
 
 .primary-button:disabled,
@@ -196,7 +317,8 @@ canvas {
 
 .primary-button:active,
 .secondary-button:active {
-  transform: translateY(0) scale(0.98);
+  transform: translateY(2px) scale(0.99);
+  box-shadow: 0 1px 0 rgb(var(--color-ink) / 0.1);
 }
 
 .interactive-card,
@@ -236,6 +358,120 @@ a.surface:hover .game-artwork img,
   animation: reveal-up 500ms cubic-bezier(.2,.75,.3,1) both;
 }
 
+.route-hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgb(var(--color-ink) / 0.08);
+  border-radius: 1.5rem;
+  background:
+    radial-gradient(circle at 90% 20%, rgb(var(--color-teal) / 0.22), transparent 17rem),
+    radial-gradient(circle at 72% 120%, rgb(var(--color-purple) / 0.2), transparent 20rem),
+    rgb(var(--color-night));
+  color: white;
+  box-shadow: 0 22px 50px rgb(var(--color-shadow) / 0.18);
+}
+
+.route-hero::after {
+  position: absolute;
+  right: -2.5rem;
+  top: -3rem;
+  height: 10rem;
+  width: 10rem;
+  content: "";
+  border: 1.5rem solid rgb(255 255 255 / 0.045);
+  border-radius: 2.5rem;
+  transform: rotate(18deg);
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  padding: 0.38rem 0.7rem;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(var(--color-coral));
+  background: rgb(var(--color-coral) / 0.1);
+}
+
+.choice-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgb(var(--color-ink) / 0.1);
+  border-radius: 1.25rem;
+  background: rgb(var(--color-surface));
+  box-shadow: 0 4px 0 rgb(var(--color-ink) / 0.07), 0 16px 34px rgb(var(--color-shadow) / 0.08);
+  transition: transform 220ms cubic-bezier(.2,.75,.3,1), box-shadow 220ms ease, border-color 220ms ease;
+}
+
+.choice-card:hover { transform: translateY(-5px) rotate(-0.25deg); border-color: rgb(var(--color-purple) / 0.34); box-shadow: 0 7px 0 rgb(var(--color-purple) / 0.12), 0 24px 44px rgb(var(--color-shadow) / 0.14); }
+.choice-card:nth-child(even):hover { transform: translateY(-5px) rotate(.25deg); }
+
+.step-panel {
+  position: relative;
+  overflow: hidden;
+  border-left: 5px solid var(--step-color, rgb(var(--color-teal)));
+}
+
+.step-panel[data-tone="coral"] { --step-color: rgb(var(--color-coral)); }
+.step-panel[data-tone="purple"] { --step-color: rgb(var(--color-purple)); }
+.step-panel[data-tone="teal"] { --step-color: rgb(var(--color-teal)); }
+.step-panel[data-tone="gold"] { --step-color: rgb(var(--color-gold)); }
+
+.step-panel::after {
+  position: absolute;
+  right: -1.3rem;
+  top: -1.6rem;
+  content: attr(data-step);
+  font-family: ui-rounded, system-ui, sans-serif;
+  font-size: 7rem;
+  font-weight: 900;
+  line-height: 1;
+  color: rgb(var(--color-ink) / 0.035);
+  pointer-events: none;
+}
+
+.step-badge {
+  display: grid;
+  height: 2.5rem;
+  width: 2.5rem;
+  place-items: center;
+  flex: none;
+  border-radius: 0.85rem;
+  color: white;
+  background: var(--step-color, rgb(var(--color-teal)));
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--step-color, rgb(var(--color-teal))) 70%, black);
+  transform: rotate(-4deg);
+}
+
+.quest-map {
+  background:
+    radial-gradient(circle at 18% 6%, rgb(var(--color-coral) / 0.25), transparent 14rem),
+    radial-gradient(circle at 100% 70%, rgb(var(--color-teal) / 0.2), transparent 16rem),
+    rgb(var(--color-night));
+  color: white;
+}
+
+.quest-step { position: relative; }
+.quest-step:not(:last-child)::after { position: absolute; left: 1rem; top: 2.7rem; height: 1.25rem; border-left: 2px dashed rgb(255 255 255 / 0.2); content: ""; }
+
+.sticker {
+  display: inline-flex;
+  transform: rotate(-2deg);
+  border: 1px solid rgb(var(--color-gold) / 0.35);
+  border-radius: 0.65rem;
+  padding: 0.35rem 0.65rem;
+  color: rgb(var(--color-gold));
+  background: rgb(var(--color-gold) / 0.12);
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
 @keyframes reveal-up {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -243,12 +479,18 @@ a.surface:hover .game-artwork img,
 
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]) body {
-    background: rgb(var(--color-paper));
+    background:
+      radial-gradient(circle at 8% -10%, rgb(var(--color-coral) / 0.13), transparent 30rem),
+      radial-gradient(circle at 92% 5%, rgb(var(--color-teal) / 0.12), transparent 32rem),
+      rgb(var(--color-paper));
   }
 }
 
 [data-theme="dark"] body {
-  background: rgb(var(--color-paper));
+  background:
+    radial-gradient(circle at 8% -10%, rgb(var(--color-coral) / 0.13), transparent 30rem),
+    radial-gradient(circle at 92% 5%, rgb(var(--color-teal) / 0.12), transparent 32rem),
+    rgb(var(--color-paper));
 }
 
 @media (prefers-color-scheme: dark) {

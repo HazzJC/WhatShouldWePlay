@@ -21,6 +21,8 @@ const config: Config = {
         slate: "rgb(var(--color-slate) / <alpha-value>)",
         ember: "rgb(var(--color-ember) / <alpha-value>)",
         tide: "rgb(var(--color-tide) / <alpha-value>)",
+        purple: "rgb(var(--color-purple) / <alpha-value>)",
+        sky: "rgb(var(--color-sky) / <alpha-value>)",
       },
       boxShadow: {
         soft: "0 18px 56px rgb(var(--color-shadow) / 0.22)",
