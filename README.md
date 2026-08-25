@@ -12,7 +12,8 @@ covers, and finally renders a deterministic full-title treatment so broken
 third-party imagery never leaves an empty card.
 
 The interface uses stacked game-piece branding, colour-coded routes, tactile
-cards, worked examples, and a floating mobile dock. The home hero demonstrates
+cards, worked examples, an always-visible theme selector, and a floating mobile
+dock. The home hero demonstrates
 the complete flow with animated availability and library-matching data rather
 than relying on decorative artwork or an unexplained score. These primitives
 live in `src/app/globals.css` and the shared navigation components so Plan,

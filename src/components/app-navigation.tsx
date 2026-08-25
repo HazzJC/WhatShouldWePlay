@@ -41,42 +41,45 @@ export function AppNavigation() {
               </Link>
             ))}
           </nav>
-          <details className="relative">
-            <summary className="account-trigger focus-ring flex cursor-pointer list-none items-center gap-2 rounded-xl border border-ink/10 bg-white px-3 py-2.5 text-sm font-black text-ink shadow-sm">
-              <UserRound className="h-4 w-4" />
-              <span className="hidden sm:inline">{user?.username ? `@${user.username}` : "Sign in"}</span>
-            </summary>
-            <div className="account-menu absolute right-0 top-full z-[80] mt-2 grid w-64 gap-1 rounded-2xl border border-ink/10 bg-white p-2 shadow-card">
-              {user ? (
-                <>
-                  <p className="truncate px-2 py-2 text-xs font-medium text-ink/50">{user.displayName}</p>
-                  <MenuLink href="/account" label="Account" />
-                  <MenuLink href="/account/library" label="Library" />
-                  <MenuLink href="/friends" label="Friends" />
-                  <MenuLink href="/groups" label="Groups" />
-                  <MenuLink href="/about" label="About" icon={Info} />
-                  <MenuLink href="/changelog" label="Changelog" icon={ScrollText} />
-                  <form action="/auth/logout" method="post">
-                    <input type="hidden" name="redirectTo" value="/" />
-                    <button className="flex w-full items-center gap-2 rounded px-2 py-2 text-sm font-semibold text-ink/65 hover:bg-linen hover:text-ink">
-                      <LogOut className="h-4 w-4" />
-                      Sign out
-                    </button>
-                  </form>
-                </>
-              ) : (
-                <>
-                  <MenuLink href="/account" label="Sign in or create account" />
-                  <MenuLink href="/about" label="About" icon={Info} />
-                  <MenuLink href="/changelog" label="Changelog" icon={ScrollText} />
-                </>
-              )}
-              <div className="mt-1 border-t border-ink/10 pt-2">
-                <p className="mb-2 px-1 text-xs font-medium text-ink/50">Appearance</p>
-                <ThemeToggle />
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <ThemeToggle compact />
+            <details className="relative">
+              <summary className="account-trigger focus-ring flex cursor-pointer list-none items-center gap-2 rounded-xl border border-ink/10 bg-white px-3 py-2.5 text-sm font-black text-ink shadow-sm">
+                <UserRound className="h-4 w-4" />
+                <span className="hidden sm:inline">{user?.username ? `@${user.username}` : "Sign in"}</span>
+              </summary>
+              <div className="account-menu absolute right-0 top-full z-[80] mt-2 grid w-64 gap-1 rounded-2xl border border-ink/10 bg-white p-2 shadow-card">
+                {user ? (
+                  <>
+                    <p className="truncate px-2 py-2 text-xs font-medium text-ink/50">{user.displayName}</p>
+                    <MenuLink href="/account" label="Account" />
+                    <MenuLink href="/account/library" label="Library" />
+                    <MenuLink href="/friends" label="Friends" />
+                    <MenuLink href="/groups" label="Groups" />
+                    <MenuLink href="/about" label="About" icon={Info} />
+                    <MenuLink href="/changelog" label="Changelog" icon={ScrollText} />
+                    <form action="/auth/logout" method="post">
+                      <input type="hidden" name="redirectTo" value="/" />
+                      <button className="flex w-full items-center gap-2 rounded px-2 py-2 text-sm font-semibold text-ink/65 hover:bg-linen hover:text-ink">
+                        <LogOut className="h-4 w-4" />
+                        Sign out
+                      </button>
+                    </form>
+                  </>
+                ) : (
+                  <>
+                    <MenuLink href="/account" label="Sign in or create account" />
+                    <MenuLink href="/about" label="About" icon={Info} />
+                    <MenuLink href="/changelog" label="Changelog" icon={ScrollText} />
+                  </>
+                )}
+                <div className="mt-1 border-t border-ink/10 pt-2">
+                  <p className="mb-2 px-1 text-xs font-medium text-ink/50">Appearance</p>
+                  <ThemeToggle />
+                </div>
               </div>
-            </div>
-          </details>
+            </details>
+          </div>
         </div>
       </header>
 

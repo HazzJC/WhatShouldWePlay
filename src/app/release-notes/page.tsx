@@ -24,6 +24,14 @@ const releaseNotes: ReleaseMonth[] = [
     entries: [
       {
         date: "25 August 2026",
+        headline: "Dark mode is always within reach",
+        details: [
+          "Light, dark, and system themes can now be switched directly from the top-right corner on every page, including compact mobile layouts.",
+          "The full labelled appearance control remains in the account menu, while the header version stays icon-sized so it does not crowd navigation.",
+        ],
+      },
+      {
+        date: "25 August 2026",
         headline: "Three useful ways into Discovery",
         details: [
           "Discovery now starts with a clear choice: find games for a group size, by learning curve and coordination, or by how much time the group wants to commit.",
