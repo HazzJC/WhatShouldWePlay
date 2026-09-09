@@ -6,6 +6,13 @@ Plan remains fully usable without an account. Pick workspaces use persistent
 Google-, Microsoft-, or Steam-backed accounts so library matching works across
 sessions and devices; public discovery remains open to everyone.
 
+The [dimension 1 architectural audit](docs/reviews/01-architectural-integrity.md)
+records known correctness gaps in the behavior described below. Its
+[Sol/Terra execution handoff](docs/reviews/01-sol-terra-handoff.md) defines the
+proposed fixes and deployment gates; those fixes are not implemented by the
+audit itself. The [audit reproduction suite](audit/dimension-1/README.md)
+includes explicitly expected failures that document the baseline defects.
+
 The public shell also includes permanent About and Changelog pages. Game
 artwork uses Steam banners first where available, then curated or saved IGDB
 covers, and finally renders a deterministic full-title treatment so broken
