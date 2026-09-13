@@ -9,6 +9,7 @@ export type AlignmentLevel = "High" | "Medium" | "Low";
 export type MatchCategory = "perfect" | "hiddenBacklog" | "oldFavourites" | "almostReady" | "saleOpportunity";
 export type PlayerCountStatus = "supported" | "unsupported" | "uncertain";
 export type PlatformFit = "same-platform" | "crossplay" | "unknown" | "mismatch";
+export type PickSetup = "native" | "modded" | "either";
 type FactorKey = keyof ScoredGame["factors"];
 
 export type PreferenceProfile = {
@@ -134,6 +135,8 @@ export type ScoredGame = {
   }>;
   ownership: {
     have: number;
+    dontHave: number;
+    unknown: number;
     missing: number;
     selected: number;
   };
@@ -187,6 +190,9 @@ export function scoreSessionGames({
   sessionMinutes = 120,
   commitment = "any",
   mode = "balanced",
+  setup = "native",
+  selectionExplicit = false,
+  asOf = new Date(),
 }: {
   sessionGames: GameScoreInput[];
   participants: ParticipantInput[];
@@ -196,12 +202,20 @@ export function scoreSessionGames({
   sessionMinutes?: number;
   commitment?: CommitmentFilter;
   mode?: ScoreMode;
+  setup?: PickSetup;
+  selectionExplicit?: boolean;
+  asOf?: Date;
 }) {
-  const selectedIds = selectedParticipantIds?.length ? selectedParticipantIds : participants.map((participant) => participant.id);
+  const participantIds = new Set(participants.map((participant) => participant.id));
+  const selectedIds = [...new Set(
+    selectedParticipantIds?.length || selectionExplicit
+      ? selectedParticipantIds ?? []
+      : participants.map((participant) => participant.id),
+  )].filter((participantId) => participantIds.has(participantId));
   const selectedIdSet = new Set(selectedIds);
   const selectedParticipants = participants.filter((participant) => selectedIds.includes(participant.id));
   const selectedUserIds = new Set(selectedParticipants.map((participant) => participant.userId).filter((userId): userId is string => Boolean(userId)));
-  const selectedCount = Math.max(selectedParticipants.length, 1);
+  const selectedCount = selectedParticipants.length;
   const baseWeights = modeWeights[mode];
   const preference = averagePreference(selectedParticipants);
   const favouriteGenres = selectedParticipants.flatMap((participant) =>
@@ -212,38 +226,63 @@ export function scoreSessionGames({
   const weights = preferenceAdjustedWeights(baseWeights, preference);
   const userGamesByGameId = groupUserGamesByGameId(userGames);
 
+  if (selectedCount === 0 || playerCount < selectedCount) {
+    return [];
+  }
+
   return sessionGames
     .map((sessionGame) => {
-      const game = withCuratedCapabilityFallback(sessionGame.game);
-      const haveParticipantIds = new Set(
+      const game = withCuratedCapabilityFallback(sessionGame.game, setup);
+      const gameUserRows = userGamesByGameId.get(sessionGame.gameId) ?? [];
+      const userGameByUserId = new Map(gameUserRows.map((userGame) => [userGame.userId, userGame]));
+      const signalByParticipantId = new Map(
         sessionGame.signals
-          .filter((signal) => selectedIdSet.has(signal.participantId) && signalMeansHave(signal.signal))
-          .map((signal) => signal.participantId),
+          .filter((signal) => selectedIdSet.has(signal.participantId))
+          .map((signal) => [signal.participantId, signal.signal]),
       );
-      const notAvailableIds = new Set(
-        sessionGame.signals
-          .filter((signal) => selectedIdSet.has(signal.participantId) && signal.signal === "NOT_AVAILABLE")
-          .map((signal) => signal.participantId),
-      );
+      const ownershipByParticipant = selectedParticipants.map((participant) => {
+        if (participant.userId) {
+          const ownership = userGameByUserId.get(participant.userId)?.ownership;
+          return {
+            participantId: participant.id,
+            state: ownership === "HAVE" ? "have" as const : ownership === "DONT_HAVE" ? "dontHave" as const : "unknown" as const,
+          };
+        }
+
+        const signal = signalByParticipantId.get(participant.id);
+        return {
+          participantId: participant.id,
+          state: signalMeansHave(signal) ? "have" as const : signal === "NOT_AVAILABLE" ? "dontHave" as const : "unknown" as const,
+        };
+      });
+      const haveParticipantIds = new Set(ownershipByParticipant.filter((entry) => entry.state === "have").map((entry) => entry.participantId));
+      const notAvailableIds = new Set(ownershipByParticipant.filter((entry) => entry.state === "dontHave").map((entry) => entry.participantId));
       const interests = sessionGame.interests ?? [];
       const wantCount = interests.filter((interest) => selectedIdSet.has(interest.participantId) && interest.interest === "WANT_TO_PLAY").length;
       const notTonightCount = interests.filter((interest) => selectedIdSet.has(interest.participantId) && interest.interest === "NOT_TONIGHT").length;
       const have = haveParticipantIds.size;
-      const missing = Math.max(selectedCount - have, 0);
-      const ownership = have / selectedCount;
+      const dontHave = notAvailableIds.size;
+      const unknown = Math.max(selectedCount - have - dontHave, 0);
+      const missing = dontHave + unknown;
+      const ownership = have / Math.max(selectedCount, 1);
       const playerCountStatus = playerCountStatusFor(game, playerCount);
       const playerCountFit = playerCountFits(game, playerCount);
       const onlineCoop = coOpFit(game.onlineCoop, preference.coOpVsCompetitive);
       const localCoop = coOpFit(game.localCoop, preference.coOpVsCompetitive);
       const relevantUserIds = selectedUserIdsForSessionGame(sessionGame, selectedIds, selectedUserIds);
       const relevantUserGames = (userGamesByGameId.get(sessionGame.gameId) ?? []).filter((userGame) => relevantUserIds.has(userGame.userId));
-      const platformCompatibility = platformCompatibilityFor(game, relevantUserGames);
+      const ownerUserGames = relevantUserGames.filter((userGame) => userGame.ownership === "HAVE");
+      const anonymousOwnerCount = ownershipByParticipant.filter((entry) => {
+        const participant = selectedParticipants.find((candidate) => candidate.id === entry.participantId);
+        return entry.state === "have" && !participant?.userId;
+      }).length;
+      const platformCompatibility = platformCompatibilityFor(game, ownerUserGames, have, anonymousOwnerCount);
       const persistentVetoCount = relevantUserGames.filter((userGame) => userGame.interest === "NOT_INTERESTED").length;
       const totalPlaytime = totalPlaytimeMinutes(relevantUserGames);
-      const recentPlayCount = recentlyPlayedCount(relevantUserGames);
+      const recentPlayCount = recentlyPlayedCount(relevantUserGames, asOf);
       const averagePlaytime = selectedCount > 0 ? totalPlaytime / selectedCount : 0;
       const playtime = mode === "backlog" || preference.backlogImportance >= 60 ? lowPlaytimeScore(averagePlaytime) : familiarPlaytimeScore(averagePlaytime);
-      const freshness = freshnessScore(relevantUserGames);
+      const freshness = freshnessScore(relevantUserGames, asOf);
       const persistentInterest = persistentInterestScore(relevantUserGames);
       const interest = clampScore(55 + wantCount * 15 - notTonightCount * 45 + persistentInterest);
       const discountPercent = game.deal?.discountPercent ?? 0;
@@ -303,6 +342,7 @@ export function scoreSessionGames({
         platforms: platformCompatibility.platforms,
       });
       const categories = categoriesFor({
+        alignment,
         ownership,
         missing,
         selectedCount,
@@ -311,6 +351,8 @@ export function scoreSessionGames({
         totalPlaytime,
         discountPercent,
         platformFit: platformCompatibility.fit,
+        playerCountStatus,
+        vetoCount: notTonightCount + persistentVetoCount,
       });
       const reasons = reasonsFor({
         have,
@@ -347,7 +389,7 @@ export function scoreSessionGames({
         categories,
         factors,
         factorBreakdown,
-        ownership: { have, missing, selected: selectedCount },
+        ownership: { have, dontHave, unknown, missing, selected: selectedCount },
         playtimeMinutes: totalPlaytime,
         discountPercent,
         currentPrice,
@@ -370,7 +412,8 @@ export function scoreSessionGames({
         return alignmentRank(b.alignment) - alignmentRank(a.alignment);
       }
 
-      return a.title.localeCompare(b.title);
+      const titleOrder = a.title.localeCompare(b.title);
+      return titleOrder !== 0 ? titleOrder : a.gameId.localeCompare(b.gameId);
     });
 }
 
@@ -471,15 +514,15 @@ function averagePreference(participants: ParticipantInput[]) {
 }
 
 function playerCountStatusFor(game: GameScoreInput["game"], playerCount: number): PlayerCountStatus {
-  if (game.maxPlayers && game.maxPlayers < playerCount) {
+  if (game.maxPlayers !== null && game.maxPlayers !== undefined && game.maxPlayers < playerCount) {
     return "unsupported";
   }
 
-  if (game.minPlayers && game.minPlayers > playerCount) {
+  if (game.minPlayers !== null && game.minPlayers !== undefined && game.minPlayers > playerCount) {
     return "unsupported";
   }
 
-  if (game.maxPlayers || game.minPlayers) {
+  if (game.maxPlayers !== null && game.maxPlayers !== undefined && game.minPlayers !== null && game.minPlayers !== undefined) {
     return "supported";
   }
 
@@ -647,14 +690,22 @@ function platformAdjustedMultiplayerFit(game: GameScoreInput["game"], platformFi
   return base;
 }
 
-function platformCompatibilityFor(game: GameScoreInput["game"], userGames: UserGameInput[]) {
-  const knownPlatformSets = userGames
-    .filter((userGame) => !userGame.ownership || userGame.ownership === "HAVE")
-    .map((userGame) => parseGamingPlatforms(userGame.platforms))
-    .filter((platforms) => platforms.length > 0);
-  const platforms = [...new Set(knownPlatformSets.flat())];
+function platformCompatibilityFor(
+  game: GameScoreInput["game"],
+  userGames: UserGameInput[],
+  requiredOwnerCount: number,
+  anonymousOwnerCount: number,
+) {
+  const platformSets = userGames.map((userGame) => parseGamingPlatforms(userGame.platforms));
+  const knownPlatformSets = platformSets.filter((platforms) => platforms.length > 0);
+  const platforms = [...new Set(platformSets.flat())];
 
-  if (knownPlatformSets.length < 2) {
+  if (
+    requiredOwnerCount < 2 ||
+    anonymousOwnerCount > 0 ||
+    platformSets.length !== requiredOwnerCount ||
+    knownPlatformSets.length !== requiredOwnerCount
+  ) {
     return { fit: "unknown" as const, platforms };
   }
 
@@ -762,22 +813,22 @@ function lowPlaytimeScore(averagePlaytime: number) {
   return 45;
 }
 
-function freshnessScore(userGames: UserGameInput[]) {
-  const recentlyPlayed = userGames.some(wasRecentlyPlayed);
+function freshnessScore(userGames: UserGameInput[], asOf: Date) {
+  const recentlyPlayed = userGames.some((userGame) => wasRecentlyPlayed(userGame, asOf));
 
   return recentlyPlayed ? 45 : 80;
 }
 
-function recentlyPlayedCount(userGames: UserGameInput[]) {
-  return userGames.filter(wasRecentlyPlayed).length;
+function recentlyPlayedCount(userGames: UserGameInput[], asOf: Date) {
+  return userGames.filter((userGame) => wasRecentlyPlayed(userGame, asOf)).length;
 }
 
-function wasRecentlyPlayed(userGame: UserGameInput) {
+function wasRecentlyPlayed(userGame: UserGameInput, asOf: Date) {
   if (!userGame.recentlyPlayedAt) {
     return false;
   }
 
-  return Date.now() - new Date(userGame.recentlyPlayedAt).getTime() < 1000 * 60 * 60 * 24 * 21;
+  return asOf.getTime() - new Date(userGame.recentlyPlayedAt).getTime() < 1000 * 60 * 60 * 24 * 21;
 }
 
 function formatPlaytime(minutes: number) {
@@ -953,6 +1004,7 @@ function alignmentReasonsFor({
 }
 
 function categoriesFor({
+  alignment,
   ownership,
   missing,
   selectedCount,
@@ -961,7 +1013,10 @@ function categoriesFor({
   totalPlaytime,
   discountPercent,
   platformFit,
+  playerCountStatus,
+  vetoCount,
 }: {
+  alignment: AlignmentLevel;
   ownership: number;
   missing: number;
   selectedCount: number;
@@ -970,11 +1025,21 @@ function categoriesFor({
   totalPlaytime: number;
   discountPercent: number;
   platformFit: PlatformFit;
+  playerCountStatus: PlayerCountStatus;
+  vetoCount: number;
 }) {
   const categories: MatchCategory[] = [];
   const groupIsFilled = selectedCount >= requestedPlayerCount;
 
-  if (groupIsFilled && ownership === 1 && playerCountFit >= 70 && platformFit !== "mismatch") {
+  if (
+    alignment === "High" &&
+    vetoCount === 0 &&
+    groupIsFilled &&
+    ownership === 1 &&
+    playerCountStatus === "supported" &&
+    playerCountFit >= 70 &&
+    (platformFit === "same-platform" || platformFit === "crossplay")
+  ) {
     categories.push("perfect");
   }
   if (ownership === 1 && isBarelyPlayedGroupPick(totalPlaytime)) {
@@ -1097,28 +1162,30 @@ function alignmentRank(alignment: AlignmentLevel) {
 }
 
 function clampScore(value: number) {
-  return Math.max(0, Math.min(100, value));
+  return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
 }
 
-function withCuratedCapabilityFallback(game: GameScoreInput["game"]): GameScoreInput["game"] {
+function withCuratedCapabilityFallback(game: GameScoreInput["game"], setup: PickSetup): GameScoreInput["game"] {
   const curated = curatedGames.find((candidate) => normalizeGameTitle(candidate.title) === normalizeGameTitle(game.title));
 
   if (!curated) {
     return game;
   }
 
+  const usesModdedSetup = setup === "modded" && curated.moddedMaxPlayers !== undefined;
+
   return {
     ...game,
-    minPlayers: curated.minPlayers ?? game.minPlayers,
-    maxPlayers: curated.maxPlayers ?? game.maxPlayers,
-    onlineCoop: curated.onlineCoop ?? game.onlineCoop,
-    localCoop: curated.localCoop ?? game.localCoop,
-    onlineMultiplayer: curated.onlineMultiplayer ?? game.onlineMultiplayer,
-    localMultiplayer: curated.localMultiplayer ?? game.localMultiplayer,
-    campaignCoop: curated.campaignCoop ?? game.campaignCoop,
-    minimumSessionMinutes: curated.minimumSessionMinutes ?? game.minimumSessionMinutes,
-    commitmentTier: curated.commitmentTier ?? game.commitmentTier,
+    minPlayers: usesModdedSetup ? Math.max(2, game.minPlayers ?? curated.minPlayers ?? 1) : game.minPlayers ?? curated.minPlayers,
+    maxPlayers: usesModdedSetup ? curated.moddedMaxPlayers : game.maxPlayers ?? curated.maxPlayers,
+    onlineCoop: usesModdedSetup ? true : game.onlineCoop ?? curated.onlineCoop,
+    localCoop: usesModdedSetup ? false : game.localCoop ?? curated.localCoop,
+    onlineMultiplayer: usesModdedSetup ? true : game.onlineMultiplayer ?? curated.onlineMultiplayer,
+    localMultiplayer: usesModdedSetup ? false : game.localMultiplayer ?? curated.localMultiplayer,
+    campaignCoop: game.campaignCoop ?? curated.campaignCoop,
+    minimumSessionMinutes: game.minimumSessionMinutes ?? curated.minimumSessionMinutes,
+    commitmentTier: game.commitmentTier ?? curated.commitmentTier,
     genres: Array.isArray(game.genres) && game.genres.length > 0 ? game.genres : curated.genres,
-    capabilitySource: "curated",
+    capabilitySource: game.capabilitySource ?? (usesModdedSetup ? `curated:${curated.moddedSourceName ?? "modded"}` : "curated"),
   };
 }

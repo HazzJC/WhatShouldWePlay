@@ -16,12 +16,17 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
   userFriend: { findMany: async () => [] },
   friendGroup: { findMany: async () => [] },
   game: { findMany: async () => [] },
+  userBlock: { findMany: async () => [] },
 } }));
 vi.mock("@/lib/auth", () => ({
-  getCurrentUser: async () => ({ id: "viewer" }),
+  getCurrentUser: async () => ({ id: "u1" }),
   getParticipantId: async () => null,
 }));
-vi.mock("@/lib/accounts", () => ({ requireActivePickUser: async () => ({ id: "viewer" }) }));
+vi.mock("@/lib/accounts", () => ({
+  isActivePickUser: (user: { id: string } | null) => Boolean(user),
+  onboardingUrl: (returnTo: string) => `/account/onboarding?returnTo=${encodeURIComponent(returnTo)}`,
+  signInUrl: (returnTo: string) => `/account/sign-in?returnTo=${encodeURIComponent(returnTo)}`,
+}));
 vi.mock("@/lib/app-url", () => ({ getAppUrl: async () => "https://audit.invalid" }));
 vi.mock("@/lib/igdb", () => ({ getPopularIgdbGames: async () => [], getTrendingIgdbGames: async () => [], mapIgdbGame: vi.fn() }));
 vi.mock("@/components/pick-panel", () => ({ PickPanel: () => null }));
@@ -58,26 +63,26 @@ async function compose(query: Record<string, string | string[]> = {}) {
 }
 
 describe("dimension 1: real session page composition", () => {
-  it.fails("F04: ownership uses complete rows even when a candidate owner's discovery row is cut off", async () => {
+  it("F04: ownership uses complete rows even when a candidate owner's discovery row is cut off", async () => {
     const panel = await compose();
     expect(mocks.userGames).toHaveBeenCalledTimes(2);
     expect(panel.scoredGames).toHaveLength(1);
     expect(panel.scoredGames[0].ownership.have).toBe(2);
   });
 
-  it.fails("F09: repeated and foreign selected participant IDs are canonicalized", async () => {
+  it("F09: repeated and foreign selected participant IDs are canonicalized", async () => {
     const panel = await compose({ selectedParticipants: ["p1", "p1", "foreign"] });
     expect(panel.selectedParticipantIds).toEqual(["p1"]);
   });
 
-  it.fails("F09: non-finite player counts do not enter matching", async () => {
+  it("F09: non-finite player counts do not enter matching", async () => {
     const panel = await compose({ playerCount: "Infinity" });
     expect(Number.isFinite(panel.selectedPlayerCount)).toBe(true);
   });
 
-  it("F03/F16 evidence: a signed-in non-member receives full matching output without joining", async () => {
+  it("F03/F16: private matching is available only to joined account members", async () => {
     const panel = await compose();
-    expect(panel.participantId).toBeUndefined();
+    expect(panel.participantId).toBe("p1");
     expect(panel.scoredGames[0].title).toBe(game.title);
   });
 });

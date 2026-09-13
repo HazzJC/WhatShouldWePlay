@@ -3,6 +3,7 @@ import { fromZonedTime } from "date-fns-tz";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { getAppUrl } from "@/lib/app-url";
 import { prisma } from "@/lib/prisma";
+import { createDiscordHostHandoff } from "@/lib/discord-handoff";
 import { dateRangeFromPreset, formatSlotRange, rankBestTimes, responseMap, type DatePreset } from "@/lib/scheduling";
 import { createShareToken } from "@/lib/tokens";
 
@@ -147,7 +148,10 @@ export async function handleDiscordInteraction(interaction: DiscordInteraction) 
 
   if (subcommand.name === "create") {
     const result = await createDiscordSessionFromInteraction(interaction, subcommand.options ?? []);
-    return discordJson({ type: responseTypes.channelMessageWithSource, data: sessionDiscordMessage(result) });
+    return discordJson({
+      type: responseTypes.channelMessageWithSource,
+      data: { ...sessionDiscordMessage(result), flags: 64 },
+    });
   }
 
   const integration = await latestDiscordIntegration(interaction);
@@ -183,8 +187,9 @@ export async function createDiscordSessionFromInteraction(interaction: DiscordIn
   const reminder = stringOption(options, "reminder") ?? "24 hours before";
   const dateRange = dateRangeFromPreset(datePreset, timezone);
 
-  const session = await prisma.session.create({
-    data: {
+  const { session, handoffToken } = await prisma.$transaction(async (tx) => {
+    const createdSession = await tx.session.create({
+      data: {
       title,
       shareToken: createShareToken(),
       mode,
@@ -222,8 +227,18 @@ export async function createDiscordSessionFromInteraction(interaction: DiscordIn
               },
             }
           : undefined,
-    },
-    include: { participants: true, discordIntegrations: true },
+      },
+      include: { participants: true, discordIntegrations: true },
+    });
+    const createdHandoffToken = discordUser?.id && createdSession.participants[0]
+      ? await createDiscordHostHandoff({
+          discordUserId: discordUser.id,
+          sessionId: createdSession.id,
+          participantId: createdSession.participants[0].id,
+          client: tx,
+        })
+      : null;
+    return { session: createdSession, handoffToken: createdHandoffToken };
   });
 
   return {
@@ -231,6 +246,7 @@ export async function createDiscordSessionFromInteraction(interaction: DiscordIn
     host: session.participants[0],
     integration: session.discordIntegrations[0] ?? null,
     appUrl: await getAppUrl(),
+    handoffToken,
   };
 }
 
@@ -572,12 +588,15 @@ export async function logDiscordNotification(input: {
 function sessionDiscordMessage({
   session,
   appUrl,
+  handoffToken,
 }: Awaited<ReturnType<typeof createDiscordSessionFromInteraction>>) {
   const planUrl = `${appUrl}/s/${session.shareToken}`;
   const pickUrl = `${appUrl}/s/${session.shareToken}?tab=pick`;
 
   return {
-    content: `**${session.title}** is ready. Fill in your availability here:\n${planUrl}`,
+    content: `**${session.title}** is ready. Fill in your availability here:\n${planUrl}${
+      handoffToken ? `\n\nCreator host access (single use, expires in 10 minutes):\n${appUrl}/discord/handoff/${handoffToken}` : ""
+    }`,
     embeds: [
       {
         title: "Current best time",

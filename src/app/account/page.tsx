@@ -80,7 +80,7 @@ export default async function AccountPage({ searchParams }: PageProps) {
   const microsoftConfigured = isMicrosoftAuthConfigured();
   const recentParticipants = user
     ? await prisma.participant.findMany({
-        where: { userId: user.id },
+        where: { userId: user.id, historyVisible: true },
         include: { session: true },
         orderBy: { session: { updatedAt: "desc" } },
         take: 8,

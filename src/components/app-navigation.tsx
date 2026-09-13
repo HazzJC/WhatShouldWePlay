@@ -19,10 +19,22 @@ export function AppNavigation() {
   const pathname = usePathname();
 
   useEffect(() => {
-    fetch("/api/auth/me", { credentials: "same-origin" })
+    const controller = new AbortController();
+
+    fetch("/api/auth/me", { credentials: "same-origin", signal: controller.signal })
       .then((response) => response.ok ? response.json() : null)
-      .then((value) => setUser(value?.user ?? null))
-      .catch(() => setUser(null));
+      .then((value) => {
+        if (!controller.signal.aborted) {
+          setUser(value?.user ?? null);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setUser(null);
+        }
+      });
+
+    return () => controller.abort();
   }, []);
 
   return (

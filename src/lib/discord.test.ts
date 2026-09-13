@@ -1,6 +1,18 @@
 import nacl from "tweetnacl";
-import { describe, expect, it } from "vitest";
-import { discordCommandPayload, normalizeReminderPreferences, reminderDueAt, verifyDiscordRequest } from "@/lib/discord";
+import { describe, expect, it, vi } from "vitest";
+import { discordCommandPayload, handleDiscordInteraction, normalizeReminderPreferences, reminderDueAt, verifyDiscordRequest } from "@/lib/discord";
+
+const createSession = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    $transaction: async (work: (tx: unknown) => unknown) => work({
+      session: { create: createSession },
+      discordHostHandoff: { create: vi.fn() },
+    }),
+  },
+}));
+vi.mock("@/lib/app-url", () => ({ getAppUrl: async () => "https://games.example" }));
+vi.mock("@/lib/discord-handoff", () => ({ createDiscordHostHandoff: async () => "creator-secret" }));
 
 describe("discord helpers", () => {
   it("verifies valid Discord request signatures and rejects invalid ones", () => {
@@ -44,6 +56,30 @@ describe("discord helpers", () => {
   it("defines the letsplay slash command subcommands", () => {
     expect(discordCommandPayload.name).toBe("letsplay");
     expect(discordCommandPayload.options.map((option) => option.name)).toEqual(["create", "status", "remind", "games"]);
+  });
+
+  it("returns a Discord-created host handoff only in an ephemeral creator response", async () => {
+    createSession.mockResolvedValue({
+      id: "session-1",
+      shareToken: "public-session",
+      title: "Friday games",
+      requiredDuration: 2,
+      minimumPlayerCount: 4,
+      participants: [{ id: "host-1", isHost: true, discordUserId: "discord-1" }],
+      discordIntegrations: [],
+    });
+
+    const response = await handleDiscordInteraction({
+      id: "interaction-1",
+      type: 2,
+      user: { id: "discord-1", username: "host" },
+      data: { name: "letsplay", options: [{ name: "create", type: 1, options: [] }] },
+    });
+    const payload = await response.json() as { data: { flags?: number; content?: string } };
+
+    expect(payload.data.flags).toBe(64);
+    expect(payload.data.content).toContain("/s/public-session");
+    expect(payload.data.content).toContain("/discord/handoff/creator-secret");
   });
 });
 

@@ -33,17 +33,22 @@ export function scoreGroupBuyCandidates({
   deals: Map<string, Pick<GameDeal, "currentPrice" | "currency" | "discountPercent">>;
 }) {
   const owned = new Set(ownedTitles.map(normalizeGameTitle));
+  const requiredGenreTokens = facetTokens(filters.genre);
   const candidates = curatedGames
     .filter((game) => !filters.avoidOwned || !owned.has(normalizeGameTitle(game.title)))
     .filter((game) => playerCountFits(game, filters.playerCount))
     .filter((game) => modeFits(game, filters.mode))
     .filter((game) => platformFits(game, filters.platform))
     .filter((game) => filters.sessionLength === "any" || game.sessionLength === filters.sessionLength)
-    .filter((game) => filters.genre.trim().length === 0 || game.tags.some((tag) => tag.includes(filters.genre.toLocaleLowerCase())))
+    .filter((game) => {
+      if (requiredGenreTokens.length === 0) return true;
+      const gameTokens = new Set(game.tags.flatMap(facetTokens));
+      return requiredGenreTokens.every((token) => gameTokens.has(token));
+    })
     .map((game) => {
       const deal = deals.get(game.title);
       const price = deal?.currentPrice ?? null;
-      const withinBudget = !price || price <= filters.budget;
+      const withinBudget = price !== null && price <= filters.budget;
       const onSale = (deal?.discountPercent ?? 0) > 0;
       const reasons = [
         `${filters.playerCount}-player ${filters.mode === "either" ? "group" : filters.mode} fit`,
@@ -55,7 +60,9 @@ export function scoreGroupBuyCandidates({
         reasons.push(`${deal?.discountPercent}% off right now`);
       }
 
-      if (!withinBudget) {
+      if (price === null) {
+        reasons.push("Price unavailable; budget fit is unverified");
+      } else if (!withinBudget) {
         reasons.push("Over the selected budget");
       }
 
@@ -75,6 +82,7 @@ export function scoreGroupBuyCandidates({
         reasons,
       };
     })
+    .filter((candidate) => candidate.price === null || candidate.price <= filters.budget)
     .filter((candidate) => !filters.saleOnly || (candidate.discountPercent ?? 0) > 0)
     .sort((a, b) => b.baseScore - a.baseScore);
 
@@ -97,8 +105,12 @@ export function scoreGroupBuyCandidates({
 
   add("bestOverall", candidates[0]);
   add("cheapest", [...candidates].filter((candidate) => candidate.price !== null).sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))[0]);
-  add("longTerm", candidates.find((candidate) => candidate.game.sessionLength === "long-term" || candidate.game.sessionLength === "campaign"));
-  add("oneNight", candidates.find((candidate) => candidate.game.sessionLength === "one-night"));
+  if (filters.sessionLength === "any" || filters.sessionLength === "long-term" || filters.sessionLength === "campaign") {
+    add("longTerm", candidates.find((candidate) => candidate.game.sessionLength === "long-term" || candidate.game.sessionLength === "campaign"));
+  }
+  if (filters.sessionLength === "any" || filters.sessionLength === "one-night") {
+    add("oneNight", candidates.find((candidate) => candidate.game.sessionLength === "one-night"));
+  }
   add("trending", candidates.find((candidate) => candidate.game.trending));
 
   return recommendations;
@@ -119,6 +131,15 @@ export function defaultGroupBuyFilters(playerCount: number): GroupBuyFilters {
 
 function playerCountFits(game: CuratedGame, playerCount: number) {
   return (game.minPlayers ?? 1) <= playerCount && (game.maxPlayers ?? playerCount) >= playerCount;
+}
+
+function facetTokens(value: string) {
+  return value
+    .toLocaleLowerCase()
+    .replaceAll("co-op", "coop")
+    .split(/[\s,;/|]+/)
+    .map((token) => token.replace(/[^a-z0-9+#-]/g, ""))
+    .filter(Boolean);
 }
 
 function modeFits(game: CuratedGame, mode: GroupBuyFilters["mode"]) {

@@ -30,13 +30,13 @@ function fixture(): ScoreInput {
 }
 
 describe("dimension 1: known domain defects at audit baseline", () => {
-  it.fails("F04: persistent ownership remains authoritative after shortlisting", () => {
+  it("F04: persistent ownership remains authoritative after shortlisting", () => {
     const input = fixture();
     input.sessionGames[0].signals = [];
     expect(scoreSessionGames(input)[0].ownership.have).toBe(2);
   });
 
-  it.fails("F07: a veto prevents the perfect category", () => {
+  it("F07: a veto prevents the perfect category", () => {
     const input = fixture();
     input.sessionGames[0].interests = [{ participantId: "p2", interest: "NOT_TONIGHT" }];
     const result = scoreSessionGames(input)[0];
@@ -44,14 +44,14 @@ describe("dimension 1: known domain defects at audit baseline", () => {
     expect(result.categories).not.toContain("perfect");
   });
 
-  it.fails("F06: an unknown upper player limit cannot confirm a 50-player fit", () => {
+  it("F06: an unknown upper player limit cannot confirm a 50-player fit", () => {
     const input = fixture();
     input.playerCount = 50;
     input.sessionGames[0].game.maxPlayers = null;
     expect(scoreSessionGames(input)[0].playerCountStatus).toBe("uncertain");
   });
 
-  it.fails("F07: unknown platform for one selected owner prevents confirmed same-platform fit", () => {
+  it("F07: unknown platform for one selected owner prevents confirmed same-platform fit", () => {
     const input = fixture();
     input.participants.push({ id: "p3", userId: "u3" });
     input.selectedParticipantIds!.push("p3");
@@ -61,7 +61,7 @@ describe("dimension 1: known domain defects at audit baseline", () => {
     expect(scoreSessionGames(input)[0].platformFit).toBe("unknown");
   });
 
-  it.fails("F07: a 2-player game is not perfect for four selected participants", () => {
+  it("F07: a 2-player game is not perfect for four selected participants", () => {
     const input = fixture();
     input.sessionGames[0].game.maxPlayers = 2;
     for (const n of [3, 4]) {
@@ -72,16 +72,17 @@ describe("dimension 1: known domain defects at audit baseline", () => {
     expect(scoreSessionGames(input).some((game) => game.categories.includes("perfect"))).toBe(false);
   });
 
-  it.fails("F06: Discovery and Pick agree on the same modded 5-player candidate", () => {
+  it("F06: Discovery and Pick agree on the same modded 5-player candidate", () => {
     const curated = getCuratedGame("subnautica")!;
     expect(supportsAtLeast(curated, 5)).toBe(true);
     const input = fixture();
     input.playerCount = 5;
     input.sessionGames[0].game = { ...curated, id: "g1" };
+    input.setup = "modded";
     expect(scoreSessionGames(input)).toHaveLength(1);
   });
 
-  it.fails("F07: tied scores have an identity-based total order independent of input order", () => {
+  it("F07: tied scores have an identity-based total order independent of input order", () => {
     const input = fixture();
     input.sessionGames.push({ ...input.sessionGames[0], id: "sg2", gameId: "g2", game: { ...input.sessionGames[0].game, id: "g2" } });
     input.userGames = [];
@@ -90,23 +91,36 @@ describe("dimension 1: known domain defects at audit baseline", () => {
     expect(first).toEqual(second);
   });
 
-  it.fails("F10: a budget constraint excludes known over-budget group buys", () => {
+  it("F10: a budget constraint excludes known over-budget group buys", () => {
     const deals = new Map(curatedGames.map((game) => [game.title, { currentPrice: 5000, currency: "GBP", discountPercent: 0 }]));
     const result = scoreGroupBuyCandidates({ filters: { ...defaultGroupBuyFilters(2), budget: 100, avoidOwned: false }, ownedTitles: [], deals });
     expect(result.filter((r) => r.price !== null && r.price !== undefined && r.price > 100)).toHaveLength(0);
   });
 
-  it.fails("F10: a one-night-only request cannot manufacture a long-term section", () => {
+  it("F10: a one-night-only request cannot manufacture a long-term section", () => {
     const result = scoreGroupBuyCandidates({ filters: { ...defaultGroupBuyFilters(2), sessionLength: "one-night", avoidOwned: false }, ownedTitles: [], deals: new Map() });
     expect(result.filter((r) => r.section === "longTerm")).toHaveLength(0);
   });
 
-  it.fails("F11: spring DST produces unique real hourly instants", () => {
+  it("F10: multi-token group-buy genres use an explicit all-token match", () => {
+    const result = scoreGroupBuyCandidates({
+      filters: { ...defaultGroupBuyFilters(4), genre: "co-op survival", avoidOwned: false },
+      ownedTitles: [],
+      deals: new Map(),
+    });
+    expect(result.length).toBeGreaterThan(0);
+    expect(result.every((recommendation) => {
+      const tags = recommendation.game.tags.map((tag) => tag.replaceAll("co-op", "coop"));
+      return tags.some((tag) => tag.includes("coop")) && tags.some((tag) => tag.includes("survival"));
+    })).toBe(true);
+  });
+
+  it("F11: spring DST produces unique real hourly instants", () => {
     const slots = generateHourlySlots({ dateRangeStart: "2026-03-29", dateRangeEnd: "2026-03-29", dailyStartHour: 0, dailyEndHour: 4, requiredDuration: 2, timezone: "Europe/London" });
     expect(new Set(slots.map((s) => s.startsAt.toISOString())).size).toBe(slots.length);
   });
 
-  it.fails("F11: autumn DST candidates contain adjacent real hours", () => {
+  it("F11: autumn DST candidates contain adjacent real hours", () => {
     const windows = generateCandidateWindows({ dateRangeStart: "2026-10-25", dateRangeEnd: "2026-10-25", dailyStartHour: 0, dailyEndHour: 4, requiredDuration: 2, timezone: "Europe/London" });
     expect(windows.every((w) => w.endsAt.getTime() - w.startsAt.getTime() === 2 * 60 * 60 * 1000)).toBe(true);
   });

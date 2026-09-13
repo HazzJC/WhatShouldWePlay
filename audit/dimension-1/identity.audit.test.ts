@@ -21,7 +21,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
 beforeEach(() => { mocks.values.clear(); vi.clearAllMocks(); });
 
 describe("dimension 1: known identity defects at audit baseline", () => {
-  it.fails("F01: ordinary participant refresh preserves an anonymous host grant", async () => {
+  it("F01: ordinary participant refresh preserves an anonymous host grant", async () => {
     await setParticipantIdentity("s1", "host1", { isHost: true });
     expect(await getHostParticipantId("s1")).toBe("host1");
     // submitAvailabilityAction calls this without options after saving the name.
@@ -29,7 +29,7 @@ describe("dimension 1: known identity defects at audit baseline", () => {
     expect(await getHostParticipantId("s1")).toBe("host1");
   });
 
-  it.fails("F02: stale cookie cannot override the signed-in account's supplied membership", async () => {
+  it("F02: stale cookie cannot override the signed-in account's supplied membership", async () => {
     await setParticipantIdentity("s1", "old-user-participant");
     mocks.values.set("lpg_session", signValue("new-user-session-token"));
     mocks.userSessionFindFirst.mockResolvedValue({ user: { id: "new-user" } });
@@ -45,7 +45,7 @@ describe("dimension 1: known identity defects at audit baseline", () => {
     expect(await getHostParticipantId("s1")).toBe("host1");
   });
 
-  it.fails("F15: redirects remain same-origin after browser URL normalization", () => {
+  it("F15: redirects remain same-origin after browser URL normalization", () => {
     const destination = safeInternalRedirect("/\\example.invalid/path");
     expect(new URL(destination, "https://app.invalid").origin).toBe("https://app.invalid");
   });
