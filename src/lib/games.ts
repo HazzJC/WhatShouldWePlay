@@ -34,7 +34,7 @@ export type GameInput = {
   qualitySource?: string | null;
 };
 
-export const defaultAddedGameSignal = "OWNED";
+export const defaultAddedGameSignal = undefined;
 
 export const commonMultiplayerGames: GameInput[] = [
   { title: "Minecraft", platforms: ["PC", "Xbox", "PlayStation", "Switch", "Mobile"], crossplay: true, crossplayPlatforms: ["PC", "Xbox", "PlayStation", "Nintendo Switch", "Mobile"], gameModes: ["Multiplayer", "Co-op"], minPlayers: 1, maxPlayers: 8, onlineCoop: true, localCoop: true, capabilitySource: "curated", capabilityConfidence: 0.8 },
@@ -243,7 +243,7 @@ export async function addGameToSession({
     });
   }
 
-  if (participantId) {
+  if (participantId && signal) {
     await prisma.sessionGameSignal.upsert({
       where: { sessionGameId_participantId: { sessionGameId: sessionGame.id, participantId } },
       create: {
@@ -264,7 +264,7 @@ export async function addGamesToSessionBulk({
   participantId,
   userId,
   source,
-  signal = defaultAddedGameSignal,
+  signal = "OWNED",
 }: {
   sessionId: string;
   gameIds: string[];
@@ -498,11 +498,11 @@ function gameInputToData(input: GameInput, mode: "create" | "update") {
     qualitySource: input.qualitySource ?? absent,
     qualityFetchedAt: input.qualitySource ? new Date() : absent,
     minPlayers: input.minPlayers ?? absent,
-    maxPlayers: input.maxPlayers ?? inferMaxPlayers(input) ?? absent,
-    onlineCoop: input.onlineCoop ?? inferOnlineCoop(input) ?? absent,
-    localCoop: input.localCoop ?? inferLocalCoop(input) ?? absent,
-    onlineMultiplayer: input.onlineMultiplayer ?? inferOnlineMultiplayer(input) ?? absent,
-    localMultiplayer: input.localMultiplayer ?? inferLocalMultiplayer(input) ?? absent,
+    maxPlayers: input.maxPlayers === undefined ? inferMaxPlayers(input) ?? absent : input.maxPlayers,
+    onlineCoop: input.onlineCoop === undefined ? inferOnlineCoop(input) ?? absent : input.onlineCoop,
+    localCoop: input.localCoop === undefined ? inferLocalCoop(input) ?? absent : input.localCoop,
+    onlineMultiplayer: input.onlineMultiplayer === undefined ? inferOnlineMultiplayer(input) ?? absent : input.onlineMultiplayer,
+    localMultiplayer: input.localMultiplayer === undefined ? inferLocalMultiplayer(input) ?? absent : input.localMultiplayer,
     campaignCoop: input.campaignCoop ?? absent,
     minimumSessionMinutes: input.minimumSessionMinutes ?? absent,
     commitmentTier: input.commitmentTier ?? absent,
@@ -513,36 +513,28 @@ function gameInputToData(input: GameInput, mode: "create" | "update") {
 
 function inferOnlineCoop(input: GameInput) {
   const modes = (input.gameModes ?? []).join(" ").toLocaleLowerCase();
-  return modes.includes("co-op") || modes.includes("cooperative") || modes.includes("multiplayer") || modes.includes("massively");
+  return modes.includes("co-op") || modes.includes("cooperative") ? true : undefined;
 }
 
 function inferLocalCoop(input: GameInput) {
   const modes = (input.gameModes ?? []).join(" ").toLocaleLowerCase();
-  return modes.includes("split screen") || modes.includes("local");
+  return modes.includes("split screen") || modes.includes("local") ? true : undefined;
 }
 
 function inferOnlineMultiplayer(input: GameInput) {
   const modes = (input.gameModes ?? []).join(" ").toLocaleLowerCase();
-  return modes.includes("multiplayer") || modes.includes("co-op") || modes.includes("massively");
+  return modes.includes("multiplayer") || modes.includes("co-op") || modes.includes("massively") ? true : undefined;
 }
 
 function inferLocalMultiplayer(input: GameInput) {
   const modes = (input.gameModes ?? []).join(" ").toLocaleLowerCase();
-  return modes.includes("split screen") || modes.includes("local");
+  return modes.includes("split screen") || modes.includes("local") ? true : undefined;
 }
 
 function inferMaxPlayers(input: GameInput) {
   const modes = (input.gameModes ?? []).join(" ").toLocaleLowerCase();
 
-  if (modes.includes("massively")) {
-    return 8;
-  }
-
-  if (modes.includes("multiplayer") || modes.includes("co-op")) {
-    return 4;
-  }
-
-  return null;
+  return modes.length > 0 ? undefined : null;
 }
 
 function inferCapabilitySource(input: GameInput) {

@@ -89,6 +89,7 @@ describe("curated discovery pages", () => {
     expect(screen.getByRole("heading", { name: "Meccha Chameleon" })).toBeInTheDocument();
     expect(screen.getByText("£4.99")).toBeInTheDocument();
     expect(screen.getByText("25% off")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Project Zomboid/ })).toHaveAttribute("href", "/games/project-zomboid?playerCount=16&setup=native");
   });
 
   it("renders modded multiplayer caveats in the with-mods list", async () => {
@@ -99,14 +100,18 @@ describe("curated discovery pages", () => {
     expect(screen.getAllByText(/1 player, 2-8 with mods/)[0]).toBeInTheDocument();
     expect(screen.getAllByText("Modded setup")[0]).toBeInTheDocument();
     expect(screen.getAllByText(/Solo by default/)[0]).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /RimWorld/ })).toHaveAttribute("href", "/games/rimworld?playerCount=8&setup=modded");
   });
 
   it("renders a curated game detail page", async () => {
-    render(await GameDetailPage({ params: Promise.resolve({ slug: "deep-rock-galactic" }) }));
+    render(await GameDetailPage({
+      params: Promise.resolve({ slug: "deep-rock-galactic" }),
+      searchParams: Promise.resolve({ playerCount: "5", setup: "modded", gameNight: "night-1" }),
+    }));
 
     expect(screen.getByRole("heading", { level: 1, name: "Deep Rock Galactic" })).toBeInTheDocument();
     expect(screen.getByText("£7.49")).toBeInTheDocument();
     expect(screen.getByText("50% off")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Put this on the shortlist" })).toHaveAttribute("href", "/sessions/pick?game=deep-rock-galactic");
+    expect(screen.getByRole("link", { name: "Put this on the shortlist" })).toHaveAttribute("href", "/sessions/pick?game=deep-rock-galactic&playerCount=5&setup=modded&gameNight=night-1");
   });
 });

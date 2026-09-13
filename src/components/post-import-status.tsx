@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 
@@ -13,18 +13,16 @@ import { CheckCircle2 } from "lucide-react";
 export function PostImportStatus({ importedCount }: { importedCount: number }) {
   const router = useRouter();
   const [phase, setPhase] = useState<"calculating" | "ready">("calculating");
-  const started = useRef(false);
 
   useEffect(() => {
-    if (started.current) {
-      return;
-    }
-    started.current = true;
+    let active = true;
 
     // Pull fresh server data, then clear the flag from the URL once scores show.
     const refreshTimer = setTimeout(() => {
       router.refresh();
-      setPhase("ready");
+      if (active) {
+        setPhase("ready");
+      }
     }, 1200);
 
     const cleanupTimer = setTimeout(() => {
@@ -34,6 +32,7 @@ export function PostImportStatus({ importedCount }: { importedCount: number }) {
     }, 4200);
 
     return () => {
+      active = false;
       clearTimeout(refreshTimer);
       clearTimeout(cleanupTimer);
     };

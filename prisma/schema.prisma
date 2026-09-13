@@ -178,6 +178,7 @@ model Session {
   discordIntegrations  DiscordIntegration[]
   discordNotifications DiscordNotificationLog[]
   discordAttendance    DiscordAttendance[]
+  discordHostHandoffs  DiscordHostHandoff[]
 
   @@unique([gameNightId, workspaceType])
   @@index([gameNightId])
@@ -194,6 +195,8 @@ model Participant {
   discordUserId              String?
   discordUsername            String?
   isHost                     Boolean                @default(false)
+  availabilityRevision       Int                    @default(0)
+  historyVisible             Boolean                @default(true)
   createdAt                  DateTime               @default(now())
   responses                  AvailabilityResponse[]
   addedGames                 SessionGame[]
@@ -202,6 +205,7 @@ model Participant {
   preference                 ParticipantPreference?
   preferenceNudgeDismissedAt DateTime?
   discordAttendance          DiscordAttendance[]
+  discordHostHandoffs        DiscordHostHandoff[]
 
   @@unique([sessionId, userId])
   @@unique([sessionId, discordUserId])
@@ -237,6 +241,22 @@ model DiscordIntegration {
 
   @@unique([sessionId, guildId, channelId])
   @@index([guildId, channelId])
+}
+
+model DiscordHostHandoff {
+  id            String      @id @default(cuid())
+  tokenHash     String      @unique
+  discordUserId String
+  sessionId     String
+  session       Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  expiresAt     DateTime
+  redeemedAt    DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@index([discordUserId, expiresAt])
+  @@index([sessionId, participantId])
 }
 
 model DiscordNotificationLog {

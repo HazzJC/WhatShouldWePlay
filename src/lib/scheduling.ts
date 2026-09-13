@@ -92,17 +92,40 @@ export function generateHourlySlots(input: WindowInput): HourSlot[] {
 
     for (let hour = startHour; hour < endHour; hour += 1) {
       const localStart = `${dayKey}T${String(hour).padStart(2, "0")}:00:00`;
-      const startsAt = fromZonedTime(localStart, input.timezone);
-      slots.push({
+      slots.push(...realInstantsForLocalHour(localStart, input.timezone).map((startsAt) => ({
         startsAt,
         endsAt: addHours(startsAt, 1),
-      });
+      })));
     }
 
     cursor = addDays(cursor, 1);
   }
 
-  return slots;
+  return [...new Map(
+    slots
+      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
+      .map((slot) => [slot.startsAt.toISOString(), slot]),
+  ).values()];
+}
+
+function realInstantsForLocalHour(localStart: string, timezone: string) {
+  const expected = localStart.slice(0, 16);
+  const estimate = fromZonedTime(localStart, timezone);
+  const matches: Date[] = [];
+
+  // fromZonedTime returns one side of an ambiguous wall time. Searching a
+  // narrow offset window also finds the repeated autumn hour, while a missing
+  // spring hour produces no matching instant at all. Fifteen-minute steps
+  // cover current IANA offsets, including half/quarter-hour zones.
+  for (let offsetMinutes = -180; offsetMinutes <= 180; offsetMinutes += 15) {
+    const candidate = new Date(estimate.getTime() + offsetMinutes * 60_000);
+    if (formatInTimeZone(candidate, timezone, "yyyy-MM-dd'T'HH:mm") === expected) {
+      matches.push(candidate);
+    }
+  }
+
+  return [...new Map(matches.map((date) => [date.toISOString(), date])).values()]
+    .sort((a, b) => a.getTime() - b.getTime());
 }
 
 export function generateCandidateWindows(input: WindowInput): CandidateWindow[] {
@@ -120,9 +143,21 @@ export function generateCandidateWindows(input: WindowInput): CandidateWindow[] 
 
     for (let index = 0; index <= sortedSlots.length - input.requiredDuration; index += 1) {
       const windowSlots = sortedSlots.slice(index, index + input.requiredDuration);
+      const adjacent = windowSlots.every((slot, slotIndex) => (
+        slotIndex === 0 ||
+        slot.startsAt.getTime() - windowSlots[slotIndex - 1].startsAt.getTime() === 60 * 60 * 1000
+      ));
+      if (!adjacent) {
+        continue;
+      }
+      const startsAt = windowSlots[0].startsAt;
+      const endsAt = windowSlots[windowSlots.length - 1].endsAt;
+      if (endsAt.getTime() - startsAt.getTime() !== input.requiredDuration * 60 * 60 * 1000) {
+        continue;
+      }
       windows.push({
-        startsAt: windowSlots[0].startsAt,
-        endsAt: windowSlots[windowSlots.length - 1].endsAt,
+        startsAt,
+        endsAt,
         slots: windowSlots,
       });
     }

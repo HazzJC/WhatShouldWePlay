@@ -22,20 +22,28 @@ export async function createAccountMergeIntent(
 }
 
 export async function mergeAccounts(currentUserId: string, token: string) {
-  const intent = await prisma.accountMergeIntent.findFirst({
-    where: {
-      tokenHash: hashSessionToken(token),
-      currentUserId,
-      expiresAt: { gt: new Date() },
-      confirmedAt: null,
-    },
-  });
-
-  if (!intent || intent.currentUserId === intent.otherUserId) {
-    throw new Error("This merge request is invalid or has expired.");
-  }
-
+  const tokenHash = hashSessionToken(token);
   await prisma.$transaction(async (transaction) => {
+    const now = new Date();
+    const intent = await transaction.accountMergeIntent.findFirst({
+      where: {
+        tokenHash,
+        currentUserId,
+        expiresAt: { gt: now },
+        confirmedAt: null,
+      },
+    });
+    if (!intent || intent.currentUserId === intent.otherUserId) {
+      throw new Error("This merge request is invalid or has expired.");
+    }
+    const consumed = await transaction.accountMergeIntent.updateMany({
+      where: { id: intent.id, confirmedAt: null, expiresAt: { gt: now } },
+      data: { confirmedAt: now },
+    });
+    if (consumed.count !== 1) {
+      throw new Error("This merge request has already been used.");
+    }
+
     const [current, other, currentGames, otherGames] = await Promise.all([
       transaction.user.findUniqueOrThrow({
         where: { id: currentUserId },
@@ -142,20 +150,17 @@ export async function mergeAccounts(currentUserId: string, token: string) {
       where: { inviterId: intent.otherUserId },
       data: { inviterId: currentUserId },
     });
+    const retainedEmail = current.email ?? other.email;
     await transaction.user.update({
       where: { id: currentUserId },
       data: {
-        email: current.email ?? other.email,
-        emailVerified: current.emailVerified || other.emailVerified,
+        email: retainedEmail,
+        emailVerified: retainedEmail === current.email ? current.emailVerified : other.emailVerified,
         avatarUrl: current.avatarUrl ?? rewriteAvatarUrl(other.avatarUrl, intent.otherUserId, currentUserId),
         timezone: current.timezone ?? other.timezone,
         role: current.role === "METADATA_ADMIN" || other.role === "METADATA_ADMIN" ? "METADATA_ADMIN" : "USER",
         favouriteGenres: mergeJsonStringLists(current.favouriteGenres, other.favouriteGenres),
       },
-    });
-    await transaction.accountMergeIntent.update({
-      where: { id: intent.id },
-      data: { confirmedAt: new Date() },
     });
     await transaction.user.delete({ where: { id: intent.otherUserId } });
   }, { timeout: 20_000 });
@@ -170,32 +175,40 @@ async function mergeParticipants(transaction: Prisma.TransactionClient, currentU
   for (const participant of otherParticipants) {
     const existing = await transaction.participant.findUnique({
       where: { sessionId_userId: { sessionId: participant.sessionId, userId: currentUserId } },
-      include: { preference: true },
+      include: { responses: true, gameSignals: true, gameInterests: true, preference: true },
     });
     if (!existing) {
       await transaction.participant.update({ where: { id: participant.id }, data: { userId: currentUserId } });
       continue;
     }
 
+    const existingResponses = new Map(existing.responses.map((response) => [response.slotStart.toISOString(), response]));
     for (const response of participant.responses) {
+      const retained = existingResponses.get(response.slotStart.toISOString());
       await transaction.availabilityResponse.upsert({
         where: { participantId_slotStart: { participantId: existing.id, slotStart: response.slotStart } },
         create: { participantId: existing.id, slotStart: response.slotStart, slotEnd: response.slotEnd, status: response.status },
-        update: { slotEnd: response.slotEnd, status: response.status },
+        update: response.updatedAt > (retained?.updatedAt ?? new Date(0))
+          ? { slotEnd: response.slotEnd, status: response.status }
+          : {},
       });
     }
+    const existingSignals = new Map(existing.gameSignals.map((signal) => [signal.sessionGameId, signal]));
     for (const signal of participant.gameSignals) {
+      const retained = existingSignals.get(signal.sessionGameId);
       await transaction.sessionGameSignal.upsert({
         where: { sessionGameId_participantId: { sessionGameId: signal.sessionGameId, participantId: existing.id } },
         create: { sessionGameId: signal.sessionGameId, participantId: existing.id, signal: signal.signal },
-        update: { signal: signal.signal },
+        update: signal.updatedAt > (retained?.updatedAt ?? new Date(0)) ? { signal: signal.signal } : {},
       });
     }
+    const existingInterests = new Map(existing.gameInterests.map((interest) => [interest.sessionGameId, interest]));
     for (const interest of participant.gameInterests) {
+      const retained = existingInterests.get(interest.sessionGameId);
       await transaction.sessionGameInterest.upsert({
         where: { sessionGameId_participantId: { sessionGameId: interest.sessionGameId, participantId: existing.id } },
         create: { sessionGameId: interest.sessionGameId, participantId: existing.id, interest: interest.interest },
-        update: { interest: interest.interest },
+        update: interest.updatedAt > (retained?.updatedAt ?? new Date(0)) ? { interest: interest.interest } : {},
       });
     }
     if (!existing.preference && participant.preference) {
@@ -206,6 +219,14 @@ async function mergeParticipants(transaction: Prisma.TransactionClient, currentU
     }
     await transaction.sessionGame.updateMany({ where: { addedByParticipantId: participant.id }, data: { addedByParticipantId: existing.id } });
     await transaction.discordAttendance.updateMany({ where: { participantId: participant.id }, data: { participantId: existing.id } });
+    await transaction.participant.update({
+      where: { id: existing.id },
+      data: {
+        isHost: existing.isHost || participant.isHost,
+        availabilityRevision: Math.max(existing.availabilityRevision, participant.availabilityRevision),
+        historyVisible: existing.historyVisible || participant.historyVisible,
+      },
+    });
     await transaction.participant.delete({ where: { id: participant.id } });
   }
 }
@@ -226,6 +247,20 @@ async function mergeBlocks(transaction: Prisma.TransactionClient, currentUserId:
     }
   }
   await transaction.userBlock.deleteMany({ where: { OR: [{ blockerId: otherUserId }, { blockedId: otherUserId }] } });
+  const currentBlocks = await transaction.userBlock.findMany({
+    where: { OR: [{ blockerId: currentUserId }, { blockedId: currentUserId }] },
+  });
+  for (const block of currentBlocks) {
+    const counterpartId = block.blockerId === currentUserId ? block.blockedId : block.blockerId;
+    await transaction.userFriend.deleteMany({
+      where: {
+        OR: [
+          { userId: currentUserId, friendId: counterpartId },
+          { userId: counterpartId, friendId: currentUserId },
+        ],
+      },
+    });
+  }
 }
 
 function rewriteAvatarUrl(value: string | null, otherUserId: string, currentUserId: string) {

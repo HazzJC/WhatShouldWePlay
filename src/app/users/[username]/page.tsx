@@ -50,20 +50,35 @@ export default async function UserGamingProfilePage({ params }: PageProps) {
     notFound();
   }
 
-  const games = await prisma.userGame.findMany({
-    where: {
-      userId: profile.id,
-      ...(friendship ? {} : { favourite: true }),
-    },
-    include: { game: true },
-    orderBy: [
-      { favourite: "desc" },
-      { rating: "desc" },
-      { playtimeMinutes: "desc" },
-      { game: { title: "asc" } },
-    ],
-    take: friendship ? 100 : 6,
-  });
+  const games = friendship
+    ? (await prisma.userGame.findMany({
+        where: { userId: profile.id },
+        select: {
+          id: true,
+          ownership: true,
+          rating: true,
+          playtimeMinutes: true,
+          game: true,
+        },
+        orderBy: [
+          { favourite: "desc" },
+          { rating: "desc" },
+          { playtimeMinutes: "desc" },
+          { game: { title: "asc" } },
+        ],
+        take: 100,
+      })).map((entry) => ({ ...entry, privateDetails: true as const }))
+    : (await prisma.userGame.findMany({
+        where: { userId: profile.id, favourite: true },
+        select: {
+          id: true,
+          game: {
+            select: { title: true, steamAppId: true, coverUrl: true },
+          },
+        },
+        orderBy: [{ game: { title: "asc" } }],
+        take: 6,
+      })).map((entry) => ({ ...entry, privateDetails: false as const }));
 
   return (
     <main className="ui-shell pb-16">
@@ -114,13 +129,15 @@ export default async function UserGamingProfilePage({ params }: PageProps) {
               <GameArtwork appId={userGame.game.steamAppId} coverUrl={userGame.game.coverUrl} title={userGame.game.title} sizes="48px" kind="cover" className="h-16 w-12 shrink-0 rounded-md" imageClassName="object-cover" />
               <div className="min-w-0">
                 <h3 className="line-clamp-2 font-black text-ink">{userGame.game.title}</h3>
-                <p className="mt-1 text-xs font-bold text-ink/48">
-                  {userGame.ownership === "HAVE" ? "Has it" : userGame.ownership === "DONT_HAVE" ? "Doesn't have it" : "Unknown"}
-                  {userGame.rating ? ` · ${userGame.rating}/10` : ""}
-                </p>
-                {userGame.playtimeMinutes ? (
-                  <p className="mt-1 text-xs font-bold text-ink/48">{Math.round(userGame.playtimeMinutes / 60).toLocaleString()}h played</p>
-                ) : null}
+                {userGame.privateDetails ? <>
+                  <p className="mt-1 text-xs font-bold text-ink/48">
+                    {userGame.ownership === "HAVE" ? "Has it" : userGame.ownership === "DONT_HAVE" ? "Doesn't have it" : "Unknown"}
+                    {userGame.rating ? ` · ${userGame.rating}/10` : ""}
+                  </p>
+                  {userGame.playtimeMinutes ? (
+                    <p className="mt-1 text-xs font-bold text-ink/48">{Math.round(userGame.playtimeMinutes / 60).toLocaleString()}h played</p>
+                  ) : null}
+                </> : null}
               </div>
             </article>
           ))}

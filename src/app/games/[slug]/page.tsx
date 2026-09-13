@@ -5,18 +5,25 @@ import { curatedPriceLabel, curatedSaleLabel, enrichedCuratedGame } from "@/lib/
 import { curatedPlayerLabel } from "@/lib/curated-games";
 import { LocalSetupBadge } from "@/components/local-setup-badge";
 import { GameArtwork } from "@/components/game-artwork";
+import { parseMinimumPlayers } from "@/lib/player-count";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ playerCount?: string; setup?: string; gameNight?: string }>;
 };
 
-export default async function GameDetailPage({ params }: PageProps) {
+export default async function GameDetailPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
+  const query = await searchParams;
   const game = await enrichedCuratedGame(slug);
 
   if (!game) {
     notFound();
   }
+
+  const playerCount = parseMinimumPlayers(query?.playerCount);
+  const setup = parseSetup(query?.setup);
+  const pickHref = createPickHref({ game: game.slug, playerCount, setup, gameNight: query?.gameNight });
 
   return (
     <main className="ui-shell">
@@ -27,7 +34,7 @@ export default async function GameDetailPage({ params }: PageProps) {
           </span>
           Discover
         </Link>
-        <Link href={`/sessions/pick?game=${game.slug}`} className="primary-button">Start Pick</Link>
+        <Link href={pickHref} className="primary-button">Start Pick</Link>
       </nav>
       <section className="surface mt-8 overflow-hidden rounded-xl">
         <GameArtwork appId={game.steamAppId} coverUrl={game.coverUrl} title={game.title} sizes="(min-width: 1280px) 1180px, 100vw" className="h-52 sm:h-72" priority />
@@ -96,11 +103,21 @@ export default async function GameDetailPage({ params }: PageProps) {
             <p className="mt-1 text-sm leading-6 text-ink/65">{game.caveat}</p>
           </div>
         ) : null}
-        <Link href={`/sessions/pick?game=${game.slug}`} className="primary-button mt-6">Put this on the shortlist</Link>
+        <Link href={pickHref} className="primary-button mt-6">Put this on the shortlist</Link>
         </div>
       </section>
     </main>
   );
+}
+
+function parseSetup(value: string | undefined) {
+  return value === "modded" || value === "either" || value === "native" ? value : "native";
+}
+
+function createPickHref({ game, playerCount, setup, gameNight }: { game: string; playerCount: number; setup: string; gameNight?: string }) {
+  const params = new URLSearchParams({ game, playerCount: String(playerCount), setup });
+  if (gameNight) params.set("gameNight", gameNight);
+  return `/sessions/pick?${params.toString()}`;
 }
 
 function commitmentLabel(tier?: string | null) {

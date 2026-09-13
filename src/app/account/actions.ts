@@ -246,7 +246,7 @@ export async function removeRecentSessionAction(formData: FormData) {
   } else {
     await prisma.participant.update({
       where: { id: participant.id },
-      data: { userId: null },
+      data: { historyVisible: false },
     });
   }
 
@@ -258,11 +258,11 @@ const libraryGameSchema = z.object({
   ownership: z.enum(["UNKNOWN", "HAVE", "DONT_HAVE"]),
   wishlist: z.enum(["true", "false"]).default("false"),
   favourite: z.enum(["true", "false"]).default("false"),
-  rating: z.coerce.number().int().min(1).max(10).optional(),
+  rating: z.coerce.number().int().min(1).max(10).nullable().optional(),
   interest: z.enum(["WANT_TO_PLAY", "NEUTRAL", "NOT_INTERESTED"]).default("NEUTRAL"),
   playedStatus: z.enum(["UNPLAYED", "PLAYING", "PLAYED", "COMPLETED", "DROPPED"]).default("UNPLAYED"),
   platforms: z.array(z.enum(gamingPlatforms)).max(gamingPlatforms.length).default([]),
-  notes: z.string().trim().max(1000).optional(),
+  notes: z.string().trim().max(1000).nullable().optional(),
 });
 
 export async function updateLibraryGameAction(formData: FormData) {
@@ -272,16 +272,18 @@ export async function updateLibraryGameAction(formData: FormData) {
     redirect("/account");
   }
 
+  const ratingValue = formData.get("rating");
+  const notesValue = formData.get("notes");
   const parsed = libraryGameSchema.safeParse({
     gameId: formData.get("gameId"),
     ownership: formData.get("ownership"),
     wishlist: formData.get("wishlist") ? "true" : "false",
     favourite: formData.get("favourite") ? "true" : "false",
-    rating: formData.get("rating") || undefined,
+    rating: ratingValue === null ? undefined : String(ratingValue).trim() === "" ? null : ratingValue,
     interest: formData.get("interest") || "NEUTRAL",
     playedStatus: formData.get("playedStatus") || "UNPLAYED",
     platforms: formData.getAll("platforms"),
-    notes: formData.get("notes") || undefined,
+    notes: notesValue === null ? undefined : String(notesValue).trim() === "" ? null : notesValue,
   });
 
   if (!parsed.success) {

@@ -59,8 +59,12 @@ describe("match scoring", () => {
       selectedParticipantIds: ["p1", "p2"],
       playerCount: 2,
       userGames: [
-        { userId: "u1", gameId: "g-old", playtimeMinutes: 900 },
-        { userId: "u2", gameId: "g-old", playtimeMinutes: 900 },
+        { userId: "u1", gameId: "g-backlog", ownership: "HAVE", playtimeMinutes: 0 },
+        { userId: "u2", gameId: "g-backlog", ownership: "HAVE", playtimeMinutes: 0 },
+        { userId: "u1", gameId: "g-old", ownership: "HAVE", playtimeMinutes: 900 },
+        { userId: "u2", gameId: "g-old", ownership: "HAVE", playtimeMinutes: 900 },
+        { userId: "u1", gameId: "g-sale", ownership: "HAVE", playtimeMinutes: 0 },
+        { userId: "u2", gameId: "g-sale", ownership: "DONT_HAVE", playtimeMinutes: 0 },
       ],
       sessionGames: [
         sessionGame("sg-backlog", "Backlog", [{ participantId: "p1", signal: "OWNED" }, { participantId: "p2", signal: "OWNED" }], 4, "g-backlog"),
@@ -79,7 +83,7 @@ describe("match scoring", () => {
       participants: [{ id: "p1", userId: "u1", preference: null, user: { preference: null } }],
       selectedParticipantIds: ["p1"],
       playerCount: 2,
-      userGames: [{ userId: "u1", gameId: "g-cs", playtimeMinutes: 60_000 }],
+      userGames: [{ userId: "u1", gameId: "g-cs", ownership: "HAVE", playtimeMinutes: 60_000 }],
       sessionGames: [sessionGame("sg-cs", "Counter-Strike 2", [{ participantId: "p1", signal: "OWNED" }], 20, "g-cs")],
     });
 
@@ -224,7 +228,10 @@ describe("match scoring", () => {
       ],
       selectedParticipantIds: ["p1", "p2"],
       playerCount: 2,
-      userGames: [],
+      userGames: [
+        { userId: "u1", gameId: "g-sg-horror", ownership: "HAVE", rating: 10 },
+        { userId: "u2", gameId: "g-sg-horror", ownership: "HAVE", rating: 10 },
+      ],
       sessionGames: [
         {
           ...sessionGame("sg-horror", "Horror Co-op", [{ participantId: "p1", signal: "OWNED" }, { participantId: "p2", signal: "OWNED" }], 4),

@@ -28,8 +28,8 @@ describe("game helpers", () => {
     expect(countHaveSignals({ signals: [{ signal: "AVAILABLE_TO_PLAY" }, { signal: "OWNED" }] })).toBe(2);
   });
 
-  it("defaults added games to owned", () => {
-    expect(defaultAddedGameSignal).toBe("OWNED");
+  it("does not infer ownership from shortlisting", () => {
+    expect(defaultAddedGameSignal).toBeUndefined();
   });
 
   it("excludes games already present in the session", () => {

@@ -10,10 +10,13 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration:dimension1": "tsx scripts/test-dimension1-integration.ts",
+    "verify": "npm test && npm run lint && npm run build",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "discord:commands": "tsx scripts/register-discord-commands.ts",
+    "catalog:duplicate-report": "tsx scripts/report-game-duplicates.ts",
     "challenges:seed": "tsx scripts/seed-challenges.ts",
     "db:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-local-db.ps1",
     "test:all": "powershell -ExecutionPolicy Bypass -File scripts/test-all.ps1"

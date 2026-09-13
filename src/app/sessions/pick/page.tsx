@@ -6,17 +6,22 @@ import { TimezoneInput } from "@/components/timezone-input";
 import { requireActivePickUser } from "@/lib/accounts";
 import { getCuratedGame } from "@/lib/curated-games";
 import { prisma } from "@/lib/prisma";
+import { parseMinimumPlayers } from "@/lib/player-count";
 
 type PageProps = {
-  searchParams?: Promise<{ game?: string; gameNight?: string }>;
+  searchParams?: Promise<{ game?: string; gameNight?: string; playerCount?: string; setup?: string }>;
 };
 
 export default async function NewPickSessionPage({ searchParams }: PageProps) {
   const query = await searchParams;
   const initialGame = query?.game ? getCuratedGame(query.game) : null;
+  const playerCount = parseMinimumPlayers(query?.playerCount);
+  const setup = parseSetup(query?.setup);
   const returnParams = new URLSearchParams();
   if (query?.game) returnParams.set("game", query.game);
   if (query?.gameNight) returnParams.set("gameNight", query.gameNight);
+  returnParams.set("playerCount", String(playerCount));
+  returnParams.set("setup", setup);
   const returnTo = `/sessions/pick${returnParams.size ? `?${returnParams.toString()}` : ""}`;
   const currentUser = await requireActivePickUser(returnTo);
   const friendGroups = await prisma.friendGroup.findMany({
@@ -64,6 +69,8 @@ export default async function NewPickSessionPage({ searchParams }: PageProps) {
             </div>
             {query?.gameNight ? <input type="hidden" name="gameNightId" value={query.gameNight} /> : null}
             {initialGame ? <input type="hidden" name="initialGameSlug" value={initialGame.slug} /> : null}
+            <input type="hidden" name="playerCount" value={playerCount} />
+            <input type="hidden" name="setup" value={setup} />
             {initialGame ? (
               <div className="rounded-lg border border-teal/20 bg-teal/10 p-4">
                 <p className="text-sm font-black text-ink">Starting shortlist with {initialGame.title}</p>
@@ -112,6 +119,10 @@ export default async function NewPickSessionPage({ searchParams }: PageProps) {
       </section>
     </main>
   );
+}
+
+function parseSetup(value: string | undefined) {
+  return value === "modded" || value === "either" || value === "native" ? value : "native";
 }
 
 function Step({ number, icon, label }: { number: string; icon: React.ReactNode; label: string }) {

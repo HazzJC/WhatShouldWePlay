@@ -19,5 +19,7 @@ describe("PlayerCountFilter", () => {
     expect(parseMinimumPlayers("0")).toBe(1);
     expect(parseMinimumPlayers("17")).toBe(17);
     expect(parseMinimumPlayers("99")).toBe(50);
+    expect(parseMinimumPlayers("2.5")).toBe(5);
+    expect(parseMinimumPlayers("Infinity")).toBe(5);
   });
 });

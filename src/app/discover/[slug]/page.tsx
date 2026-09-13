@@ -8,9 +8,11 @@ import { curatedGamesForList, curatedPlayerLabel, getCuratedList } from "@/lib/c
 import { curatedPriceLabel, curatedSaleLabel, enrichCuratedGamesWithDeals, sortCuratedGamesForDiscovery } from "@/lib/curated-deals";
 import { parseMinimumPlayers } from "@/lib/player-count";
 
+type PickSetup = "native" | "modded" | "either";
+
 type PageProps = {
   params: Promise<{ slug: string }>;
-  searchParams?: Promise<{ minPlayers?: string }>;
+  searchParams?: Promise<{ minPlayers?: string; setup?: string }>;
 };
 
 export default async function DiscoverListPage({ params, searchParams }: PageProps) {
@@ -23,6 +25,8 @@ export default async function DiscoverListPage({ params, searchParams }: PagePro
     notFound();
   }
 
+  const setup = parseSetup(query?.setup, slug === "with-mods" ? "modded" : "native");
+
   const games = sortCuratedGamesForDiscovery(await enrichCuratedGamesWithDeals(curatedGamesForList(slug, minimumPlayers)));
 
   return (
@@ -34,17 +38,17 @@ export default async function DiscoverListPage({ params, searchParams }: PagePro
           </span>
           Discover
         </Link>
-        <Link href="/sessions/pick" className="primary-button">Start Pick</Link>
+        <Link href={pickHref({ playerCount: minimumPlayers, setup })} className="primary-button">Start Pick</Link>
       </nav>
       <section className="py-8">
         <p className="text-sm font-black uppercase tracking-[0.16em] text-coral">Curated list</p>
         <h1 className="mt-3 text-4xl font-black text-ink">{list.title}</h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/65">{list.description}</p>
-        <PlayerCountFilter minimumPlayers={minimumPlayers} action={`/discover/${slug}`} />
+        <PlayerCountFilter minimumPlayers={minimumPlayers} action={`/discover/${slug}`} hiddenFields={{ setup }} />
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           {games.length > 0 ? (
             games.map((game) => (
-              <Link key={game.slug} href={`/games/${game.slug}`} className="surface overflow-hidden rounded-xl">
+              <Link key={game.slug} href={`/games/${game.slug}?playerCount=${minimumPlayers}&setup=${setupForGame(game, setup)}`} className="surface overflow-hidden rounded-xl">
                 <GameArtwork appId={game.steamAppId} coverUrl={game.coverUrl} title={game.title} sizes="(min-width: 640px) 50vw, 100vw" className="h-36" />
                 <div className="p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -96,4 +100,16 @@ export default async function DiscoverListPage({ params, searchParams }: PagePro
       </section>
     </main>
   );
+}
+
+function parseSetup(value: string | undefined, fallback: PickSetup): PickSetup {
+  return value === "native" || value === "modded" || value === "either" ? value : fallback;
+}
+
+function setupForGame(game: { moddedPlayersLabel?: string }, setup: PickSetup): PickSetup {
+  return setup === "modded" && game.moddedPlayersLabel ? "modded" : "native";
+}
+
+function pickHref({ playerCount, setup }: { playerCount: number; setup: PickSetup }) {
+  return `/sessions/pick?playerCount=${playerCount}&setup=${setup}`;
 }

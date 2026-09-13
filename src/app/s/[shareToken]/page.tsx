@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarCheck, Download, Gamepad2, Lock, UsersRound } from "lucide-react";
-import { lockSessionAction, submitAvailabilityAction } from "@/app/actions";
+import { joinPickWorkspaceAction, lockSessionAction, submitAvailabilityAction } from "@/app/actions";
 import { AvailabilityForm } from "@/components/availability-form";
 import { PickPanel } from "@/components/pick-panel";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
@@ -11,13 +11,15 @@ import { RecommendationsDisclosure } from "@/components/recommendations-disclosu
 import { SessionTabs } from "@/components/session-tabs";
 import { SharePanel } from "@/components/share-panel";
 import { getAppUrl } from "@/lib/app-url";
-import { requireActivePickUser } from "@/lib/accounts";
+import { isActivePickUser, onboardingUrl, signInUrl } from "@/lib/accounts";
 import { getCurrentUser, getParticipantId } from "@/lib/auth";
 import { curatedGames } from "@/lib/curated-games";
 import { commonMultiplayerGames, excludeExistingGames, rankSessionGames, searchGamesCatalog } from "@/lib/games";
 import { defaultGroupBuyFilters, scoreGroupBuyCandidates } from "@/lib/group-buy";
 import { getPopularIgdbGames, getTrendingIgdbGames, mapIgdbGame } from "@/lib/igdb";
-import { scoreSessionGames, type CommitmentFilter, type ScoreMode } from "@/lib/match-scoring";
+import { scoreSessionGames } from "@/lib/match-scoring";
+import { permittedPickParticipantIds } from "@/lib/pick/access";
+import { parsePickQuery, serializePickQuery, type PickSearchParams } from "@/lib/pick/query";
 import { prisma } from "@/lib/prisma";
 import {
   type BestTime,
@@ -35,10 +37,11 @@ export const metadata = { robots: { index: false, follow: false } };
 
 type PageProps = {
   params: Promise<{ shareToken: string }>;
-  searchParams: Promise<{
+  searchParams: Promise<PickSearchParams & {
     participant?: string;
     tab?: string;
     gameSearch?: string;
+    search?: string;
     scoreMode?: string;
     playerCount?: string;
     selectedParticipants?: string | string[];
@@ -52,6 +55,8 @@ type PageProps = {
     imported?: string;
     sessionMinutes?: string;
     commitment?: string;
+    selectionExplicit?: string;
+    setup?: string;
   }>;
 };
 
@@ -61,11 +66,10 @@ type RecommendationTime = BestTime & {
 
 export default async function SessionPage({ params, searchParams }: PageProps) {
   const { shareToken } = await params;
+  const queryParams = await searchParams;
   const {
-    gameSearch,
-    scoreMode,
-    playerCount,
-    selectedParticipants,
+    gameSearch: legacyGameSearch,
+    search,
     groupBudget,
     groupGenre,
     groupMode,
@@ -74,9 +78,8 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     avoidOwned,
     saleOnly,
     imported,
-    sessionMinutes,
-    commitment,
-  } = await searchParams;
+  } = queryParams;
+  const gameSearch = search ?? legacyGameSearch;
   const justImportedCount = imported ? Math.max(0, Number(imported) || 0) : null;
   const session = await prisma.session.findUnique({
     where: { shareToken },
@@ -104,16 +107,14 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   }
 
   const activeTab = session.workspaceType === "PICK" ? "pick" : "plan";
-  const activeScoreMode = parseScoreMode(scoreMode);
-  const pickReturnTo = `/s/${shareToken}?tab=pick`;
-  const currentUser =
-    activeTab === "pick"
-      ? await requireActivePickUser(pickReturnTo)
-      : await getCurrentUser();
+  const currentUser = await getCurrentUser();
+  const activePickUser = isActivePickUser(currentUser);
   const cookieParticipantId = await getParticipantId(session.id);
-  const participantId =
-    session.participants.find((participant) => participant.userId === currentUser?.id)?.id ??
-    session.participants.find((participant) => participant.id === cookieParticipantId)?.id;
+  const accountParticipantId = session.participants.find((participant) => participant.userId === currentUser?.id)?.id;
+  const participantId = activeTab === "pick"
+    ? activePickUser ? accountParticipantId : undefined
+    : accountParticipantId ?? session.participants.find((participant) => participant.id === cookieParticipantId)?.id;
+  const canAccessPrivatePick = activeTab === "pick" && Boolean(currentUser && participantId && activePickUser);
   const appUrl = await getAppUrl();
   const shareUrl = session.gameNight
     ? `${appUrl}/n/${session.gameNight.shareToken}`
@@ -205,12 +206,38 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const possibleResponses = Math.max(session.participants.length * slots.length, 1);
   const responsePercent = Math.round((responseTotal / possibleResponses) * 100);
   const bestMatchLabel = submittedPeople >= session.minimumPlayerCount ? "Best match" : submittedPeople > 0 ? "Best so far" : "Waiting for responses";
-  const selectedParticipantIds = normalizeSelectedParticipants(selectedParticipants, session.participants.map((participant) => participant.id));
-  const selectedPlayerCount = Math.max(1, Number(playerCount ?? session.minimumPlayerCount) || session.minimumPlayerCount);
-  const selectedSessionMinutes = Math.max(30, Math.min(480, Number(sessionMinutes ?? session.requiredDuration * 60) || session.requiredDuration * 60));
-  const selectedCommitment = parseCommitmentFilter(commitment);
+  const permittedParticipantIdList = canAccessPrivatePick && currentUser
+    ? await permittedPickParticipantIds({ viewerUserId: currentUser.id, participants: session.participants })
+    : [];
+  const parsedPickQuery = parsePickQuery(queryParams, {
+    allowedParticipantIds: permittedParticipantIdList,
+    defaultSelectedParticipantIds: permittedParticipantIdList,
+    defaultPlayerCount: session.minimumPlayerCount,
+    defaultSessionMinutes: session.requiredDuration * 60,
+  });
+  const selectedParticipantIds = parsedPickQuery.selectedParticipantIds;
+  const selectedPlayerCount = parsedPickQuery.playerCount;
+  const selectedSessionMinutes = parsedPickQuery.sessionMinutes;
+  const selectedCommitment = parsedPickQuery.commitment;
+  const activeScoreMode = parsedPickQuery.scoreMode;
+  const defaultBuyFilters = defaultGroupBuyFilters(selectedPlayerCount);
+  const groupBuyFilters = {
+    ...parsedPickQuery.groupBuy,
+    playerCount: selectedPlayerCount,
+    budget: groupBudget === undefined ? defaultBuyFilters.budget : parsedPickQuery.groupBuy.budget,
+    genre: groupGenre === undefined ? defaultBuyFilters.genre : parsedPickQuery.groupBuy.genre,
+    mode: groupMode === undefined ? defaultBuyFilters.mode : parsedPickQuery.groupBuy.mode,
+    sessionLength: groupLength === undefined ? defaultBuyFilters.sessionLength : parsedPickQuery.groupBuy.sessionLength,
+    platform: groupPlatform === undefined ? defaultBuyFilters.platform : parsedPickQuery.groupBuy.platform,
+    avoidOwned: avoidOwned === undefined ? defaultBuyFilters.avoidOwned : parsedPickQuery.groupBuy.avoidOwned,
+    saleOnly: saleOnly === undefined ? defaultBuyFilters.saleOnly : parsedPickQuery.groupBuy.saleOnly,
+  };
+  const pickQuery = { ...parsedPickQuery, groupBuy: groupBuyFilters };
+  const preservedPickParams = serializePickQuery(pickQuery);
+  preservedPickParams.set("tab", "pick");
+  const pickDestination = `/s/${shareToken}?${preservedPickParams.toString()}`;
   const [initialSessionGameRows, searchResults, popularGames, trendingGames] =
-    activeTab === "pick"
+    canAccessPrivatePick
       ? await Promise.all([
           prisma.sessionGame.findMany({
             where: { sessionId: session.id },
@@ -236,7 +263,9 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     activeTab === "pick"
       ? rankSessionGames(initialSessionGames)
       : [];
+  const permittedParticipantIdsSet = new Set(permittedParticipantIdList);
   const participantUserIds = session.participants
+    .filter((participant) => permittedParticipantIdsSet.has(participant.id))
     .map((participant) => participant.userId)
     .filter((userId): userId is string => Boolean(userId));
   const selectedUserIdSet = new Set(
@@ -245,12 +274,9 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       .map((participant) => participant.userId)
       .filter((userId): userId is string => Boolean(userId)),
   );
-  const sessionGameUserIds = sessionGames
-    .map((sessionGame) => sessionGame.addedByUserId)
-    .filter((userId): userId is string => Boolean(userId));
-  const playtimeUserIds = [...new Set([...participantUserIds, ...sessionGameUserIds])];
+  const playtimeUserIds = [...new Set(participantUserIds)];
   const profileCandidateDbRows =
-    activeTab === "pick" && selectedUserIdSet.size > 0
+    canAccessPrivatePick && selectedUserIdSet.size > 0
       ? await prisma.userGame.findMany({
           where: {
             userId: { in: [...selectedUserIdSet] },
@@ -271,7 +297,6 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
             { recentlyPlayedAt: "desc" },
             { playtimeMinutes: "desc" },
           ],
-          take: 500,
         })
       : [];
   const profileCandidateRows = profileCandidateDbRows.map((row) => ({
@@ -281,7 +306,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const existingSessionGameIds = new Set(sessionGames.map((sessionGame) => sessionGame.gameId));
   const candidateGameIds = [...new Set(profileCandidateRows.map((userGame) => userGame.gameId))];
   const userGames =
-    activeTab === "pick"
+    canAccessPrivatePick
       ? await prisma.userGame.findMany({
           where: {
             userId: { in: playtimeUserIds },
@@ -348,10 +373,12 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           sessionMinutes: selectedSessionMinutes,
           commitment: selectedCommitment,
           mode: activeScoreMode,
+          setup: parsedPickQuery.setup,
+          selectionExplicit: parsedPickQuery.selectionExplicit,
         })
       : [];
   const [priceAlertEvents, latestFriendInvite, savedFriends, friendGroups] =
-    activeTab === "pick"
+    canAccessPrivatePick
       ? await Promise.all([
           prisma.priceAlertEvent.findMany({
             where: { sessionId: session.id },
@@ -393,19 +420,9 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
             : Promise.resolve([]),
         ])
       : [[], null, [], []];
-  const groupBuyFilters = parseGroupBuyFilters({
-    groupBudget,
-    groupGenre,
-    groupMode,
-    groupLength,
-    groupPlatform,
-    avoidOwned,
-    saleOnly,
-    selectedPlayerCount,
-  });
   const curatedSteamAppIds = curatedGames.map((game) => game.steamAppId).filter((steamAppId): steamAppId is number => Boolean(steamAppId));
   const curatedDbGames =
-    activeTab === "pick"
+    canAccessPrivatePick
       ? await prisma.game.findMany({
           where: { steamAppId: { in: curatedSteamAppIds } },
           include: { deals: { where: { country: session.dealCountry }, take: 1 } },
@@ -423,11 +440,12 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
         },
       ]),
   );
-  const ownedTitles = sessionGames
-    .filter((sessionGame) => sessionGame.signals.some((signal) => selectedParticipantIds.includes(signal.participantId) && (signal.signal === "OWNED" || signal.signal === "AVAILABLE_TO_PLAY")))
-    .map((sessionGame) => sessionGame.game.title);
+  const ownedGameIds = new Set(userGames.filter((userGame) => userGame.ownership === "HAVE").map((userGame) => userGame.gameId));
+  const ownedTitles = [...profileCandidateRows, ...sessionGames.map((sessionGame) => ({ gameId: sessionGame.gameId, game: sessionGame.game }))]
+    .filter((row) => ownedGameIds.has(row.gameId))
+    .map((row) => row.game.title);
   const groupBuyRecommendations =
-    activeTab === "pick"
+    canAccessPrivatePick
       ? scoreGroupBuyCandidates({
           filters: groupBuyFilters,
           ownedTitles,
@@ -544,11 +562,15 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
         <p className="font-medium text-ink/65">
           {currentParticipant ? (
             <>Responding as <strong className="text-ink">{currentParticipant.name}</strong> · Saved to this Game Night</>
+          ) : activeTab === "pick" ? (
+            currentUser
+              ? <>Join this Pick workspace to see and contribute private group matches.</>
+              : <>Sign in to join this Pick workspace. Steam is optional.</>
           ) : (
             <>Choose your name when you make your first response.</>
           )}
         </p>
-        {currentParticipant ? <Link href={`/s/${session.shareToken}${activeTab === "pick" ? "?tab=pick" : ""}`} className="font-semibold text-teal">Switch participant</Link> : null}
+        {currentParticipant && activeTab === "plan" ? <Link href={`/s/${session.shareToken}`} className="font-semibold text-teal">Switch participant</Link> : null}
       </div>
 
       {activeTab === "pick" && justImportedCount !== null ? (
@@ -556,7 +578,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       ) : null}
 
       {activeTab === "pick" ? (
-        <PickPanel
+        canAccessPrivatePick ? <PickPanel
           shareToken={session.shareToken}
           participantId={currentParticipant?.id ?? participantId}
           currentUser={currentUser}
@@ -586,7 +608,29 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           libraryConnectionSummary={libraryConnectionSummary}
           isHost={isCurrentHost}
           selectedSessionGameId={session.gameNight?.selectedSessionGameId}
-        />
+          query={pickQuery}
+        /> : (
+          <section className="surface mt-4 rounded-xl p-5">
+            <p className="text-sm font-black uppercase tracking-[0.14em] text-teal">Private group matching</p>
+            <h2 className="mt-2 text-2xl font-black text-ink">Join before viewing the group&apos;s games</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/62">
+              Membership keeps ownership, ratings, playtime and recommendations inside this Pick workspace. You can join without connecting Steam.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {!currentUser ? (
+                <Link href={signInUrl(pickDestination)} className="primary-button">Sign in to join</Link>
+              ) : !activePickUser ? (
+                <Link href={onboardingUrl(pickDestination)} className="primary-button">Finish account setup</Link>
+              ) : (
+                <form action={joinPickWorkspaceAction}>
+                  <input type="hidden" name="shareToken" value={session.shareToken} />
+                  <input type="hidden" name="returnTo" value={pickDestination} />
+                  <PendingSubmitButton className="primary-button" pendingLabel="Joining...">Join this Pick</PendingSubmitButton>
+                </form>
+              )}
+            </div>
+          </section>
+        )
       ) : (
       <section className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="grid gap-4">
@@ -630,6 +674,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
             shareToken={session.shareToken}
             participantId={currentParticipant?.id}
             participantName={currentParticipant?.name}
+            revision={currentParticipant?.availabilityRevision ?? 0}
             groupedSlots={groupedSlots}
             currentResponses={currentResponseRecord}
             compact={compactAvailability}
@@ -682,73 +727,6 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       )}
     </main>
   );
-}
-
-function parseGroupBuyFilters({
-  groupBudget,
-  groupGenre,
-  groupMode,
-  groupLength,
-  groupPlatform,
-  avoidOwned,
-  saleOnly,
-  selectedPlayerCount,
-}: {
-  groupBudget?: string;
-  groupGenre?: string;
-  groupMode?: string;
-  groupLength?: string;
-  groupPlatform?: string;
-  avoidOwned?: string;
-  saleOnly?: string;
-  selectedPlayerCount: number;
-}) {
-  const defaults = defaultGroupBuyFilters(selectedPlayerCount);
-
-  return {
-    budget: groupBudget ? Math.max(0, Math.round(Number(groupBudget) * 100)) : defaults.budget,
-    genre: groupGenre ?? defaults.genre,
-    playerCount: selectedPlayerCount,
-    mode: groupMode === "local" || groupMode === "either" ? groupMode : defaults.mode,
-    sessionLength: groupLength === "one-night" || groupLength === "long-term" || groupLength === "campaign" ? groupLength : defaults.sessionLength,
-    platform: groupPlatform ?? defaults.platform,
-    avoidOwned: avoidOwned !== "off",
-    saleOnly: saleOnly === "on",
-  };
-}
-
-function parseScoreMode(value?: string): ScoreMode {
-  if (value === "coop" || value === "backlog" || value === "cheap" || value === "familiar" || value === "fresh") {
-    return value;
-  }
-
-  return "balanced";
-}
-
-function parseCommitmentFilter(value?: string): CommitmentFilter {
-  const supported: CommitmentFilter[] = [
-    "any",
-    "one-session",
-    "under-10",
-    "10-30",
-    "30-100",
-    "100-1000",
-    "1000-plus",
-    "endless",
-  ];
-
-  return supported.includes(value as CommitmentFilter) ? (value as CommitmentFilter) : "any";
-}
-
-function normalizeSelectedParticipants(value: string | string[] | undefined, fallback: string[]) {
-  if (!value) {
-    return fallback;
-  }
-
-  const values = Array.isArray(value) ? value : value.split(",");
-  const selected = values.flatMap((candidate) => candidate.split(",")).filter(Boolean);
-
-  return selected.length > 0 ? selected : fallback;
 }
 
 function RecommendationList({

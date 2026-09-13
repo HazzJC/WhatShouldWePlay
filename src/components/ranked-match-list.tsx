@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { MatchCategory, ScoredGame } from "@/lib/match-scoring";
 
 const filters: Array<{ value: "all" | MatchCategory; label: string }> = [
@@ -12,22 +12,40 @@ const filters: Array<{ value: "all" | MatchCategory; label: string }> = [
   { value: "saleOpportunity", label: "On sale" },
 ];
 
+const pageSize = 16;
+
+const factorOrder = [
+  "ownership", "playerCount", "genreFit", "availability", "onlineCoop", "localCoop", "playtime", "freshness",
+  "interest", "price", "historicalLow", "popularity", "multiplayerFit", "durationFit", "personalRating",
+];
+
 export function RankedMatchList({
   games,
   provisional,
   selectedProfiles,
   requestedPlayers,
+  getDetailHref,
+  renderActions,
 }: {
   games: ScoredGame[];
   provisional: boolean;
   selectedProfiles: number;
   requestedPlayers: number;
+  getDetailHref?: (game: ScoredGame) => string | undefined;
+  renderActions?: (game: ScoredGame) => ReactNode;
 }) {
   const [filter, setFilter] = useState<(typeof filters)[number]["value"]>("all");
-  const visibleGames = useMemo(
-    () => games.filter((game) => filter === "all" || game.categories.includes(filter)).slice(0, 16),
+  const [visibleCount, setVisibleCount] = useState(pageSize);
+  const filteredGames = useMemo(
+    () => games.filter((game) => filter === "all" || game.categories.includes(filter)),
     [filter, games],
   );
+  const visibleGames = filteredGames.slice(0, visibleCount);
+
+  function selectFilter(value: (typeof filters)[number]["value"]) {
+    setFilter(value);
+    setVisibleCount(pageSize);
+  }
 
   return (
     <section className="mt-4">
@@ -40,7 +58,7 @@ export function RankedMatchList({
             <button
               key={option.value}
               type="button"
-              onClick={() => setFilter(option.value)}
+              onClick={() => selectFilter(option.value)}
               className={`focus-ring shrink-0 rounded-md px-3 py-2 text-sm font-semibold ${
                 filter === option.value ? "bg-teal text-white" : "border border-ink/10 bg-white text-ink/65"
               }`}
@@ -81,12 +99,23 @@ export function RankedMatchList({
               {game.platformFit === "mismatch" ? <span className="rounded bg-red-50 px-2 py-1 text-xs font-semibold text-red-800">Check cross-play</span> : null}
             </div>
             <ul className="mt-3 grid gap-1 text-sm leading-6 text-ink/65">
-              {game.reasons.slice(0, 2).map((reason) => <li key={reason}>{reason}</li>)}
+              {game.reasons.map((reason) => <li key={reason}>{reason}</li>)}
             </ul>
+            <div className="mt-3 rounded-md bg-paper px-3 py-2 text-xs leading-5 text-ink/60" aria-label="Ownership breakdown">
+              <span className="font-semibold text-ink">Ownership:</span> {game.ownership.have} have, {game.ownership.dontHave} don&apos;t have, {game.ownership.unknown} unknown, {game.ownership.missing} missing profile{game.ownership.missing === 1 ? "" : "s"}.
+            </div>
+            {game.alignmentReasons.length > 0 ? (
+              <div className="mt-3 rounded-md border border-ink/10 bg-paper px-3 py-2">
+                <p className="text-xs font-semibold text-ink">Alignment notes</p>
+                <ul className="mt-1 grid gap-1 text-xs leading-5 text-ink/60">
+                  {game.alignmentReasons.map((reason) => <li key={reason}>{reason}</li>)}
+                </ul>
+              </div>
+            ) : null}
             <details className="mt-3 border-t border-ink/10 pt-3">
               <summary className="cursor-pointer text-sm font-semibold text-teal">How this score was calculated</summary>
               <div className="mt-3 grid gap-2">
-                {game.factorBreakdown.slice(0, 8).map((factor) => (
+                {[...game.factorBreakdown].sort((a, b) => factorIndex(a.key) - factorIndex(b.key)).map((factor) => (
                   <div key={factor.key} className="grid grid-cols-[7rem_1fr_3rem] items-center gap-2 text-xs text-ink/55">
                     <span>{factor.label}</span>
                     <span className="h-1.5 overflow-hidden rounded-full bg-linen"><span className="block h-full rounded-full bg-teal" style={{ width: `${factor.value}%` }} /></span>
@@ -95,12 +124,30 @@ export function RankedMatchList({
                 ))}
               </div>
             </details>
+            {(getDetailHref?.(game) || renderActions) ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ink/10 pt-3">
+                {getDetailHref?.(game) ? <a href={getDetailHref(game)} className="focus-ring secondary-button px-3 py-2">Inspect details</a> : null}
+                {renderActions?.(game)}
+              </div>
+            ) : null}
           </article>
         ))}
         {visibleGames.length === 0 ? <p className="rounded-lg border border-dashed border-ink/20 p-5 text-sm text-ink/55 xl:col-span-2">No games match this filter yet.</p> : null}
       </div>
+      {visibleGames.length < filteredGames.length ? (
+        <div className="mt-4 flex justify-center">
+          <button type="button" onClick={() => setVisibleCount((count) => count + pageSize)} className="focus-ring secondary-button">
+            Show {Math.min(pageSize, filteredGames.length - visibleGames.length)} more matches
+          </button>
+        </div>
+      ) : null}
     </section>
   );
+}
+
+function factorIndex(key: string) {
+  const index = factorOrder.indexOf(key);
+  return index === -1 ? factorOrder.length : index;
 }
 
 function categoryLabel(category: MatchCategory) {

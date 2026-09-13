@@ -152,7 +152,11 @@ export async function setParticipantIdentity(
   };
 
   const identities = readParticipantIdentities(cookieStore.get(participantIdentityCookie)?.value);
-  identities[sessionId] = { participantId, isHost: Boolean(options.isHost), seenAt: Date.now() };
+  const previous = identities[sessionId];
+  const isHost = options.isHost ?? (
+    previous?.participantId === participantId ? previous.isHost : false
+  );
+  identities[sessionId] = { participantId, isHost, seenAt: Date.now() };
   const compact = Object.fromEntries(
     Object.entries(identities).sort((a, b) => b[1].seenAt - a[1].seenAt).slice(0, 20),
   );
@@ -206,33 +210,33 @@ function readParticipantIdentities(signed?: string): ParticipantIdentityMap {
 // one. Without a participant cookie, only the signed-in user's membership is
 // accepted.
 export async function resolveActingParticipantId(sessionId: string, suppliedId?: string | null) {
-  const cookieId = await getParticipantId(sessionId);
-
-  if (cookieId) {
-    if (suppliedId && suppliedId !== cookieId) {
-      return null;
-    }
-
-    const participant = await prisma.participant.findFirst({
-      where: { id: cookieId, sessionId },
+  const currentUser = await getCurrentUser();
+  if (currentUser) {
+    const membership = await prisma.participant.findUnique({
+      where: { sessionId_userId: { sessionId, userId: currentUser.id } },
       select: { id: true },
     });
 
-    return participant?.id ?? null;
+    if (!membership || (suppliedId && suppliedId !== membership.id)) {
+      return null;
+    }
+
+    return membership.id;
   }
 
-  const currentUser = await getCurrentUser();
-
-  if (!currentUser) {
+  const cookieId = await getParticipantId(sessionId);
+  if (!cookieId || (suppliedId && suppliedId !== cookieId)) {
     return null;
   }
 
-  const participant = await prisma.participant.findUnique({
-    where: { sessionId_userId: { sessionId, userId: currentUser.id } },
-    select: { id: true },
+  const guest = await prisma.participant.findFirst({
+    where: { id: cookieId, sessionId },
+    select: { id: true, userId: true },
   });
 
-  return participant?.id ?? null;
+  // A participant linked to an account is never an anonymous browser
+  // capability. This keeps account switching/logout from retaining authority.
+  return guest && !guest.userId ? guest.id : null;
 }
 
 export type OAuthState = {
@@ -341,9 +345,23 @@ export function parseOAuthState(signedState: string | null) {
 }
 
 export function safeInternalRedirect(value?: string | null) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+  if (
+    !value ||
+    !value.startsWith("/") ||
+    value.startsWith("//") ||
+    /[\\\u0000-\u001f\u007f]/.test(value)
+  ) {
     return "/";
   }
 
-  return value;
+  try {
+    const base = new URL("https://internal.invalid");
+    const destination = new URL(value, base);
+    if (destination.origin !== base.origin) {
+      return "/";
+    }
+    return `${destination.pathname}${destination.search}${destination.hash}`;
+  } catch {
+    return "/";
+  }
 }

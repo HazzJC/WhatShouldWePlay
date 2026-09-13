@@ -25,7 +25,7 @@ export default async function AccountLibraryPage({ searchParams }: PageProps) {
   const query = await searchParams;
   const user = await requireActivePickUser("/account/library");
   const search = query?.q?.trim() ?? "";
-  const page = Math.max(1, Number(query?.page) || 1);
+  const page = parseLibraryPage(query?.page);
   const pageSize = 50;
   const view = ["recent", "unrated", "wishlist", "unknown"].includes(query?.view ?? "") ? query?.view : undefined;
   const ownership = ["HAVE", "DONT_HAVE", "UNKNOWN"].includes(query?.ownership ?? "")
@@ -239,6 +239,11 @@ export default async function AccountLibraryPage({ searchParams }: PageProps) {
       ) : null}
     </main>
   );
+}
+
+export function parseLibraryPage(value?: string) {
+  const page = Number(value);
+  return Number.isSafeInteger(page) && page >= 1 && page <= 10_000 ? page : 1;
 }
 
 function libraryHref({ q, ownership, view, page }: { q?: string; ownership?: string; view?: string; page: number }) {

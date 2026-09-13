@@ -7,16 +7,20 @@ import { fromZonedTime } from "date-fns-tz";
 import { z } from "zod";
 import {
   getCurrentUser,
-  getHostParticipantId,
   resolveActingParticipantId,
+  safeInternalRedirect,
   setParticipantIdentity,
 } from "@/lib/auth";
+import { requireActivePickUser } from "@/lib/accounts";
 import { announceLockedSessionToDiscord, normalizeReminderPreferences } from "@/lib/discord";
 import { curatedGames, getCuratedGame } from "@/lib/curated-games";
 import { mergeCuratedMetadata } from "@/lib/curated-metadata";
 import { addGameToSession, addGamesToSessionBulk, importSteamGamesForUser, upsertGame } from "@/lib/games";
 import { getIgdbGameById, mapIgdbGame } from "@/lib/igdb";
 import { prisma } from "@/lib/prisma";
+import { actorCanManageSession, actorParticipantId, resolveSessionActor } from "@/lib/session/authorization";
+import { actionFailure, type ActionResult } from "@/lib/session/contracts";
+import { joinPickWorkspace } from "@/lib/session/membership";
 import { dateRangeFromPreset, generateCandidateWindows, generateHourlySlots, type DatePreset } from "@/lib/scheduling";
 import { getOwnedSteamGames, getRecentlyPlayedSteamGames } from "@/lib/steam";
 import { createShareToken } from "@/lib/tokens";
@@ -41,32 +45,16 @@ const timezoneSchema = z
 // share token is not enough to perform host-only actions (lock, remove game,
 // deal settings, price alerts) — otherwise anyone the link reaches could do them.
 async function requireHostParticipant(sessionId: string) {
-  const hostParticipantId = await getHostParticipantId(sessionId);
+  const actor = await resolveSessionActor(sessionId);
+  if (actorCanManageSession(actor)) {
+    const participantId = actorParticipantId(actor);
+    if (participantId) return participantId;
 
-  if (hostParticipantId) {
     const host = await prisma.participant.findFirst({
-      where: { id: hostParticipantId, sessionId, isHost: true },
+      where: { sessionId, isHost: true },
       select: { id: true },
     });
-
-    if (host) {
-      return host.id;
-    }
-  }
-
-  const currentUser = await getCurrentUser();
-  if (currentUser) {
-    const session = await prisma.session.findFirst({
-      where: {
-        id: sessionId,
-        OR: [
-          { participants: { some: { userId: currentUser.id, isHost: true } } },
-          { gameNight: { ownerUserId: currentUser.id } },
-        ],
-      },
-      select: { participants: { where: { isHost: true }, select: { id: true }, take: 1 } },
-    });
-    if (session?.participants[0]) return session.participants[0].id;
+    if (host) return host.id;
   }
 
   throw new Error(
@@ -244,6 +232,8 @@ const createPickSessionSchema = z.object({
   timezone: timezoneSchema.default("Europe/London"),
   initialGameSlug: z.string().trim().max(120).optional(),
   gameNightId: z.string().min(1).optional(),
+  playerCount: z.coerce.number().int().min(1).max(50).default(2),
+  setup: z.enum(["native", "modded", "either"]).default("native"),
 });
 
 export async function createPickSessionAction(formData: FormData) {
@@ -259,6 +249,8 @@ export async function createPickSessionAction(formData: FormData) {
     timezone: formData.get("timezone") || "Europe/London",
     initialGameSlug: formData.get("initialGameSlug") || undefined,
     gameNightId: formData.get("gameNightId") || undefined,
+    playerCount: formData.get("playerCount") || 2,
+    setup: formData.get("setup") || "native",
   });
 
   if (!parsed.success) {
@@ -282,7 +274,7 @@ export async function createPickSessionAction(formData: FormData) {
       shareToken: createShareToken(),
       mode: "ONLINE",
       requiredDuration: 2,
-      minimumPlayerCount: 2,
+      minimumPlayerCount: values.playerCount,
       dateRangeStart: fromZonedTime(`${dateRange.startsOn}T00:00:00`, values.timezone),
       dateRangeEnd: fromZonedTime(`${dateRange.endsOn}T00:00:00`, values.timezone),
       dailyStartHour: 18,
@@ -326,29 +318,47 @@ export async function createPickSessionAction(formData: FormData) {
       participantId: host.id,
       userId: currentUser.id,
       source: "COMMON",
-      signal: "OWNED",
     });
   }
 
-  redirect(`/s/${session.shareToken}?tab=pick&participant=${host.id}`);
+  const pickParams = new URLSearchParams({
+    tab: "pick",
+    participant: host.id,
+    playerCount: String(values.playerCount),
+    setup: values.setup,
+  });
+  redirect(`/s/${session.shareToken}?${pickParams.toString()}`);
 }
 
 const submitAvailabilitySchema = z.object({
   shareToken: z.string().min(1),
   participantId: z.string().optional(),
   participantName: z.string().trim().min(1).max(80),
+  revision: z.coerce.number().int().min(0),
 });
 
-export async function submitAvailabilityAction(formData: FormData) {
+type AvailabilitySaveData = { participantId: string; revision: number };
+
+class AvailabilityConflictError extends Error {}
+
+export async function submitAvailabilityAction(
+  _previousState: ActionResult<AvailabilitySaveData> | null,
+  formData: FormData,
+): Promise<ActionResult<AvailabilitySaveData>> {
   const currentUser = await getCurrentUser();
   const parsed = submitAvailabilitySchema.safeParse({
     shareToken: formData.get("shareToken"),
     participantId: formData.get("participantId") || undefined,
     participantName: formData.get("participantName"),
+    revision: formData.get("revision") ?? 0,
   });
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? "Could not save availability.");
+    return actionFailure(
+      "VALIDATION",
+      parsed.error.issues[0]?.message ?? "Could not save availability.",
+      Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0] ?? "form"), issue.message])),
+    );
   }
 
   const session = await prisma.session.findUnique({
@@ -370,14 +380,43 @@ export async function submitAvailabilityAction(formData: FormData) {
   });
 
   if (!session) {
-    throw new Error("Session not found.");
+    return actionFailure("NOT_FOUND", "Session not found.");
   }
 
   // Only let the caller edit a participant they actually own (proven by the
   // signed per-session cookie). A form-supplied id without a matching cookie is
   // ignored so a link-holder cannot overwrite someone else's availability.
   if (session.workspaceType !== "PLAN") {
-    throw new Error("Availability can only be saved in a Plan workspace.");
+    return actionFailure("FORBIDDEN", "Availability can only be saved in a Plan workspace.");
+  }
+
+  const allowedSlots = new Set(generateHourlySlots(session).map((slot) => slot.startsAt.toISOString()));
+  const rawResponses = Array.from(formData.entries()).filter(([key]) => key.startsWith("status:"));
+  if (rawResponses.length > allowedSlots.size || rawResponses.length > 800) {
+    return actionFailure("VALIDATION", "Too many availability slots were submitted.");
+  }
+  const seenSlots = new Set<string>();
+  const responses: Array<{
+    slotStart: Date;
+    slotEnd: Date;
+    status: "AVAILABLE" | "MAYBE" | "UNAVAILABLE";
+  }> = [];
+  for (const [key, value] of rawResponses) {
+    const slotKey = key.replace("status:", "");
+    if (!allowedSlots.has(slotKey) || seenSlots.has(slotKey)) {
+      return actionFailure("VALIDATION", "Availability contained an invalid or duplicate time slot.");
+    }
+    seenSlots.add(slotKey);
+    const status = String(value);
+    if (!["AVAILABLE", "MAYBE", "UNAVAILABLE"].includes(status)) {
+      return actionFailure("VALIDATION", "Availability contained an invalid status.");
+    }
+    const slotStart = new Date(slotKey);
+    responses.push({
+      slotStart,
+      slotEnd: new Date(slotStart.getTime() + 60 * 60 * 1000),
+      status: status as "AVAILABLE" | "MAYBE" | "UNAVAILABLE",
+    });
   }
 
   const actingParticipantId = await resolveActingParticipantId(session.id, parsed.data.participantId);
@@ -387,72 +426,76 @@ export async function submitAvailabilityAction(formData: FormData) {
       })
     : null;
 
-  const participant = existingParticipant
-    ? await prisma.participant.update({
-        where: { id: existingParticipant.id },
-        data: {
-          name: parsed.data.participantName,
-          userId: existingParticipant.userId ?? currentUser?.id,
-        },
-      })
-    : await prisma.participant.create({
-        data: {
-          sessionId: session.id,
-          name: parsed.data.participantName,
-          userId: currentUser?.id,
-        },
+  let participant: AvailabilitySaveData;
+  try {
+    participant = await prisma.$transaction(async (tx) => {
+      let savedParticipant: AvailabilitySaveData;
+      if (existingParticipant) {
+        const updated = await tx.participant.updateMany({
+          where: {
+            id: existingParticipant.id,
+            sessionId: session.id,
+            availabilityRevision: parsed.data.revision,
+          },
+          data: {
+            name: parsed.data.participantName,
+            userId: existingParticipant.userId ?? currentUser?.id,
+            availabilityRevision: { increment: 1 },
+          },
+        });
+        if (updated.count !== 1) {
+          throw new AvailabilityConflictError();
+        }
+        savedParticipant = {
+          participantId: existingParticipant.id,
+          revision: parsed.data.revision + 1,
+        };
+      } else {
+        const created = await tx.participant.create({
+          data: {
+            sessionId: session.id,
+            name: parsed.data.participantName,
+            userId: currentUser?.id,
+            availabilityRevision: 1,
+          },
+          select: { id: true, availabilityRevision: true },
+        });
+        savedParticipant = {
+          participantId: created.id,
+          revision: created.availabilityRevision,
+        };
+      }
+
+      await tx.availabilityResponse.deleteMany({
+        where: { participantId: savedParticipant.participantId },
       });
-
-  await setParticipantIdentity(session.id, participant.id);
-
-  const allowedSlots = new Set(generateHourlySlots(session).map((slot) => slot.startsAt.toISOString()));
-  const rawResponses = Array.from(formData.entries()).filter(([key]) => key.startsWith("status:"));
-  if (rawResponses.length > allowedSlots.size || rawResponses.length > 800) {
-    throw new Error("Too many availability slots were submitted.");
-  }
-  const seenSlots = new Set<string>();
-  const responses = rawResponses.map(([key, value]) => {
-    const slotKey = key.replace("status:", "");
-    if (!allowedSlots.has(slotKey) || seenSlots.has(slotKey)) {
-      throw new Error("Availability contained an invalid or duplicate time slot.");
+      if (responses.length > 0) {
+        await tx.availabilityResponse.createMany({
+          data: responses.map((response) => ({
+            participantId: savedParticipant.participantId,
+            slotStart: response.slotStart,
+            slotEnd: response.slotEnd,
+            status: response.status,
+          })),
+        });
+      }
+      return savedParticipant;
+    });
+  } catch (error) {
+    if (error instanceof AvailabilityConflictError) {
+      return actionFailure(
+        "CONFLICT",
+        "This availability was updated in another tab. Your draft is still here; refresh to compare before saving again.",
+      );
     }
-    seenSlots.add(slotKey);
-    const status = String(value);
-    if (!["AVAILABLE", "MAYBE", "UNAVAILABLE"].includes(status)) {
-      throw new Error("Availability contained an invalid status.");
-    }
-    const slotStart = new Date(slotKey);
-    return {
-      slotStart,
-      slotEnd: new Date(slotStart.getTime() + 60 * 60 * 1000),
-      status: status as "AVAILABLE" | "MAYBE" | "UNAVAILABLE",
-    };
-  });
-
-  const writes = [
-    prisma.availabilityResponse.deleteMany({
-      where: { participantId: participant.id },
-    }),
-  ];
-
-  if (responses.length > 0) {
-    writes.push(
-      prisma.availabilityResponse.createMany({
-        data: responses.map((response) => ({
-          participantId: participant.id,
-          slotStart: response.slotStart,
-          slotEnd: response.slotEnd,
-          status: response.status,
-        })),
-      }),
-    );
+    throw error;
   }
 
-  await prisma.$transaction(writes);
+  await setParticipantIdentity(session.id, participant.participantId);
   await touchGameNight(session.id);
 
   revalidatePath(`/s/${session.shareToken}`);
-  redirect(`/s/${session.shareToken}?participant=${participant.id}`);
+  redirect(`/s/${session.shareToken}?participant=${participant.participantId}`);
 }
 
 const lockSessionSchema = z.object({
@@ -615,23 +658,49 @@ export async function addSessionGameAction(formData: FormData) {
     participantId: participant?.id,
     userId: currentUser.id,
     source: parsed.data.source,
-    signal: "OWNED",
   });
-  if (currentUser) {
-    await prisma.userGame.upsert({
-      where: { userId_gameId: { userId: currentUser.id, gameId: game.id } },
-      create: {
-        userId: currentUser.id,
-        gameId: game.id,
-        source: parsed.data.source === "IGDB_SEARCH" ? "IGDB" : "MANUAL",
-        ownership: "HAVE",
-      },
-      update: { ownership: "HAVE" },
-    });
-  }
   await touchGameNight(session.id);
 
   revalidatePath(`/s/${session.shareToken}`);
+}
+
+const joinPickWorkspaceSchema = z.object({
+  shareToken: z.string().min(1),
+  returnTo: z.string().optional(),
+});
+
+export async function joinPickWorkspaceAction(formData: FormData) {
+  const parsed = joinPickWorkspaceSchema.safeParse({
+    shareToken: formData.get("shareToken"),
+    returnTo: formData.get("returnTo") || undefined,
+  });
+  if (!parsed.success) {
+    throw new Error("This Pick workspace link is invalid.");
+  }
+
+  const fallback = `/s/${parsed.data.shareToken}?tab=pick`;
+  const returnTo = safeInternalRedirect(parsed.data.returnTo ?? fallback);
+  const currentUser = await requireActivePickUser(returnTo);
+  const session = await prisma.session.findUnique({
+    where: { shareToken: parsed.data.shareToken },
+    select: { id: true, shareToken: true, workspaceType: true },
+  });
+  if (!session || session.workspaceType !== "PICK") {
+    throw new Error("Pick workspace not found.");
+  }
+
+  const participant = await joinPickWorkspace({
+    sessionId: session.id,
+    userId: currentUser.id,
+    displayName: currentUser.displayName,
+  });
+  await setParticipantIdentity(session.id, participant.id, { isHost: participant.isHost });
+  await touchGameNight(session.id);
+  revalidatePath(`/s/${session.shareToken}`);
+
+  const destination = new URL(returnTo, "https://internal.invalid");
+  destination.searchParams.set("participant", participant.id);
+  redirect(`${destination.pathname}${destination.search}${destination.hash}`);
 }
 
 async function resolveCanonicalGame(input: z.infer<typeof addSessionGameSchema>) {
@@ -646,8 +715,13 @@ async function resolveCanonicalGame(input: z.infer<typeof addSessionGameSchema>)
       where: { steamAppId: input.steamAppId },
       select: { id: true },
     });
-    if (!existing) throw new Error("Import or search for that Steam game before adding it.");
-    return existing;
+    if (existing) return existing;
+
+    const curated = curatedGames.find((candidate) => (
+      candidate.steamAppId === input.steamAppId || candidate.title === input.title
+    ));
+    if (!curated) throw new Error("Choose a verified catalog game.");
+    return upsertGame(mergeCuratedMetadata(curated));
   }
 
   if (input.source !== "MANUAL") {
@@ -1319,7 +1393,32 @@ export async function startPickSessionFromFriendGroupAction(formData: FormData) 
 
   const dateRange = dateRangeFromPreset("this_week", parsed.data.timezone);
   await prisma.user.update({ where: { id: currentUser.id }, data: { timezone: parsed.data.timezone } });
-  const acceptedMembers = group.members.filter((member) => member.status === "ACCEPTED" && member.userId && member.userId !== currentUser.id);
+  const acceptedMemberCandidates = group.members.filter(
+    (member) => member.status === "ACCEPTED" && member.userId && member.userId !== currentUser.id,
+  );
+  const candidateUserIds = acceptedMemberCandidates
+    .map((member) => member.userId)
+    .filter((userId): userId is string => Boolean(userId));
+  const blockedMemberships = candidateUserIds.length > 0
+    ? await prisma.userBlock.findMany({
+        where: {
+          OR: [
+            { blockerId: currentUser.id, blockedId: { in: candidateUserIds } },
+            { blockedId: currentUser.id, blockerId: { in: candidateUserIds } },
+          ],
+        },
+        select: { blockerId: true, blockedId: true },
+      })
+    : [];
+  const blockedUserIds = new Set(
+    blockedMemberships.flatMap((block) => [block.blockerId, block.blockedId]),
+  );
+  const acceptedMembers = acceptedMemberCandidates.filter(
+    (member) => member.userId && !blockedUserIds.has(member.userId),
+  );
+  if (acceptedMembers.length + 1 > 50) {
+    throw new Error("Saved groups can include at most 50 people in Pick.");
+  }
   const gameNightShareToken = createShareToken();
   const session = await prisma.session.create({
     data: {
@@ -1632,7 +1731,7 @@ export async function addFriendToGroupAction(formData: FormData) {
     throw new Error(parsed.error.issues[0]?.message ?? "Could not add friend to group.");
   }
 
-  const [group, friendship] = await Promise.all([
+  const [group, friendship, block] = await Promise.all([
     prisma.friendGroup.findFirst({
       where: { id: parsed.data.groupId, ownerId: currentUser.id },
       select: { id: true },
@@ -1641,9 +1740,18 @@ export async function addFriendToGroupAction(formData: FormData) {
       where: { userId_friendId: { userId: currentUser.id, friendId: parsed.data.friendId } },
       include: { friend: true },
     }),
+    prisma.userBlock.findFirst({
+      where: {
+        OR: [
+          { blockerId: currentUser.id, blockedId: parsed.data.friendId },
+          { blockerId: parsed.data.friendId, blockedId: currentUser.id },
+        ],
+      },
+      select: { id: true },
+    }),
   ]);
 
-  if (!group || !friendship) {
+  if (!group || !friendship || block) {
     throw new Error("Friend group or friend not found.");
   }
 

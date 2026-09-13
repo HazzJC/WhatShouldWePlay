@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import type { FormEvent } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, HelpCircle, X, type LucideIcon } from "lucide-react";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import type { AvailabilityStatus } from "@/lib/scheduling";
+import type { ActionResult } from "@/lib/session/contracts";
 
 type SlotView = {
   key: string;
@@ -23,10 +24,14 @@ type DayView = {
 };
 
 type AvailabilityFormProps = {
-  action: (formData: FormData) => void | Promise<void>;
+  action: (
+    state: ActionResult<{ participantId: string; revision: number }> | null,
+    formData: FormData,
+  ) => Promise<ActionResult<{ participantId: string; revision: number }>>;
   shareToken: string;
   participantId?: string;
   participantName?: string;
+  revision: number;
   groupedSlots: DayView[];
   currentResponses: Record<string, AvailabilityStatus>;
   compact: boolean;
@@ -78,16 +83,21 @@ export function AvailabilityForm({
   shareToken,
   participantId,
   participantName,
+  revision,
   groupedSlots,
   currentResponses,
   compact,
 }: AvailabilityFormProps) {
+  const [saveState, formAction] = useActionState(action, null);
   const [responses, setResponses] = useState<Record<string, AvailabilityStatus>>(currentResponses);
+  const [draftRevision, setDraftRevision] = useState(revision);
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [incompletePromptOpen, setIncompletePromptOpen] = useState(false);
   const [allowIncompleteSubmit, setAllowIncompleteSubmit] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const paintingStatus = useRef<AvailabilityStatus | null>(null);
+  const fillSubmitTimer = useRef<number | null>(null);
+  const hasUnsavedChanges = useRef(false);
   const allSlots = useMemo(() => groupedSlots.flatMap((group) => group.slots), [groupedSlots]);
   const allSlotKeys = allSlots.map((slot) => slot.key);
   const timeColumns = Array.from(new Set(allSlots.map((slot) => slot.time))).sort(
@@ -115,7 +125,23 @@ export function AvailabilityForm({
     return () => window.removeEventListener("pointerup", clearPaint);
   }, []);
 
+  useEffect(() => {
+    if (!hasUnsavedChanges.current) {
+      setResponses(currentResponses);
+      setDraftRevision(revision);
+    }
+  }, [currentResponses, revision]);
+
+  useEffect(() => {
+    return () => {
+      if (fillSubmitTimer.current !== null) {
+        window.clearTimeout(fillSubmitTimer.current);
+      }
+    };
+  }, []);
+
   function setSlots(slotKeys: string[], status: AvailabilityStatus) {
+    hasUnsavedChanges.current = true;
     setResponses((current) => {
       const next = { ...current };
       for (const slotKey of slotKeys) {
@@ -126,6 +152,7 @@ export function AvailabilityForm({
   }
 
   function cycleSlot(slotKey: string) {
+    hasUnsavedChanges.current = true;
     setResponses((current) => ({
       ...current,
       [slotKey]: nextStatus[current[slotKey] ?? "EMPTY"],
@@ -164,16 +191,25 @@ export function AvailabilityForm({
     setSlots(missingSlotKeys, "MAYBE");
     setAllowIncompleteSubmit(true);
     setIncompletePromptOpen(false);
-    window.setTimeout(() => formRef.current?.requestSubmit(), 0);
+    fillSubmitTimer.current = window.setTimeout(() => {
+      fillSubmitTimer.current = null;
+      formRef.current?.requestSubmit();
+    }, 0);
   }
 
   return (
-    <form ref={formRef} action={action} onSubmit={handleSubmit} className="surface overflow-hidden rounded-xl">
+    <form ref={formRef} action={formAction} onSubmit={handleSubmit} className="surface overflow-hidden rounded-xl">
       <input type="hidden" name="shareToken" value={shareToken} />
+      <input type="hidden" name="revision" value={draftRevision} />
       {participantId ? <input type="hidden" name="participantId" value={participantId} /> : null}
       {Object.entries(responses).map(([slotKey, status]) => (
         <input key={slotKey} type="hidden" name={`status:${slotKey}`} value={status} />
       ))}
+      {saveState && !saveState.ok ? (
+        <p role="alert" className="m-4 rounded-lg border border-coral/30 bg-coral/10 px-3 py-2 text-sm font-bold text-ink">
+          {saveState.message}
+        </p>
+      ) : null}
 
       <div className="sticky top-0 z-20 border-b border-ink/10 bg-white/95 p-4 backdrop-blur sm:p-5">
         <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(180px,0.7fr)_auto] lg:items-center">
@@ -307,8 +343,8 @@ export function AvailabilityForm({
             <div className="grid min-w-max gap-1" style={{ gridTemplateColumns: `8.5rem repeat(${timeColumns.length}, minmax(3.5rem, 1fr))` }}>
               <div />
               {timeColumns.map((time) => (
-                <div key={time} className="px-1 py-1 text-center text-xs font-black text-white/60">
-                  {time.split("-")[0]}
+                <div key={time} aria-label={`Time ${time}`} className="px-1 py-1 text-center text-xs font-black text-white/60">
+                  {time}
                 </div>
               ))}
 

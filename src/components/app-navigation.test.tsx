@@ -32,4 +32,15 @@ describe("AppNavigation", () => {
     expect(document.documentElement).toHaveAttribute("data-theme", "dark");
     expect(window.localStorage.getItem("theme-mode")).toBe("dark");
   });
+
+  it("cancels its account request when it unmounts", () => {
+    const fetchMock = vi.fn(() => new Promise(() => undefined));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const view = render(<AppNavigation />);
+    view.unmount();
+
+    const [, request] = fetchMock.mock.calls[0] as unknown as [unknown, RequestInit];
+    expect(request.signal?.aborted).toBe(true);
+  });
 });

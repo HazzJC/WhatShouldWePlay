@@ -25,6 +25,7 @@ import { RankedMatchList } from "@/components/ranked-match-list";
 import { GameSignalControls } from "@/components/game-signal-controls";
 import { TimezoneInput } from "@/components/timezone-input";
 import { GameArtwork } from "@/components/game-artwork";
+import { type PickQuery, serializePickQuery } from "@/lib/pick/query";
 
 export type SessionGameView = SessionGame & {
   game: Game & { steamStorePrice?: SteamStorePrice | null; deal?: GameDeal | null };
@@ -54,6 +55,7 @@ export function PickPanel({
   trendingGames,
   commonGames,
   searchQuery,
+  query,
   currentParticipantHasPickSignals,
   participants,
   selectedParticipantIds,
@@ -84,6 +86,7 @@ export function PickPanel({
   trendingGames: GameInput[];
   commonGames: GameInput[];
   searchQuery: string;
+  query?: PickQuery;
   currentParticipantHasPickSignals: boolean;
   participants: ParticipantView[];
   selectedParticipantIds: string[];
@@ -116,6 +119,23 @@ export function PickPanel({
   const reviewTitle = showFullGroupList ? "Best shared options" : "Review games already added";
   const reviewEyebrow = showFullGroupList ? "Group match" : "Start here";
   const selectedGame = sessionGames.find((sessionGame) => sessionGame.id === selectedSessionGameId);
+  const pickQuery = query ?? {
+    selectedParticipantIds,
+    selectionExplicit: true,
+    playerCount: selectedPlayerCount,
+    mode: "either",
+    setup: "native",
+    scoreMode,
+    sessionMinutes: selectedSessionMinutes,
+    commitment: selectedCommitment,
+    search: searchQuery,
+    page: 1,
+    pageSize: 24,
+    platforms: [],
+    genres: [],
+    tags: [],
+    groupBuy: groupBuyFilters,
+  } satisfies PickQuery;
 
   return (
     <section className="mt-4 grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_300px]">
@@ -223,13 +243,16 @@ export function PickPanel({
           shareToken={shareToken}
           participantId={participantId}
           participants={participants}
-          selectedParticipantIds={selectedParticipantIds}
-          selectedPlayerCount={selectedPlayerCount}
-          selectedSessionMinutes={selectedSessionMinutes}
-          selectedCommitment={selectedCommitment}
-          scoreMode={scoreMode}
+          selectedParticipantIds={pickQuery.selectedParticipantIds}
+          selectedPlayerCount={pickQuery.playerCount}
+          selectedSessionMinutes={pickQuery.sessionMinutes}
+          selectedCommitment={pickQuery.commitment}
+          scoreMode={pickQuery.scoreMode}
+          query={pickQuery}
           scoredGames={scoredGames}
           ownershipProfileCount={ownershipProfileCount}
+          isHost={isHost}
+          selectedSessionGameId={selectedSessionGameId}
         />
 
         <section id="pick-tools" className="surface order-5 rounded-xl p-4">
@@ -259,10 +282,11 @@ export function PickPanel({
                 <GroupBuyPanel
                   shareToken={shareToken}
                   participantId={participantId}
-                  filters={groupBuyFilters}
+                  filters={{ ...pickQuery.groupBuy, playerCount: pickQuery.playerCount }}
                   recommendations={groupBuyRecommendations}
                   currency={dealCurrency}
                   dealLookupConfigured={dealLookupConfigured}
+                  query={pickQuery}
                 />
               </div>
             </details>
@@ -323,7 +347,8 @@ export function PickPanel({
           <form className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]" action={`/s/${shareToken}`}>
             <input type="hidden" name="tab" value="pick" />
             {participantId ? <input type="hidden" name="participant" value={participantId} /> : null}
-            <input name="gameSearch" defaultValue={searchQuery} placeholder="Search games..." className="field mt-0" />
+            <PickQueryFields query={pickQuery} exclude={["search", "page"]} />
+            <input name="search" defaultValue={pickQuery.search} placeholder="Search games..." className="field mt-0" />
             <PendingSubmitButton className="primary-button" pendingLabel="Searching...">
               <Search className="h-4 w-4" />
               Search
@@ -439,8 +464,11 @@ function MatchDashboard({
   selectedSessionMinutes,
   selectedCommitment,
   scoreMode,
+  query,
   scoredGames,
   ownershipProfileCount,
+  isHost,
+  selectedSessionGameId,
 }: {
   id?: string;
   shareToken: string;
@@ -451,13 +479,18 @@ function MatchDashboard({
   selectedSessionMinutes: number;
   selectedCommitment: CommitmentFilter;
   scoreMode: ScoreMode;
+  query: PickQuery;
   scoredGames: ScoredGame[];
   ownershipProfileCount: number;
+  isHost: boolean;
+  selectedSessionGameId?: string | null;
 }) {
   const compatibleGames = scoredGames.filter((game) => game.playerCountStatus === "supported");
   const uncertainGames = scoredGames.filter((game) => game.playerCountStatus === "uncertain");
   const selectedProfileCount = selectedParticipantIds.length;
   const waitingForPlayers = selectedProfileCount < selectedPlayerCount;
+  const selectionConflict = selectedProfileCount > selectedPlayerCount;
+  const emptyExplicitSelection = query.selectionExplicit && selectedProfileCount === 0;
   const provisional = ownershipProfileCount < 2 || waitingForPlayers;
   const playersNeeded = Math.max(0, selectedPlayerCount - selectedProfileCount);
   const filters = [
@@ -469,6 +502,38 @@ function MatchDashboard({
     ["Played heavily", compatibleGames.filter((game) => isHeavilyPlayedGroupPick(game.playtimeMinutes)).length],
     ["Barely played", compatibleGames.filter((game) => isBarelyPlayedGroupPick(game.playtimeMinutes)).length],
   ] as const;
+
+  function renderMatchActions(game: ScoredGame) {
+    const isShortlisted = !game.sessionGameId.startsWith("profile:");
+
+    if (!isShortlisted) {
+      return (
+        <form action={addSessionGameAction}>
+          <input type="hidden" name="shareToken" value={shareToken} />
+          <input type="hidden" name="source" value="MANUAL" />
+          <input type="hidden" name="gameId" value={game.gameId} />
+          <input type="hidden" name="title" value={game.title} />
+          {participantId ? <input type="hidden" name="participantId" value={participantId} /> : null}
+          <PendingSubmitButton className="primary-button px-3 py-2" pendingLabel="Adding...">Add to shortlist</PendingSubmitButton>
+        </form>
+      );
+    }
+
+    return (
+      <>
+        <a href="#review-games" className="focus-ring secondary-button px-3 py-2">On shortlist</a>
+        {isHost ? (
+          <form action={selectFinalGameAction}>
+            <input type="hidden" name="shareToken" value={shareToken} />
+            <input type="hidden" name="sessionGameId" value={game.sessionGameId} />
+            <PendingSubmitButton className={game.sessionGameId === selectedSessionGameId ? "primary-button px-3 py-2" : "secondary-button px-3 py-2"} pendingLabel="Choosing...">
+              {game.sessionGameId === selectedSessionGameId ? "Final choice" : "Choose as final game"}
+            </PendingSubmitButton>
+          </form>
+        ) : null}
+      </>
+    );
+  }
 
   return (
     <section id={id} className="surface rounded-xl p-4 scroll-mt-4">
@@ -485,14 +550,16 @@ function MatchDashboard({
       <form className="mt-4 grid gap-4 rounded-lg border border-ink/10 bg-paper p-4" action={`/s/${shareToken}`}>
         <input type="hidden" name="tab" value="pick" />
         {participantId ? <input type="hidden" name="participant" value={participantId} /> : null}
+        <PickQueryFields query={query} exclude={["selectionExplicit", "selectedParticipantIds", "playerCount", "setup", "scoreMode", "sessionMinutes", "commitment", "page"]} />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(16rem,1fr)_8rem_10rem_11rem_12rem_auto] xl:items-end">
           <fieldset>
             <legend className="text-sm font-black text-ink">Players</legend>
+            <input type="hidden" name="selectionExplicit" value="true" />
             <div className="mt-2 flex flex-wrap gap-2">
               {participants.map((participant) => (
                 <label key={participant.id} className="inline-flex items-center gap-2 rounded-md border border-ink/10 bg-white px-3 py-2 text-sm font-bold text-ink">
                   <input
-                    name="selectedParticipants"
+                    name="selectedParticipantIds"
                     type="checkbox"
                     value={participant.id}
                     defaultChecked={selectedParticipantIds.includes(participant.id)}
@@ -505,7 +572,15 @@ function MatchDashboard({
           </fieldset>
           <label>
             <span className="text-sm font-black text-ink">Player count</span>
-            <input name="playerCount" type="number" min={1} max={30} defaultValue={selectedPlayerCount} className="field" />
+            <input name="playerCount" type="number" min={1} max={50} defaultValue={selectedPlayerCount} className="field" />
+          </label>
+          <label>
+            <span className="text-sm font-black text-ink">Setup</span>
+            <select name="setup" defaultValue={query.setup} className="field">
+              <option value="native">Native</option>
+              <option value="modded">Modded</option>
+              <option value="either">Either</option>
+            </select>
           </label>
           <label>
             <span className="text-sm font-black text-ink">Score mode</span>
@@ -548,6 +623,16 @@ function MatchDashboard({
           Matching {selectedProfileCount} of the requested {selectedPlayerCount} players. Results are provisional until {playersNeeded} more {playersNeeded === 1 ? "player joins" : "players join"}.
         </div>
       ) : null}
+      {selectionConflict ? (
+        <div role="alert" className="mt-4 rounded-lg border border-coral/35 bg-coral/10 p-3 text-sm font-bold leading-6 text-ink">
+          Player count cannot be smaller than the {selectedProfileCount} selected people. Increase it or deselect someone; your choices have been kept.
+        </div>
+      ) : null}
+      {emptyExplicitSelection ? (
+        <div role="alert" className="mt-4 rounded-lg border border-coral/35 bg-coral/10 p-3 text-sm font-bold leading-6 text-ink">
+          Choose at least one person to calculate private group matches. Your other filters have been kept.
+        </div>
+      ) : null}
 
       <div className="mt-4 flex flex-wrap gap-2" aria-label="Match summary counts">
         {filters.map(([label, count]) => (
@@ -570,6 +655,8 @@ function MatchDashboard({
           provisional={provisional}
           selectedProfiles={selectedProfileCount}
           requestedPlayers={selectedPlayerCount}
+          getDetailHref={(game) => `/games/id/${encodeURIComponent(game.gameId)}`}
+          renderActions={renderMatchActions}
         />
         {uncertainGames.length > 0 ? (
           <section className="rounded-lg border border-gold/35 bg-gold/10 p-4">
@@ -577,9 +664,14 @@ function MatchDashboard({
             <p className="mt-1 text-sm leading-6 text-ink/62">
               These games are not hidden because their player limit is unknown. Add curated metadata or pick a known-capacity game for stronger recommendations.
             </p>
-            <div className="mt-3 grid gap-3 lg:grid-cols-2">
-              {uncertainGames.slice(0, 4).map((game) => <ScoredGameCard key={`uncertain-${game.sessionGameId}`} game={game} />)}
-            </div>
+            <RankedMatchList
+              games={uncertainGames}
+              provisional={true}
+              selectedProfiles={selectedProfileCount}
+              requestedPlayers={selectedPlayerCount}
+              getDetailHref={(game) => `/games/id/${encodeURIComponent(game.gameId)}`}
+              renderActions={renderMatchActions}
+            />
           </section>
         ) : null}
       </div>
@@ -826,6 +918,7 @@ function GroupBuyPanel({
   recommendations,
   currency,
   dealLookupConfigured,
+  query,
 }: {
   shareToken: string;
   participantId?: string;
@@ -833,6 +926,7 @@ function GroupBuyPanel({
   recommendations: GroupBuyRecommendation[];
   currency: string;
   dealLookupConfigured: boolean;
+  query: PickQuery;
 }) {
   const labels: Record<GroupBuyRecommendation["section"], string> = {
     bestOverall: "Best overall group buy",
@@ -854,6 +948,7 @@ function GroupBuyPanel({
       <form className="mt-4 grid gap-3 rounded-lg border border-ink/10 bg-paper p-4 md:grid-cols-4" action={`/s/${shareToken}`}>
         <input type="hidden" name="tab" value="pick" />
         {participantId ? <input type="hidden" name="participant" value={participantId} /> : null}
+        <PickQueryFields query={query} exclude={["groupBudget", "groupGenre", "groupMode", "groupLength", "groupPlatform", "avoidOwned", "saleOnly", "page"]} />
         <label>
           <span className="text-xs font-black uppercase tracking-[0.12em] text-ink/45">Budget</span>
           <input name="groupBudget" type="number" step="0.01" defaultValue={filters.budget / 100} className="field" />
@@ -888,11 +983,13 @@ function GroupBuyPanel({
           <p className="mt-1 font-black text-ink">{filters.playerCount}</p>
         </div>
         <label className="inline-flex items-center gap-2 text-sm font-bold text-ink">
-          <input name="avoidOwned" type="checkbox" defaultChecked={filters.avoidOwned} className="h-4 w-4 accent-teal" />
+          <input name="avoidOwned" type="checkbox" value="true" defaultChecked={filters.avoidOwned} className="h-4 w-4 accent-teal" />
+          <input type="hidden" name="avoidOwned" value="false" />
           Avoid already-owned
         </label>
         <label className="inline-flex items-center gap-2 text-sm font-bold text-ink">
-          <input name="saleOnly" type="checkbox" defaultChecked={filters.saleOnly} className="h-4 w-4 accent-teal" />
+          <input name="saleOnly" type="checkbox" value="true" defaultChecked={filters.saleOnly} className="h-4 w-4 accent-teal" />
+          <input type="hidden" name="saleOnly" value="false" />
           Sale only
         </label>
         <button className="secondary-button md:col-span-2" type="submit">Update group buy</button>
@@ -924,6 +1021,17 @@ function GroupBuyPanel({
         )}
       </div>
     </section>
+  );
+}
+
+function PickQueryFields({ query, exclude = [] }: { query: PickQuery; exclude?: string[] }) {
+  const excluded = new Set(exclude);
+  return (
+    <>
+      {[...serializePickQuery(query)].filter(([name]) => !excluded.has(name)).map(([name, value], index) => (
+        <input key={`${name}-${index}`} type="hidden" name={name} value={value} />
+      ))}
+    </>
   );
 }
 
