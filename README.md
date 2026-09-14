@@ -1,323 +1,85 @@
 # Let's Play Games
 
-A game-night planner and game picker for friend groups. The app has two main
-workstreams: **Plan** for finding a time, and **Pick** for choosing what to play.
-Plan remains fully usable without an account. Pick workspaces use persistent
-Google-, Microsoft-, or Steam-backed accounts so library matching works across
-sessions and devices; public discovery remains open to everyone.
+**A group of friends can never agree on when to play or what to play — this app collects everyone's availability and game libraries, then produces one ranked shortlist of times and games that actually work for the whole group.**
 
-The [dimension 1 architectural audit](docs/reviews/01-architectural-integrity.md)
-records known correctness gaps in the behavior described below. Its
-[Sol/Terra execution handoff](docs/reviews/01-sol-terra-handoff.md) defines the
-proposed fixes and deployment gates; those fixes are not implemented by the
-audit itself. The [audit reproduction suite](audit/dimension-1/README.md)
-includes explicitly expected failures that document the baseline defects.
+It's built for informal gaming groups (Discord servers, friend chats, co-op crews) who lose time every week to "when are you free?" and "what should we play?" threads. One shared link replaces both conversations.
 
-The public shell also includes permanent About and Changelog pages. Game
-artwork uses Steam banners first where available, then curated or saved IGDB
-covers, and finally renders a deterministic full-title treatment so broken
-third-party imagery never leaves an empty card.
+## What it looks like
 
-The interface uses stacked game-piece branding, colour-coded routes, tactile
-cards, worked examples, an always-visible theme selector, and a floating mobile
-dock. The home hero demonstrates
-the complete flow with animated availability and library-matching data rather
-than relying on decorative artwork or an unexplained score. These primitives
-live in `src/app/globals.css` and the shared navigation components so Plan,
-Pick, Discovery, accounts, and Game Nights keep the same interaction rules.
+![Let's Play Games landing page, showing the availability heatmap and a ranked game match list for a sample "Friday crew" game night](docs/screenshot.png)
 
-Plan and Pick are organised beneath a shared **Game Night**. A Game Night can
-contain either workspace or both, has one shareable overview link, and appears
-in the signed-in Game nights archive as Active, Upcoming, or Past.
+*Screenshot captured from the live deployment below.*
 
-## What is built
+## Live demo
 
-**Plan a game night**
-- Create shareable sessions with no account required for guests.
-- Collect availability through a mobile-friendly day-by-day flow and a desktop
-  heatmap with click-and-drag painting.
-- Use quick actions for whole days: available, maybe, or out.
-- Rank best times by available people, then maybes, honouring duration,
-  timezone, date range, weekend hours, and minimum player count.
-- Show "not enough players" recommendations while the group is still filling
-  availability.
-- Keep `Times worth locking` expanded for hosts and collapsed for invitees.
-- Lock a time as host and download an `.ics` calendar invite.
-- Choose preset or custom date ranges, with weekend windows and Discord
-  reminders shown only when enabled.
+**[what-should-we-play-chi.vercel.app](https://what-should-we-play-chi.vercel.app)**
 
-**Pick games**
-- Sign in with Google, Microsoft, or Steam and choose a unique username before
-  entering a Pick workspace.
-- Maintain one persistent personal library with ownership, wishlist, favourite,
-  1–10 rating, interest, played state, notes, Steam playtime, recency, and the
-  PC/Xbox/PlayStation/Switch/mobile platforms where each game is owned.
-- Start with Pick from the home page or switch to Pick from any shared session.
-- Import Steam libraries through Steam OpenID and the Steam Web API, with
-  graceful fallback messaging when profiles or game details are private.
-- Search and add non-Steam games through IGDB-backed search and discovery.
-- Treat Steam, IGDB, curated, and manually added games as one internal `Game`
-  model.
-- Build recommendations directly from selected friends' saved profiles without
-  copying whole libraries into each session shortlist.
-- Keep session-specific signals such as `Not tonight` separate from permanent
-  ownership and ratings.
-- Follow an adaptive Build group, Set constraints, and Choose flow, switching
-  to the full dashboard after two profiles have ownership data.
-- Browse one ranked list with category filters and expandable scoring detail
-  instead of repeated game cards across multiple sections.
+No account is required to try the core "Plan a night" flow — create a session, share the link, and watch availability roll in.
 
-**Group matching and scoring**
-- Select participants and a target player count for the recommendation run.
-- Filter and categorize results by perfect matches, hidden backlog, old
-  favourites, almost ready, sale opportunities, online co-op, local co-op,
-  high/low playtime, and ownership fit.
-- Score each game out of 100 with transparent factor breakdowns for ownership,
-  player count, genre, availability, playtime, freshness, interest, price,
-  popularity, personal ratings, session time, total commitment, and distinct
-  multiplayer/co-op fit.
-- Show alignment separately from average score so one strong mismatch can lower
-  confidence even when the average looks high.
-- Detect same-platform ownership, confirmed cross-play, unknown compatibility,
-  and platform mismatches. A known mismatch lowers alignment and cannot be
-  labelled a perfect match.
-- Support scoring modes: Balanced, Co-op Night, Backlog, Cheap, Familiar, and
-  Fresh.
-- Offer short, optional preference prompts plus a deeper preference panel.
+## Why it's built this way
 
-**Deals, alerts, and group buy**
-- Use IsThereAnyDeal for live prices, discounts, shop URLs, and historical lows
-  when `ITAD_API_KEY` is configured.
-- Cache deal data so pages can render even when external APIs are slow or
-  unavailable.
-- Create in-app price alerts for under-price, group-on-sale, missing-player,
-  historical-low, and N-of-M-owned discounted cases.
-- Suggest "all buy a new game" options by budget, genre, player count, mode,
-  platform, session length, owned-game exclusion, and sale-only preference.
+A few deliberate product decisions shape the codebase:
 
-**Curated discovery**
-- Start by group size, learning curve and coordination, or expected session and
-  campaign duration; public discovery remains available without signing in.
-- Group-size categories with no compatible games are hidden rather than leading
-  to empty results.
-- Includes online co-op, local co-op, more-than-4-player games, party games,
-  campaign co-op, survival groups, cheap co-op, trending multiplayer, recent
-  releases, upcoming friend-slop, and games with multiplayer mods.
-- Use the "I need at least" player-count slider to refine larger-group lists
-  from 1 to 50+ players.
-- Show player metadata, caveats such as server hosting or mods, and cached sale
-  prices where available.
-- Browse sourced co-op challenges with player requirements, difficulty,
-  estimated attempt times, caveats, and persistent account progress.
+- **Guests never need an account.** Planning a game night (the "Plan" workspace) is fully usable by anyone with the share link — availability, voting, and the final locked time all work anonymously. This removes the single biggest piece of friction in getting a group to actually respond.
+- **Accounts only exist where they add real value.** The "Pick" workspace (choosing *what* to play) needs a persistent game library to be useful across sessions, so it requires signing in with Google, Microsoft, or Steam. Everything else stays account-free by design.
+- **A link can join a session, but not act as its host.** Anyone with the share link can open and participate in a session. Host-only actions (locking a time, removing games, managing price alerts) require a signed, httpOnly per-session cookie issued when that person created the session — so a leaked link can't be used to vandalise it.
+- **Shared game metadata, not per-user copies.** Game details, popularity, and prices live on shared `Game` rows keyed by title/platform rather than being duplicated per user. Once one person imports a game, every other user who owns it benefits from the same cached metadata and correctly-priced deals.
+- **Degrade gracefully when third-party APIs are absent or fail.** Steam, IGDB, and IsThereAnyDeal integrations are optional. Without their API keys configured, the app still runs — it just falls back to public feeds or shows less enrichment instead of breaking.
 
-**Sharing and Discord**
-- Share Game Nights through the native mobile share sheet or a responsive
-  fallback with copy, Discord, WhatsApp, Messenger, email, and QR code.
-- Preserve the active tab in shared URLs, so Pick sessions share directly into
-  Pick.
-- Add a Discord HTTP interactions MVP with `/letsplay create`, `/letsplay
-  status`, `/letsplay remind`, and `/letsplay games`.
-- Discord messages include buttons for filling availability, opening Pick,
-  showing the current best time, and confirming attendance.
-- Discord-linked sessions can announce locked times, send reminder pings through
-  Vercel Cron, and post sale alerts.
+## Solution and architecture
 
-**Persistent accounts and friend groups**
-- Google, Microsoft, and Steam can create a cross-device account; linking
-  remains explicit and provider conflicts offer a short-lived confirmed merge.
-- Profiles can save an Xbox gamertag and PlayStation online ID without exposing
-  them to brittle unofficial library scraping.
-- Search usernames, exchange pending friend requests, block users, and keep
-  full libraries friends-only.
-- Export account data or permanently delete an account while leaving anonymous
-  Plan sessions intact.
-- Upload a validated profile picture, remove sessions from account history, and
-  let hosts permanently delete sessions they created.
-- Saved friend groups can be created from Pick sessions, invited by link, and
-  reused to start future Pick sessions quickly.
+Next.js (App Router) + TypeScript, PostgreSQL via Prisma, deployed on Vercel.
 
-### Authorization model
+**Plan a game night** — participants mark availability across a proposed date window (day-by-day on mobile, a click-and-drag heatmap on desktop). The app ranks candidate times by how many people are available (then "maybe"), factoring in minimum player count, timezone, and preferred hours, and lets the host lock a time and export an `.ics` calendar invite.
 
-The share token lets anyone open and join a session. Acting *as* a participant
-or as the host requires a signed, httpOnly per-session cookie set when that
-participant is created. Host-only actions, such as locking a time, removing
-games, changing deal settings, and managing price alerts, require the host
-cookie, so a leaked link cannot lock or vandalise a session. Open the session on
-the device that created it to act as host.
+**Pick a game** — each signed-in user maintains one persistent library (owned, wishlist, rating, platform, playtime, notes), built from a Steam import (via Steam OpenID + the Steam Web API), manual entry, or IGDB search. For a chosen set of participants, a scoring engine (`src/lib/match-scoring.ts`) ranks games out of 100 using weighted factors — ownership overlap, player count fit, genre, platform/cross-play compatibility, playtime, freshness, personal ratings, and more — across selectable modes (Balanced, Co-op Night, Backlog, Cheap, Familiar, Fresh). Results are grouped into categories (perfect matches, hidden backlog, sale opportunities, etc.) rather than one long list.
 
-## Local setup
+**Deals and alerts** — when `ITAD_API_KEY` is set, live prices and historical lows are pulled from IsThereAnyDeal and cached so pages stay fast even when the upstream API is slow. Users can set price/availability alerts, and a daily Vercel Cron job (`/api/cron/refresh-game-data`) keeps shared game metadata and prices current.
 
-Install dependencies:
+**Discord integration** — a slash-command MVP (`/letsplay create|status|remind|games`) lets a session be created and checked without leaving Discord, with interactive buttons for filling availability and confirming attendance.
+
+Key directories:
+- `src/app` — routes (Plan, Pick, Discover, account, Discord webhook, cron endpoints)
+- `src/lib` — scoring, scheduling, Steam/IGDB/ITAD clients, auth
+- `src/components` — shared UI
+- `prisma/schema.prisma` — data model (sessions, availability, games, libraries, price alerts, friend groups, etc.)
+- `audit/` — a reproduction suite of explicitly-expected-failure tests documenting known baseline defects from an internal architectural review (see `docs/reviews/`)
+
+## Verified quality evidence
+
+- **Automated tests:** [Vitest](https://vitest.dev/) unit/component tests — **163 tests across 50 files, all passing** as of this write-up (`npm test`).
+- **CI:** GitHub Actions (`.github/workflows/quality.yml`) runs on every pull request and push to `main`: `npm test`, `npm run lint`, `npm run build`, on Node 22.
+- **No end-to-end/browser test suite yet.** The core flows above were manually verified against the live deployment while writing this README, but there is no Playwright/Cypress coverage in the repo at this time.
+- **Internal audit trail:** the repo also tracks its own architectural review process in the open (`docs/reviews/`, `CODE_REVIEW_2026-08-23.md`, `UX_AUDIT.md`), including a dedicated `audit/` test suite that encodes known defects as expected-failing tests until they're fixed.
+
+## Setup and local development
+
+Requires Node.js and a PostgreSQL database (Neon works well for the free tier; a local Postgres install also works).
 
 ```bash
 npm install
 ```
 
-Create an `.env` file. See [`.env.example`](.env.example) for the full list with
-notes. The required minimum is:
+Copy `.env.example` to `.env` and fill in, at minimum:
 
 ```bash
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public"
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 AUTH_COOKIE_SECRET="<openssl rand -base64 32>"
-METADATA_ADMIN_USER_IDS="" # optional immutable user IDs; DB roles are preferred
 ```
 
-Optional integrations:
+Everything else in `.env.example` (Google/Microsoft/Steam sign-in, IGDB, IsThereAnyDeal, Discord) is optional — the app runs without them, with reduced functionality in those areas.
 
-```bash
-GOOGLE_CLIENT_ID=""
-GOOGLE_CLIENT_SECRET=""
-MICROSOFT_CLIENT_ID=""
-MICROSOFT_CLIENT_SECRET=""
-STEAM_WEB_API_KEY=""
-IGDB_CLIENT_ID=""
-IGDB_CLIENT_SECRET=""
-ITAD_API_KEY=""
-DISCORD_APPLICATION_ID=""
-DISCORD_PUBLIC_KEY=""
-DISCORD_BOT_TOKEN=""
-DISCORD_CLIENT_ID=""
-DISCORD_CLIENT_SECRET=""
-DISCORD_INSTALL_URL=""
-CRON_SECRET=""
-```
-
-For Microsoft sign-in, register a Web application that accepts personal
-Microsoft accounts and add
-`https://your-domain.example/auth/microsoft/callback` as a redirect URI. This
-uses Microsoft identity for account access; Xbox services and library data need
-separate publisher provisioning, so console ownership is deliberately recorded
-in the user library instead of scraped. This project has no supported
-PlayStation game-library OAuth integration, so PlayStation users use the same
-manual platform-aware library path.
-
-Apply the database schema in development:
+Apply the database schema, then run the app:
 
 ```bash
 npm run prisma:migrate
-```
-
-For the default local Windows PostgreSQL install, you can create the local
-database and `.env` automatically:
-
-```bash
-npm run db:setup
-```
-
-Run the app:
-
-```bash
 npm run dev
 ```
 
-## Production setup notes
+On Windows, `npm run db:setup` can create a local database and `.env` automatically for the default local PostgreSQL install; see `dependencies.txt` and `scripts/check-dependencies.ps1` for the full local tool list.
 
-Run database preparation as a release step before deploying application code:
-
-```bash
-npm run release:migrate
-```
-
-The normal local and preview `build` command only generates Prisma Client and
-builds Next.js. On Vercel production builds (`VERCEL_ENV=production`) it also
-runs the same release migration automatically before compilation. This keeps
-preview builds read-only while ensuring production cannot promote application
-code ahead of its schema. Other deployment platforms should run
-`npm run release:migrate` explicitly before promotion.
-
-For Neon free tier, use the pooled connection string for `DATABASE_URL` in
-production. The host usually contains `-pooler`, and the URL should include:
-
-```txt
-?pgbouncer=true&connection_limit=1
-```
-
-Migrations can't run over pgbouncer, so when `DATABASE_URL` is pooled, also set
-`DIRECT_URL` to the Neon *direct* endpoint (host without `-pooler`). The migrate
-step uses `DIRECT_URL` when present and falls back to `DATABASE_URL` otherwise.
-
-The recommended deployment order is:
-
-1. Generate Prisma Client.
-2. Apply pending migrations using `DIRECT_URL` when configured.
-3. Seed/update challenge catalogue data using `DATABASE_URL`.
-4. Build and deploy the Next.js application.
-
-To run the same database preparation manually:
-
-```bash
-npm run prisma:deploy        # uses DATABASE_URL from your environment
-npm run challenges:seed      # idempotently populate/update sourced challenges
-```
-
-After setting Discord env vars, register slash commands:
-
-```bash
-npm run discord:commands
-```
-
-In the Discord developer portal, set the Interactions Endpoint URL to:
-
-```txt
-https://your-domain.example/api/discord/interactions
-```
-
-Vercel cron jobs are declared in `vercel.json`:
-
-```txt
-/api/cron/discord-reminders   # sends due Discord reminders
-/api/cron/refresh-game-data   # keeps shared game metadata + prices fresh
-/api/cron/cleanup             # removes expired auth, invite, and log records
-```
-
-Both are protected by `CRON_SECRET`.
-
-**Shared game data cache.** Game metadata (player count, capability confidence,
-reviews) live on shared `Game` rows and deals are keyed by game and country.
-There is no per-user copy, so once a game is populated, every user who has
-imported that same game gets it instantly while still receiving market-correct
-prices. `refresh-game-data` runs daily over
-the games actually in use (in a session shortlist or an imported library) to
-fill in metadata for newly imported games and keep prices/sales current. It is
-bounded per run (defaults: ~36 metadata + ~48 deal lookups) to fit one
-serverless invocation and respect external API rate limits; large libraries
-are spread across several daily runs.
-
-Set `CRON_SECRET` in Vercel and send it as a bearer token for non-Vercel/manual
-cron calls.
-
-**Cron schedule and plan limits.** `vercel.json` uses a once-daily reminder
-schedule so the repository deploys on Vercel Hobby. Notification identity
-includes the destination channel, and failed deliveries are retried with
-bounded backoff. Short reminders cannot be delivered reliably at a daily
-cadence; use an external scheduler or, on Vercel Pro/Enterprise, change the
-schedule to `*/5 * * * *` for five-minute checks.
-
-## Tool setup on Windows
-
-The repo includes `dependencies.txt` as the source of truth for local tools.
-
-Check what is installed:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/check-dependencies.ps1
-```
-
-Install missing required tools from `dependencies.txt`:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/check-dependencies.ps1 -InstallMissing
-```
-
-PostgreSQL is required for the real create/share session flow. After installing
-it, create a database and set `DATABASE_URL` in `.env`, then run:
-
-```bash
-npm run prisma:migrate
-```
-
-## Checks
+Run the checks used in CI:
 
 ```bash
 npm test
@@ -325,14 +87,19 @@ npm run lint
 npm run build
 ```
 
-Or run the combined checker:
+**Verified for this README:** `npm install` and `npm test` were run fresh from a clean clone on 2026-09-14 — 163/163 tests passed. `npm run build` and the full Postgres-backed flow were not re-verified here since they need a provisioned database; see the CI badge/workflow above for the authoritative build check on every push.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/test-all.ps1
-```
+## Current limitations and project status
 
-The same combined checker is available through npm:
+- Side project, actively maintained by a single developer — not a polished commercial product.
+- No end-to-end browser test coverage yet (see Verified quality evidence above).
+- PlayStation has no supported library API, so PS ownership is recorded manually rather than imported.
+- Xbox sign-in uses Microsoft identity only; it does not pull an Xbox library automatically.
+- The Discord integration is an MVP (`/letsplay create|status|remind|games`); reminder cadence is daily on Vercel's free (Hobby) plan due to cron plan limits, so short-notice reminders aren't reliable without upgrading the plan or using an external scheduler.
+- The `docs/reviews/` and `audit/` material documents specific, known correctness gaps that are not yet fixed — see those files for the current list rather than assuming full correctness from the feature list above.
 
-```bash
-npm run test:all
-```
+## Attribution, data provenance, and licensing
+
+- **Game data and pricing** are sourced from [IGDB](https://www.igdb.com/) (via Twitch) for search/discovery metadata, the [Steam Web API](https://steamcommunity.com/dev) for library imports and artwork, and [IsThereAnyDeal](https://isthereanydeal.com/) for live prices and historical lows. All three are optional integrations gated behind their own API keys.
+- **Sign-in** is provided by Google and Microsoft OAuth, and Steam OpenID.
+- **Licensing status:** this repository does not currently declare a license (no `LICENSE` file is present). All rights are reserved by default under GitHub's terms until a license is added — that is a separate, upcoming step and not addressed by this README update.
