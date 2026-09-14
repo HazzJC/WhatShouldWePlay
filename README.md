@@ -57,7 +57,7 @@ The project is a modular Next.js application rather than a distributed-services 
 
 ## Verification evidence
 
-The repository has a [GitHub Actions quality workflow](.github/workflows/quality.yml) that runs `npm ci`, `npm test`, `npm run lint`, and `npm run build` for pull requests and pushes to `main`.
+The repository has a [GitHub Actions quality workflow](.github/workflows/quality.yml) that runs `npm ci`, `npm test`, `npm run lint`, and `npm run build` for pull requests and pushes to `main`. The latest recorded [default-branch run](https://github.com/HazzJC/WhatShouldWePlay/actions/runs/34752302241) completed successfully for `13f329f` on 13 September 2026.
 
 The most recent current-source checks are run and reported with each documentation change. They establish source/test/build health only; they do **not** demonstrate a deployed database, OAuth provider, Discord application, or scheduled job.
 
